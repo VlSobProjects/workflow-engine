@@ -1,12 +1,15 @@
 from workflow_engine.output import ActionNodeOutput
-from workflow_engine.validators.functions_validators import action_param_file_exists_validator
+from workflow_engine.validators.functions_validators import (
+    action_file_exists_arg_validator,
+)
 
 
-@action_param_file_exists_validator({"file_path":0, "other_param":1, "another_param":3})
+@action_file_exists_arg_validator({"file_path":0, "other_param":1, "another_param":3})
 def function_with_params(file_path: str,
                          other_param: str,
                          number: int,
                          another_param: str) -> ActionNodeOutput:
+    print(f"Function called with file_path={file_path}, other_param={other_param}, number={number}, another_param={another_param}")
     return ActionNodeOutput(output="all good")
 
 

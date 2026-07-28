@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import wraps
 from pathlib import Path
 from typing import TypeVar
 
@@ -22,8 +23,22 @@ def _check_args[T](check_type:type[T],checker:Callable[[T],bool],chek_ars:dict[s
     return errors
 
 
+def not_empty_str_arg_validator(chek_ars:dict[str,int]):
+    def inner(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            print("VALIDATOR CALLED")
+            # Validate the arguments before calling the function
+            errors: list[str] = _check_args(str, lambda x: len(x) > 0, chek_ars, args=args, kwargs=kwargs)
+            if errors:
+                raise ValueError(f"Parameters validation failed for function '{func.__name__}': " + "; ".join(errors))
+            else:
+                return func(*args, **kwargs)
+        return wrapper
+    return inner
 
-def action_param_file_exists_validator(chek_ars:dict[str,int]):
+
+def action_file_exists_arg_validator(chek_ars:dict[str,int]):
     def inner(func):
         def wrapper(*args, **kwargs)->ActionNodeOutput:
             # Validate the arguments before calling the function

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from types import UnionType
 from typing import Self, TypeVar, get_type_hints
@@ -13,6 +13,14 @@ FUNCTION_PARAMETERS_KEY = "parameters"
 FUNCTION_NAME_KEY = "function_name"
 
 T = TypeVar('T', str, bool, str | None, ActionNodeOutput)
+
+type TFunc[T] = Callable[..., T]
+type TDecorator[T] = Callable[[TFunc[T]], TFunc[T]]
+
+
+type ActionNodeOutputFunc = Callable[..., ActionNodeOutput]
+type ActionNodeOutputDecorator = Callable[[ActionNodeOutputFunc], ActionNodeOutput]
+
 
 FUNCTION_REGISTRY: dict[str,RegisteredFunction] = {}
 VALIDATOR_REGISTRY: dict[str, RegisteredValidator] = {}
@@ -80,14 +88,53 @@ def _register[T](func: Callable[..., T],registry: dict[str, BaseRegisteredFuncti
     return func
 
 
-def register_function(func: Callable[..., ActionNodeOutput]) -> Callable[..., ActionNodeOutput]:
-    return _register(func, FUNCTION_REGISTRY,RegisteredFunction)
+def _reg[T](
+        func:TFunc[T] | None,
+        registry: dict[str,
+        BaseRegisteredFunction[T]],
+        register_type:type[BaseRegisteredFunction[T]],
+        decorators: Sequence[TDecorator[T]]
+):
+    def decorator(d_func: TFunc[T]) -> TFunc[T]:
+        wrapped: TFunc[T] = d_func
 
-def register_validator(func: Callable[..., bool]) -> Callable[..., bool]:
-    return _register(func, VALIDATOR_REGISTRY,RegisteredValidator)
+        for d in reversed(decorators):
+            wrapped = d(wrapped)
+            
+        _register(wrapped, registry, register_type)
+    
+        return wrapped
 
-def register_transaction(func: Callable[..., str | None]) -> Callable[..., str | None]:
-    return _register(func, TRANSACTION_REGISTRY,RegisteredTransaction)
+    if func is None:
+        return decorator
+
+    return decorator(func)
+    
+
+
+def register_function(
+        func: TFunc[ActionNodeOutputFunc] | None = None,
+        *,
+        decorators: Sequence[TDecorator[ActionNodeOutputFunc]] = (),
+
+):
+    return _reg(func, FUNCTION_REGISTRY, RegisteredFunction, decorators)
+
+
+def register_validator(
+    func: TFunc[bool] | None = None,
+    *,
+    decorators: Sequence[TDecorator[bool]] = (),
+):
+    return _reg(func,VALIDATOR_REGISTRY,RegisteredValidator,decorators)
+
+
+def register_transaction(
+        func: TFunc[str | None] | None = None,
+        *,
+        decorators: Sequence[TDecorator[str | None]] = (),
+):
+    return _reg(func,TRANSACTION_REGISTRY,RegisteredTransaction,decorators)
 
 
 @dataclass(slots=True)

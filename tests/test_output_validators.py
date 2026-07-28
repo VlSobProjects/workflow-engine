@@ -1,21 +1,25 @@
-from datetime import datetime
+import datetime
+import importlib
 from pathlib import Path
 
-import importlib
 import pytest
 
-from workflow_engine.models.state import StateModel, ActionParameter
-from workflow_engine.registry.function_registry import FUNCTION_NAME_KEY,FUNCTION_PARAMETERS_KEY
+from workflow_engine.models.state import ActionParameter, StateModel
+from workflow_engine.registry.function_registry import (
+    FUNCTION_NAME_KEY,
+    FUNCTION_PARAMETERS_KEY,
+)
+from workflow_engine.validators.output_function_validators import is_output_contains_str
 from workflow_engine.validators.output_validators import (
-    Combiner,
-    factory,
-    OutputContainsValidator,
-    OutputEqualsValidator,
-    OutputStartWithValidator,
-    OutputEndWithValidator,
-    OutputFunctionValidator,
-    CombinedOutputValidator,
     BaseOutputValidator,
+    CombinedOutputValidator,
+    Combiner,
+    OutputContainsValidator,
+    OutputEndWithValidator,
+    OutputEqualsValidator,
+    OutputFunctionValidator,
+    OutputStartWithValidator,
+    factory,
 )
 
 CONTAINS_VALIDATOR ={"contains": "test_string"}
@@ -37,6 +41,7 @@ COMBINED_OUTPUT_VALIDATOR_3 = {
         {"validators": [END_WITH_VALIDATOR_2, {Combiner.dict_key():Combiner.OR.value,"starts_with": "param.test_param2"}],Combiner.dict_key():Combiner.OR.value},
     ]
 }
+ERROR_FUNC_PARAMETERS_VALIDATOR = {FUNCTION_NAME_KEY: "is_output_contains_str", FUNCTION_PARAMETERS_KEY: {"substring": ""}}
 
 
 VALIDATORS: dict[type[BaseOutputValidator], list[dict[str,object]]] = {
@@ -56,7 +61,7 @@ def register_functions():
 @pytest.fixture
 def state_base(register_functions):
     return StateModel(
-        timestamp=datetime.now(),
+        timestamp=datetime.datetime.now(tz=datetime.UTC),
         work_dir=Path(""),
         schema_version="1",
         flow_id="test",
@@ -135,3 +140,17 @@ def test_output_function_validator(state_base):
     validator = factory(OUTPUT_FUNCTION_VALIDATOR_2)
     assert isinstance(validator, OutputFunctionValidator)
     assert validator.validate_output("this is a string", state_base)
+
+def test_error_arg_validator(state_base):
+    validator = factory(ERROR_FUNC_PARAMETERS_VALIDATOR)
+    assert isinstance(validator, OutputFunctionValidator)
+    # registered = validator.registered_validator.registered_function
+
+    # print(id(registered.function))
+    # print(id(is_output_contains_str))
+    # print(registered.function is is_output_contains_str)
+    # print(hasattr(registered.function, "__wrapped__"))
+    
+
+    with pytest.raises(ValueError):
+        validator.validate_output("this is a string", state_base)
