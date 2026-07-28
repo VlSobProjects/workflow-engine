@@ -149,7 +149,7 @@ class CombinedOutputValidator(BaseOutputValidator):
             raise TypeError(f"'validators' must be a list found {type(validators).__name__}")
         for validator_dict in validators:
             if isinstance(validator_dict, dict):
-                validator = factory(validator_dict)
+                validator = validator_factory(validator_dict)
                 if validator is not None:
                     combiners.append(ValidatorCombiner(validator=validator,combiner=Combiner.from_dict(validator_dict)))
         if not combiners:
@@ -187,8 +187,8 @@ VALIDATOR_CLASSES: list[type[BaseOutputValidator]] = [
 ]
 
 
-def factory(data: dict[str, object]) -> BaseOutputValidator | None:
+def validator_factory(data: dict[str, object]) -> BaseOutputValidator:
     for v_class in VALIDATOR_CLASSES:
         if v_class.is_class(data):
             return v_class.from_dict(data)
-    return None
+    raise ValueError(f"Failed to create validator from: {data}")

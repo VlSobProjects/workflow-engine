@@ -19,7 +19,7 @@ from workflow_engine.validators.output_validators import (
     OutputEqualsValidator,
     OutputFunctionValidator,
     OutputStartWithValidator,
-    factory,
+    validator_factory,
 )
 
 CONTAINS_VALIDATOR ={"contains": "test_string"}
@@ -78,71 +78,71 @@ def state_base(register_functions):
 def test_factory(register_functions):
     for t,validator_config in  VALIDATORS.items():
         for config in validator_config:
-            validator = factory(config)
+            validator = validator_factory(config)
             assert isinstance(validator, t)
             print(f"validator {validator.__str__()}")
 
 
 
 def test_output_contains_validator(state_base):
-    validator = factory(CONTAINS_VALIDATOR)
+    validator = validator_factory(CONTAINS_VALIDATOR)
     assert isinstance(validator, OutputContainsValidator)
     assert validator.validate_output("this is a test_string",state_base)
-    validator = factory(CONTAINS_VALIDATOR_2)
+    validator = validator_factory(CONTAINS_VALIDATOR_2)
     assert isinstance(validator, OutputContainsValidator)
     assert validator.validate_output("string",state_base)
 
 
 def test_output_equals_validator(state_base):
-    validator = factory(EQUALS_VALIDATOR)
+    validator = validator_factory(EQUALS_VALIDATOR)
     assert isinstance(validator, OutputEqualsValidator)
     assert validator.validate_output("test_string", state_base)
-    validator = factory(EQUALS_VALIDATOR_2)
+    validator = validator_factory(EQUALS_VALIDATOR_2)
     assert isinstance(validator, OutputEqualsValidator)
     assert validator.validate_output("string", state_base)
 
 
 def test_output_start_with_validator(state_base):
-    validator = factory(START_WITH_VALIDATOR)
+    validator = validator_factory(START_WITH_VALIDATOR)
     assert isinstance(validator, OutputStartWithValidator)
     assert validator.validate_output("test_string in test", state_base)
-    validator = factory(START_WITH_VALIDATOR_2)
+    validator = validator_factory(START_WITH_VALIDATOR_2)
     assert isinstance(validator, OutputStartWithValidator)
     assert validator.validate_output("string in test", state_base)
 
 
 def test_output_end_with_validator(state_base):
-    validator = factory(END_WITH_VALIDATOR)
+    validator = validator_factory(END_WITH_VALIDATOR)
     assert isinstance(validator, OutputEndWithValidator)
     assert validator.validate_output("this is a test_string", state_base)
-    validator = factory(END_WITH_VALIDATOR_2)
+    validator = validator_factory(END_WITH_VALIDATOR_2)
     assert isinstance(validator, OutputEndWithValidator)
     assert validator.validate_output("this is a string", state_base)
 
 
 def test_combined_output_validator(state_base):
-    validator = factory(COMBINED_OUTPUT_VALIDATOR_1)
+    validator = validator_factory(COMBINED_OUTPUT_VALIDATOR_1)
     assert isinstance(validator, CombinedOutputValidator)
     assert validator.validate_output("new_test is a staring", state_base)
-    validator = factory(COMBINED_OUTPUT_VALIDATOR_2)
+    validator = validator_factory(COMBINED_OUTPUT_VALIDATOR_2)
     assert isinstance(validator, CombinedOutputValidator)
     assert validator.validate_output("this is a string", state_base)
-    validator = factory(COMBINED_OUTPUT_VALIDATOR_3)
+    validator = validator_factory(COMBINED_OUTPUT_VALIDATOR_3)
     assert isinstance(validator, CombinedOutputValidator)
     assert validator.validate_output("new_string2 is a new test", state_base)
     assert not validator.validate_output("new_string is a new test", state_base)
 
 
 def test_output_function_validator(state_base):
-    validator = factory(OUTPUT_FUNCTION_VALIDATOR_1)
+    validator = validator_factory(OUTPUT_FUNCTION_VALIDATOR_1)
     assert isinstance(validator, OutputFunctionValidator)
     assert validator.validate_output("C:\\Users\\Vladimir\\PycharmProjects\\workflow-engine\\src\\workflow_engine\\transition\\transition_functions.py", state_base)
-    validator = factory(OUTPUT_FUNCTION_VALIDATOR_2)
+    validator = validator_factory(OUTPUT_FUNCTION_VALIDATOR_2)
     assert isinstance(validator, OutputFunctionValidator)
     assert validator.validate_output("this is a string", state_base)
 
 def test_error_arg_validator(state_base):
-    validator = factory(ERROR_FUNC_PARAMETERS_VALIDATOR)
+    validator = validator_factory(ERROR_FUNC_PARAMETERS_VALIDATOR)
     assert isinstance(validator, OutputFunctionValidator)
     # registered = validator.registered_validator.registered_function
 

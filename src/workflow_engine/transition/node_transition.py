@@ -9,7 +9,10 @@ from workflow_engine.registry.function_registry import (
     get_registered_transaction,
 )
 from workflow_engine.transition.base import BaseTransaction
-from workflow_engine.validators.output_validators import BaseOutputValidator, factory
+from workflow_engine.validators.output_validators import (
+    BaseOutputValidator,
+    validator_factory,
+)
 
 
 @dataclass
@@ -56,7 +59,7 @@ class ValidatorBasedTransition(BaseTransaction):
         if not isinstance(validator_dict, dict):
             raise TypeError(f"Expected 'validator' is 'dict', got '{type(validator_dict).__name__}'")
 
-        validator = factory(validator_dict)
+        validator = validator_factory(validator_dict)
         if validator is None:
             raise ValueError(f"Failed to create validator from: {validator_dict}")
 
@@ -93,3 +96,17 @@ class StopOnErrorTransition(FunctionBasedTransition):
         keyes = super().data_keys()
         keyes.append("errors")
         return keyes
+
+
+def transition_factory(data: dict[str, object]) -> BaseTransaction:
+    match data:
+        case data if ValidatorBasedTransition.data_keys() in data:
+            return ValidatorBasedTransition.from_dict(data)
+        case data if NextTransition.from_dict(data):
+            return NextTransition.from_dict(data)
+        case data if FunctionBasedTransition.data_keys() in data:
+            return FunctionBasedTransition.from_dict(data)
+        case data if StopOnErrorTransition.data_keys() in data:
+            return StopOnErrorTransition.from_dict(data)
+        case _:
+            raise ValueError(f"Invalid transition data: {data}")
