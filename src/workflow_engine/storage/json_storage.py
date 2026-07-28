@@ -8,6 +8,7 @@ from workflow_engine.exceptions import StateError, WorkflowError
 from workflow_engine.models.node import WorkflowNodeModel
 from workflow_engine.models.state import ActionParameter, StateModel, StateSource
 from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
+from workflow_engine.storage.storage import Storage
 from workflow_engine.workflow import WorkflowNode
 
 STATE_FILE = "state.json"
@@ -19,15 +20,6 @@ class DateTimeEncoder(json.JSONEncoder):
             return obj.isoformat()
         return super().default(obj)
 
-# def state_decoder(obj):
-#     match obj.get("__type__"):
-#         case "datetime":
-#             return datetime.fromisoformat(obj["value"])
-#         case "ActionParameter":
-#             return ActionParameter(**{
-#                 k: v for k, v in obj.items() if k != "__type__"
-#             })
-#     return obj
 
 def workflow_encoder(obj):
     if isinstance(obj, WorkflowNodeModel):
@@ -102,7 +94,7 @@ def _load_workflow_from_path(work_flow_file_path: Path) -> Mapping[str, object]:
         raise WorkflowError("Invalid Workflow JSON format") from ex
 
 
-class JsonStateStorage(StateSource,WorkflowSource):
+class JsonStateStorage(Storage):
     """JSON Storage class for states and workflows."""
     def __init__(self, path: Path) -> None:
         self.path = path

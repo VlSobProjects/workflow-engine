@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from workflow_engine.models.state import StateModel
 from workflow_engine.workflow import WorkflowNode
 
 WORKFLOW_NODES : dict[str,WorkflowNode] = {}
@@ -24,3 +27,4 @@ def _get_unique_id_for_node(node: WorkflowNode) ->str:
     return node.id+"_"+str(node_id_suffix)
 
 
+# def load_workflow(path:Path) -> StateModel:
