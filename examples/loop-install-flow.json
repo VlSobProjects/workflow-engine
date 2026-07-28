@@ -1,0 +1,62 @@
+{
+  "schema_version": "1",
+  "flow_id": "loop-install-pilot",
+  "start_question_id": "Q_JCA_HOME",
+  "questions": [
+    {
+      "id": "Q_JCA_HOME",
+      "text": "Use default JCA home (~/.java-claude-ai)?",
+      "input_mode": "confirm",
+      "required": true,
+      "next": "Q_JAVA_HOME",
+      "persistence": {
+        "artifact": "operator-interview-install.json",
+        "field": "install.use_default_jca_home",
+        "policy": "set"
+      }
+    },
+    {
+      "id": "Q_JAVA_HOME",
+      "text": "Enter Java 25+ home path",
+      "input_mode": "path",
+      "required": true,
+      "validators": [
+        {
+          "type": "non_empty",
+          "on_fail": "retry_same"
+        },
+        {
+          "type": "path_exists",
+          "on_fail": "retry_same"
+        }
+      ],
+      "next": "Q_READY",
+      "persistence": {
+        "artifact": "operator-interview-install.json",
+        "field": "install.java_home",
+        "policy": "set"
+      }
+    },
+    {
+      "id": "Q_READY",
+      "text": "Proceed with loop-install now?",
+      "input_mode": "confirm",
+      "required": true,
+      "transitions": {
+        "true": "C_INSTALL",
+        "false": "C_ABORT"
+      }
+    },
+    {
+      "id": "C_INSTALL",
+      "type": "completion",
+      "instruction_ref": "loop-install:run-installer"
+    },
+    {
+      "id": "C_ABORT",
+      "type": "completion",
+      "instruction_ref": "loop-install:abort"
+    }
+  ]
+}
+
