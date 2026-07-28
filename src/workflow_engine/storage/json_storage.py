@@ -1,11 +1,14 @@
 import dataclasses
 import json
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
 from workflow_engine.exceptions import StateError, WorkflowError
+from workflow_engine.models.node import WorkflowNodeModel
 from workflow_engine.models.state import ActionParameter, StateModel, StateSource
 from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
+from workflow_engine.workflow import WorkflowNode
 
 STATE_FILE = "state.json"
 WORKFLOW_FILE = "workflow.json"
@@ -26,6 +29,10 @@ class DateTimeEncoder(json.JSONEncoder):
 #             })
 #     return obj
 
+def workflow_encoder(obj):
+    if isinstance(obj, WorkflowNodeModel):
+        return {**dataclasses.asdict(obj)}
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 def state_encoder(obj):
     if isinstance(obj, datetime):
@@ -66,15 +73,27 @@ def state_fields_decoder(dct):
 
 def workflow_fields_decoder(dct):
     """Decode specific filed and rise WorkflowError exception if not possible"""
+    for key, value in dct.items():
+        if key == "nodes":
+            if not isinstance(value, list):
+                raise WorkflowError(f"Invalid nodes format expected: 'list' got: {type(value).__name__}")
+            node_list = []
+            for node in value:
+                if not isinstance(node, dict):
+                    raise WorkflowError(f"Invalid node format expected: 'dict' got: {type(node).__name__}")
+                else:
+                    node_list.append(WorkflowNode(**node))
+            dct[key] = node_list
 
 
-def _load_workflow_from_path(work_flow_file_path: Path) -> WorkflowModel:
+
+def _load_workflow_from_path(work_flow_file_path: Path) -> Mapping[str, object]:
     try:
         if not work_flow_file_path.exists():
             raise WorkflowError(f"Workflow file not found path: {work_flow_file_path.absolute()}")
         with open(work_flow_file_path) as f:
-            json_obj = json.load(f, object_hook=workflow_fields_decoder)
-        return WorkflowModel(**json_obj)
+            json_obj = json.load(f)
+        return json_obj
     except FileNotFoundError as ex:
         raise WorkflowError("Workflow file not found path:") from ex
     except json.JSONDecodeError as ex:
@@ -85,24 +104,25 @@ def _load_workflow_from_path(work_flow_file_path: Path) -> WorkflowModel:
 
 class JsonStateStorage(StateSource,WorkflowSource):
     """JSON Storage class for states and workflows."""
-
     def __init__(self, path: Path) -> None:
         self.path = path
 
+    def load_workflow(self) -> WorkflowModel:
+        return self.read_workflow(_load_workflow_from_path(self.path.joinpath(WORKFLOW_FILE)))
+
+
     def upload_workflow(self, work_flow_file_path: Path) -> WorkflowModel:
-        workflow = _load_workflow_from_path(work_flow_file_path)
+        workflow = self.read_workflow(_load_workflow_from_path(work_flow_file_path))
         self.save_workflow(workflow)
         return self.load_workflow()
 
-    def load_workflow(self) -> WorkflowModel:
-        return _load_workflow_from_path(self.path.joinpath(WORKFLOW_FILE))
 
     def save_workflow(self, workflow: WorkflowModel) -> None:
         try:
             workflow_file = self.path.joinpath(WORKFLOW_FILE)
             workflow_file.parent.mkdir(parents=True, exist_ok=True)
             with open(workflow_file, "w") as f:
-                json.dump(workflow.__dict__, f, indent=4, sort_keys=True, default=DateTimeEncoder().default)
+                json.dump(workflow.__dict__, f, indent=4, default=workflow_encoder)
         except Exception as ex:
             raise WorkflowError("Failed to save workflow") from ex
 

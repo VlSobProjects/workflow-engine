@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Self
 
-from workflow_engine.engine import is_workflow_node
 from workflow_engine.models.state import StateModel
 
 
@@ -34,5 +33,6 @@ class BaseTransaction(ABC):
             raise ValueError(f"Missing keys: {missing_keys}")
 
     def validate_next_node(self):
+        from workflow_engine.engine import is_workflow_node
         if not is_workflow_node(self.next_node):
             raise ValueError(f"Next node: '{self.next_node}' not exist in workflow")
