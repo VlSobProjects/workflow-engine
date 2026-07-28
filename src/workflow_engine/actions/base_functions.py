@@ -3,9 +3,14 @@ from pathlib import Path
 
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import register_function
+from workflow_engine.validators.functions_validators import (
+    action_file_exists_arg_validator,
+)
 
 
-@register_function
+@register_function(decorators=(
+    action_file_exists_arg_validator({"path_source": 0}),
+))
 def copy_file(path_source:str,path_target:str)->ActionNodeOutput:
     source = Path(path_source)
     if not source.is_file():
