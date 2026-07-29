@@ -6,8 +6,8 @@ from pathlib import Path
 
 from workflow_engine.exceptions import StateError, WorkflowError
 from workflow_engine.models.node import WorkflowNodeModel
-from workflow_engine.models.state import ActionParameter, StateModel, StateSource
-from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
+from workflow_engine.models.state import ActionParameter, StateModel
+from workflow_engine.models.workflow import WorkflowModel
 from workflow_engine.storage.storage import Storage
 from workflow_engine.workflow import WorkflowNode
 
@@ -96,7 +96,8 @@ def _load_workflow_from_path(work_flow_file_path: Path) -> Mapping[str, object]:
 
 class JsonStateStorage(Storage):
     """JSON Storage class for states and workflows."""
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, working_dir: Path) -> None:
+        super().__init__(working_dir)
         self.path = path
 
     def load_workflow(self) -> WorkflowModel:
@@ -118,7 +119,7 @@ class JsonStateStorage(Storage):
         except Exception as ex:
             raise WorkflowError("Failed to save workflow") from ex
 
-    def load_state(self) -> StateModel | None:
+    def load_state(self) -> StateModel:
         try:
             state_file = self.path.joinpath(STATE_FILE)
             if not state_file.is_file():

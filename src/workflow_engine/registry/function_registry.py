@@ -142,7 +142,7 @@ class RegisteredFunctionExecutor[T]:
     registered_function: BaseRegisteredFunction[T]
     parameters: dict[str, object] | None
 
-    def execute(self,parameters_modified: Callable[[dict[str, object]], dict[str, object]] | None = None) -> T | None:
+    def execute(self,parameters_modified: Callable[[dict[str, object]], dict[str, object]] | None = None) -> T:
         params = self.parameters
         if self.parameters is not None and parameters_modified is not None:
             params = parameters_modified(self.parameters)

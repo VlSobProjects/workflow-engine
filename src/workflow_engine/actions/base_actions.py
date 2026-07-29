@@ -60,7 +60,7 @@ class BaseAction(ABC):
 class BaseAutomaticAction(BaseAction,ABC):
 
     @abstractmethod
-    def execute(self,state: StateModel)->str | None:
+    def execute(self,state: StateModel)->ActionNodeOutput:
         pass
 
     @classmethod
@@ -81,79 +81,9 @@ class BaseInteractiveAction(BaseAction,ABC):
 class ActionWithFunction(BaseAutomaticAction,ABC):
     registered_function: RegisteredFunctionExecutor[ActionNodeOutput]
 
-    def execute(self, state: StateModel) -> ActionNodeOutput | None:
+    def execute(self, state: StateModel) -> ActionNodeOutput:
         return self.registered_function.execute(parameters_modified=state.set_parameters)
 
     @classmethod
     def get_registered_function(cls, data: dict[str, object])-> RegisteredFunctionExecutor[ActionNodeOutput]:
         return get_and_check_registered(get_registered_function, data)
-
-
-
-
-
-# @register_action
-# class FunctionAction(BaseAutomaticAction):
-#     EXECUTION_MODE = ExecutionMode.AUTOMATIC
-#     ACTION_TYPE = 'function'
-#
-#
-#     def execute(self, state: StateModel) -> str | None:
-#         pass
-#
-#
-#     @classmethod
-#     def from_dict(cls, data: dict[str, object]) -> Self:
-#         pass
-
-
-
-
-# @register_action
-# @dataclass
-# class CopyFileAction(BaseAutomaticAction):
-#     EXECUTION_MODE = ExecutionMode.AUTOMATIC
-#     ACTION_TYPE = 'copy'
-#     path_from: str
-#     path_to: str
-#
-#     def execute(self, state: StateModel) -> str | None:
-#         pass
-#
-#     def validate(self) -> None:
-#         errors = []
-#         if not self.is_path_from_valid():
-#             errors.append(f"Invalid path_from: {self.path_from}")
-#
-#         if not self.is_path_to_valid():
-#             errors.append(f"Invalid path_to: {self.path_to}")
-#
-#         if len(errors) != 0:
-#             raise ActionConfigError(", ".join(errors))
-#
-#
-#     def is_path_from_valid(self) -> bool:
-#         return (self.path_from.startswith("param.") or
-#                 self.path_from.startswith("output.") or
-#                 Path(self.path_from).is_file())
-#
-#     def is_path_to_valid(self) -> bool:
-#         return (self.path_to.startswith("param.") or
-#                 self.path_to.startswith("output.") or
-#                 Path(self.path_to).is_file())
-#
-#
-#     @classmethod
-#     def from_dict(cls, data: dict[str, object]) -> CopyFileAction:
-#         path_from = data.get("path_from")
-#         if not isinstance(path_from, str):
-#             raise ActionConfigError("'path_from' must be string")
-#
-#         path_to = data.get("path_to")
-#         if not isinstance(path_to, str):
-#             raise ActionConfigError("'path_to' must be string")
-#
-#         return cls(
-#             path_from=path_from,
-#             path_to=path_to,
-#         )

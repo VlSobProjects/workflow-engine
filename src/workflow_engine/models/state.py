@@ -11,7 +11,7 @@ from workflow_engine.exceptions import RuntimeParameterError
 
 class StateSource(ABC):
     @abstractmethod
-    def load_state(self) -> StateModel | None:
+    def load_state(self) -> StateModel:
         pass
 
     @abstractmethod
