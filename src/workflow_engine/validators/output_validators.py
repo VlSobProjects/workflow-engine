@@ -13,6 +13,10 @@ from workflow_engine.registry.function_registry import (
 )
 
 
+#TODO idea 1: validator take output as ActionNodeOutput and set in output error validation_error and message what validation is failed.
+# Add filed description - to show to the user/agent what was validated in error output.
+# If implement it need to be work out CombinedOutputValidator to set in output block which case validator failed or description for all CombinedOutputValidator.
+# ides 2: set error code for evry validator - 1. transition can use it to transit to the next node 2. CombinedOutputValidator will get last error code and and use it to fiend error description
 class BaseOutputValidator(ABC):
 
     @abstractmethod

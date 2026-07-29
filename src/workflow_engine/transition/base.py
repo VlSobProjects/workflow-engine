@@ -19,6 +19,11 @@ class BaseTransaction(ABC):
     @abstractmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
         pass
+    
+    @classmethod
+    @abstractmethod
+    def is_on_error(cls) -> bool:
+        pass
 
     @classmethod
     @abstractmethod
@@ -66,13 +71,19 @@ class WithNextNode(BaseTransaction,ABC):
             raise TypeError(f"Expected 'next' is 'str', got '{type(value).__name__}'")
         return value
 
+
 @dataclass
 class WithErrors(BaseTransaction,ABC):
     errors: list[str]
+    attempts: bool
 
     @classmethod
     def data_keys(cls) -> list[str]:
         return ["errors"]
+
+    @classmethod
+    def is_on_error(cls) -> bool:
+        return True
 
     def is_error(self, output:ActionNodeOutput) -> bool:
         return output.error_code is not None and output.error_code in self.errors
@@ -86,3 +97,11 @@ class WithErrors(BaseTransaction,ABC):
         if not all(isinstance(err, str) for err in err_list):
             raise TypeError(f"Expected all elements in 'errors' to be 'str', got '{[type(err).__name__ for err in err_list]}'")
         return err_list
+
+    @classmethod
+    def get_attempts_value(cls, data: dict[str, object]) -> bool:
+        cls.validate_keys(data)
+        value = data.get('attempts', False)
+        if not isinstance(value, bool):
+            raise TypeError(f"Expected 'attempts' is 'bool', got '{type(value).__name__}'")
+        return value

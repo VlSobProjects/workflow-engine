@@ -30,17 +30,25 @@ class NextTransition(WithNextNode):
     def from_dict(cls, data: dict[str, object]) -> Self:
         return cls(next_node=cls.get_next_node_value(data))
 
+    @classmethod
+    def is_on_error(cls) -> bool:
+        return False
+
 @dataclass
 class ValidatorBasedTransition(WithNextNode):
     validator: BaseOutputValidator
 
     def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: dict[str, WorkflowNode]) -> WorkflowNode | None:
         self.check_error(workflow_nodes)
-        return workflow_nodes[self.next_node] if self.validator.validate_output(output.output, state) else None
+        return workflow_nodes[self.next_node] if self.validator.validate_output(output.output_text, state) else None
 
     @classmethod
     def from_validator(cls, next_node: str, validator: BaseOutputValidator) -> Self:
         return cls(next_node=next_node, validator=validator)
+
+    @classmethod
+    def is_on_error(cls) -> bool:
+        return False
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
@@ -75,7 +83,7 @@ class NextOnErrorTransition(WithNextNode,WithErrors):
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
-        return cls(next_node=cls.get_next_node_value(data), errors=cls.get_errors(data))
+        return cls(next_node=cls.get_next_node_value(data), errors=cls.get_errors(data),attempts=cls.get_attempts_value(data))
 
     @classmethod
     def data_keys(cls) -> list[str]:
@@ -90,17 +98,22 @@ class StopOnErrorTransition(WithErrors):
 
     def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: dict[str, WorkflowNode]) -> WorkflowNode | None:
         if output.error_code and self.is_error(output):
-            return stop_on_error_node_factory(f"error_code: {output.error_code}. error_message: {output.error_message}{f", {output.output}" if output.output else ""})")
+            return stop_on_error_node_factory(f"Stop on error transition - {output.on_error()}")
         return None
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
-        return cls(errors=cls.get_errors(data))
+        return cls(errors=cls.get_errors(data),attempts=cls.get_attempts_value(data))
 
 @dataclass
 class FunctionTransition(BaseTransaction):
     registered_transaction: RegisteredFunctionExecutor[str | None]
     parameters: dict[str, object]
+
+
+    @classmethod
+    def is_on_error(cls) -> bool:
+        return False
 
     def check_error(self, workflow_nodes: dict[str, WorkflowNode]):
         pass

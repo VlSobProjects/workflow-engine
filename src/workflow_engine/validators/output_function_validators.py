@@ -19,6 +19,10 @@ def is_output_contains_str(output: str, substring: str) -> bool:
     """checking if output contains a specific string"""
     return substring in output
 
+@register_validator
+def is_output_exist_folder(output: str) -> bool:
+    """checking if output is an existing folder"""
+    return Path(output).is_dir()
 
 @register_validator
 def is_output_number(output: str) -> bool:

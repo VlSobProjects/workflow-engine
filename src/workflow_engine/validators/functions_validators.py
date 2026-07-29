@@ -3,12 +3,12 @@ from functools import wraps
 from pathlib import Path
 from typing import TypeVar
 
-from workflow_engine.output import ActionNodeOutput
+from workflow_engine.exceptions import FunctionArgsError
 
 T = TypeVar("T",str,int)
 
 
-def _check_args[T](check_type:type[T],checker:Callable[[T],bool],chek_ars:dict[str,int],args:tuple[object], kwargs:dict[str,object]) -> list[str]:
+def _check_args[T](function_name:str,check_type:type[T],checker:Callable[[T],bool],chek_ars:dict[str,int],args:tuple[object], kwargs:dict[str,object]):
     errors: list[str] = []
     value = None
     for arg, index in chek_ars.items():
@@ -20,36 +20,35 @@ def _check_args[T](check_type:type[T],checker:Callable[[T],bool],chek_ars:dict[s
             errors.append(f"Argument '{arg}'={value.__str__()} is not a '{check_type.__name__}'")
         elif not checker(value):
             errors.append(f"Argument '{arg}'='{value.__str__()}' - validation failed.")
-    return errors
+    if len(errors) > 0:
+        raise FunctionArgsError(function_name, errors)
 
 
 def not_empty_str_arg_validator(chek_ars:dict[str,int]):
     def inner(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            print("VALIDATOR CALLED")
             # Validate the arguments before calling the function
-            errors: list[str] = _check_args(str, lambda x: len(x) > 0, chek_ars, args=args, kwargs=kwargs)
-            if errors:
-                raise ValueError(f"Parameters validation failed for function '{func.__name__}': " + "; ".join(errors))
-            else:
-                return func(*args, **kwargs)
+            _check_args(func.__name__,str, lambda x: len(x) > 0, chek_ars, args=args, kwargs=kwargs)
+            return func(*args, **kwargs)
+        return wrapper
+    return inner
+
+def folder_exists_arg_validator(chek_ars:dict[str,int]):
+    def inner(func):
+        def wrapper(*args, **kwargs):
+            # Validate the arguments before calling the function
+            _check_args(func.__name__,str, lambda x: Path(x).is_dir(), chek_ars, args=args, kwargs=kwargs)
+            return func(*args, **kwargs)
         return wrapper
     return inner
 
 
-def action_file_exists_arg_validator(chek_ars:dict[str,int]):
+def file_exists_arg_validator(chek_ars:dict[str,int]):
     def inner(func):
-        def wrapper(*args, **kwargs)->ActionNodeOutput:
+        def wrapper(*args, **kwargs):
             # Validate the arguments before calling the function
-            errors: list[str] = _check_args(str, lambda x: Path(x).is_file(), chek_ars, args=args, kwargs=kwargs)
-            if errors:
-                return ActionNodeOutput(
-                    output=f"Parameters validation failed for function '{func.__name__}'",
-                    error_code="file_not_found",
-                    error_message="; ".join(errors)
-                )
-            else:
-                return func(*args, **kwargs)
+            _check_args(func.__name__,str, lambda x: Path(x).is_file(), chek_ars, args=args, kwargs=kwargs)
+            return func(*args, **kwargs)
         return wrapper
     return inner

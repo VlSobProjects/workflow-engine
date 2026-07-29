@@ -3,10 +3,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 
 from workflow_engine.exceptions import RuntimeParameterError
+from workflow_engine.output import ActionNodeOutput
+from workflow_engine.workflow import WorkflowNode
 
 
 class StateSource(ABC):
@@ -74,33 +76,64 @@ class StateModel:
     def set_parameters_with_updater(self,updater:dict[str, object])->Callable[[dict[str, object]], dict[str, object]]:
         return lambda parameters: self.set_parameters(parameters, updater)
 
-    def update_on_submit(self, next_node_id: str, output: str, param_name: str | None=None, param_value: object | None=None):
-        self.outputs[self.current_node_id] = output
-        self.nodes_visited += 1
-        if self.current_node_id == next_node_id:
-            #update attempt_counters if second attempt
-            self.attempt_counters[next_node_id] += 1
-        else:
-            # reset attempt_counters and update visit_counters
-            self.attempt_counters[self.current_node_id] = 0
-            if next_node_id not in self.visit_counters:
-                self.visit_counters[next_node_id] = 1
-            else: self.visit_counters[next_node_id] += 1
-            self.current_node_id = next_node_id
-
-        if param_name is not None and param_value is not None:
-            self.params[param_name] = ActionParameter(
-                source_node_id=self.current_node_id,
-                name=param_name,
-                value=param_value
-            )
-
-    def set_error(self,output: str, errors: list[str]):
-        output_parts = output.split(";")
-        if output_parts[0] in errors:
-            if len(output_parts) >= 2:
-                self.error_code = output_parts[0]
-                self.error_msg = output_parts[1]
+    def _update_cur_node(self,curr_node:WorkflowNode,output:ActionNodeOutput | None) ->None:
+        if output:
+            if output.output_text:
+                self.outputs[curr_node.id] = output.output_text
+            if output.error_code:
+                self.errors[curr_node.id] = f"[{datetime.now(tz=UTC)}]({output.error_code}) {output.error_message}"
+                self.error_code = output.error_code
+                self.error_msg = output.error_message
             else:
-                self.error_code = output
-                self.error_msg = "Unknown error"
+                self.outputs[curr_node.id] = output.output_text
+                if curr_node.config.save_as:
+                    self.params[curr_node.config.save_as] = ActionParameter(
+                        source_node_id=curr_node.id,
+                        name=curr_node.config.save_as,
+                        value=output.output_text
+                    )
+    
+    def _update_stats(self,next_node_id:str | None,curr_node_id:str) -> None:
+        if next_node_id:
+            self.current_node_id = next_node_id
+            if next_node_id == curr_node_id:
+                # update attempt_counters
+                self.attempt_counters[curr_node_id] = self.attempt_counters.get(curr_node_id, 0) + 1
+            else:
+                # reset attempt_counters and update visit_counters
+                self.visit_counters[curr_node_id] = self.visit_counters.get(curr_node_id, 0) + 1
+                self.attempt_counters[curr_node_id] = 0
+                self.nodes_visited +=1
+                
+    def info(self)->list[str]:
+        info = [f"last node id: {self.current_node_id}, total visits: {self.nodes_visited}, flow_budget: {self.flow_budget}"]
+        info += [f"Stat: Total errors: {len(self.errors)}, Total outputs: {len(self.outputs)}, Total params: {len(self.params)}"]
+        if self.error_code or self.error_msg:
+            info.append(f"Last error: {self.error_code if self.error_code else 'N/A'}{f"- {self.error_msg}" if self.error_msg else ''}")
+        info.append("Attempts:")
+        info += [f"{k}: {v}" for k, v in self.attempt_counters.items()]
+        info.append("Visits:")
+        info += [f"{k}: {v}" for k, v in self.visit_counters.items()]
+        return info
+
+    def info_errors(self)-> list[str]:
+        if len(self.errors) == 0:
+            return []
+        errors = ["All errors in current workflow:"]
+        return errors + [f"{k}: {v}" for k, v in self.errors.items()]
+
+    def info_params(self)-> list[str]:
+        if len(self.params) == 0:
+            return []
+        params = ["All parameters in current workflow:"]
+        return params + [f"{k}: {v}" for k, v in self.params.items()]
+
+    def info_outputs(self)-> list[str]:
+        if len(self.outputs) == 0:
+            return []
+        outputs = ["All outputs in current workflow:"]
+        return outputs + [f"{k}: {v}" for k, v in self.outputs.items()]
+
+    def update(self, curr_node:WorkflowNode,output:ActionNodeOutput | None,next_node_id:str | None):
+        self._update_cur_node(curr_node, output)
+        self._update_stats(next_node_id, curr_node.id)

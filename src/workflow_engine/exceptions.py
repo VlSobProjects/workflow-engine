@@ -28,3 +28,10 @@ class RuntimeParameterError(Exception):
         self.param_value = param_value
         self.message = message
         super().__init__(f"Runtime parameter error: {param_name}={param_value}, {message}")
+
+class FunctionArgsError(Exception):
+    """Exception raised for errors in function args."""
+    def __init__(self,func_name:str, errors: list[str]) -> None:
+        self.errors = errors
+        self.func_name = func_name
+        super().__init__(f"Runtime Function args error in function '{func_name}': " + "; ".join(errors))
