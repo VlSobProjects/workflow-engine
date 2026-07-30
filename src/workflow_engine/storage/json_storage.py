@@ -94,14 +94,13 @@ def _load_workflow_from_path(work_flow_file_path: Path) -> Mapping[str, object]:
         raise WorkflowError("Invalid Workflow JSON format") from ex
 
 
-class JsonStateStorage(Storage):
+class JsonStorage(Storage):
     """JSON Storage class for states and workflows."""
-    def __init__(self, path: Path, working_dir: Path) -> None:
+    def __init__(self, working_dir: Path) -> None:
         super().__init__(working_dir)
-        self.path = path
 
     def load_workflow(self) -> WorkflowModel:
-        return self.read_workflow(_load_workflow_from_path(self.path.joinpath(WORKFLOW_FILE)))
+        return self.read_workflow(_load_workflow_from_path(self.working_dir.joinpath(WORKFLOW_FILE)))
 
 
     def upload_workflow(self, work_flow_file_path: Path) -> WorkflowModel:
@@ -112,7 +111,7 @@ class JsonStateStorage(Storage):
 
     def save_workflow(self, workflow: WorkflowModel) -> None:
         try:
-            workflow_file = self.path.joinpath(WORKFLOW_FILE)
+            workflow_file = self.working_dir.joinpath(WORKFLOW_FILE)
             workflow_file.parent.mkdir(parents=True, exist_ok=True)
             with open(workflow_file, "w") as f:
                 json.dump(workflow.__dict__, f, indent=4, default=workflow_encoder)
@@ -121,7 +120,7 @@ class JsonStateStorage(Storage):
 
     def load_state(self) -> StateModel:
         try:
-            state_file = self.path.joinpath(STATE_FILE)
+            state_file = self.working_dir.joinpath(STATE_FILE)
             if not state_file.is_file():
                 raise StateError(f"State file not found path: {state_file}")
             with open(state_file) as f:
@@ -137,7 +136,7 @@ class JsonStateStorage(Storage):
     def save_state(self, state: StateModel) -> None:
         """Save state to state file."""
         try:
-            state_file = self.path.joinpath(STATE_FILE)
+            state_file = self.working_dir.joinpath(STATE_FILE)
             state_file.parent.mkdir(parents=True, exist_ok=True)
             with open(state_file, "w") as f:
                 json.dump(state.__dict__, f, indent=4, sort_keys=True, default=state_encoder)

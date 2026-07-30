@@ -1,8 +1,11 @@
+import hashlib
 import shutil
 from pathlib import Path
 
 from workflow_engine.output import ActionNodeOutput
-from workflow_engine.registry.function_registry import register_function
+from workflow_engine.registry.function_registry import (
+    register_function,
+)
 from workflow_engine.validators.functions_validators import (
     file_exists_arg_validator,
     folder_exists_arg_validator,
@@ -10,9 +13,9 @@ from workflow_engine.validators.functions_validators import (
 )
 
 
-@register_function(decorators=(
+@register_function(decorators=[
         file_exists_arg_validator({"path_source": 0}),
-))
+])
 def copy_file(path_source:str,path_target:str)->ActionNodeOutput:
     source = Path(path_source)
     if not source.is_file():
@@ -37,10 +40,12 @@ def copy_file(path_source:str,path_target:str)->ActionNodeOutput:
     )
 
 
-@register_function(decorators=(
+@register_function(
+    decorators=[
         folder_exists_arg_validator({"path_target": 0}),
         not_empty_str_arg_validator({"folder_name": 1})
-))
+    ]
+)
 def create_folder(path_target:str, folder_name:str)->ActionNodeOutput:
     folder = Path(path_target) / folder_name
     try:
@@ -53,4 +58,41 @@ def create_folder(path_target:str, folder_name:str)->ActionNodeOutput:
         )
     return ActionNodeOutput(
         output_text=str(folder.absolute())
+    )
+
+
+@register_function(
+    decorators=[
+        file_exists_arg_validator({"file_path":0})
+    ]
+)
+def md5_check_sum_file(file_path: str) -> ActionNodeOutput:
+    with open(file_path, 'rb') as fh:
+        m = hashlib.md5()
+        while True:
+            data = fh.read(65536)
+            if not data:
+                break
+            m.update(data)
+        return ActionNodeOutput(
+            output_text=m.hexdigest()
+        )
+
+@register_function(
+    decorators=[
+        file_exists_arg_validator({"file_path":0})
+    ]
+)
+def file_delete(file_path:str)->ActionNodeOutput:
+    file = Path(file_path)
+    try:
+        file.unlink()
+    except OSError as e:
+        return ActionNodeOutput(
+            output_text="Can't delete file",
+            error_code="delete_failed",
+            error_message=f"Failed to delete file '{file.absolute()}': {e!s}"
+        )
+    return ActionNodeOutput(
+        output_text=f"File '{file.absolute()}' deleted successfully"
     )

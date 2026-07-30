@@ -22,9 +22,9 @@ from workflow_engine.workflow import WorkflowNode, stop_on_error_node_factory
 class NextTransition(WithNextNode):
     
     def transition(self, output: ActionNodeOutput, state: StateModel,
-                   workflow_nodes: dict[str, WorkflowNode]) -> WorkflowNode:
+                   workflow_nodes: set[str]) -> str | None:
         self.check_error(workflow_nodes)
-        return workflow_nodes[self.next_node]
+        return self.next_node
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
@@ -38,9 +38,9 @@ class NextTransition(WithNextNode):
 class ValidatorBasedTransition(WithNextNode):
     validator: BaseOutputValidator
 
-    def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: dict[str, WorkflowNode]) -> WorkflowNode | None:
+    def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: set[str]) -> str | None:
         self.check_error(workflow_nodes)
-        return workflow_nodes[self.next_node] if self.validator.validate_output(output.output_text, state) else None
+        return self.next_node if self.validator.validate_output(output.output_text, state) else None
 
     @classmethod
     def from_validator(cls, next_node: str, validator: BaseOutputValidator) -> Self:
@@ -74,10 +74,10 @@ class ValidatorBasedTransition(WithNextNode):
 class NextOnErrorTransition(WithNextNode,WithErrors):
 
     def transition(self, output: ActionNodeOutput, state: StateModel,
-                   workflow_nodes: dict[str, WorkflowNode]) -> WorkflowNode | None:
+                   workflow_nodes: set[str]) -> str | None:
         self.check_error(workflow_nodes)
         if self.is_error(output):
-            return workflow_nodes[self.next_node]
+            return self.next_node
         else:
             return None
 
@@ -93,10 +93,10 @@ class NextOnErrorTransition(WithNextNode,WithErrors):
 class StopOnErrorTransition(WithErrors):
     """Transition to stop workflow on not recoverable errors."""
 
-    def check_error(self, workflow_nodes: dict[str, WorkflowNode]):
+    def check_error(self, workflow_nodes: set[str]):
         pass
 
-    def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: dict[str, WorkflowNode]) -> WorkflowNode | None:
+    def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: set[str]) -> str | None:
         if output.error_code and self.is_error(output):
             return stop_on_error_node_factory(f"Stop on error transition - {output.on_error()}")
         return None

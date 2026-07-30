@@ -5,14 +5,15 @@ from typing import Self
 from workflow_engine.exceptions import WorkflowError
 from workflow_engine.models.state import StateModel
 from workflow_engine.output import ActionNodeOutput
-from workflow_engine.workflow import WorkflowNode
+
+# from workflow_engine.workflow import WorkflowNode
 
 
 @dataclass
 class BaseTransaction(ABC):
 
     @abstractmethod
-    def transition(self, output:ActionNodeOutput, state: StateModel, workflow_nodes:dict[str,WorkflowNode]) -> WorkflowNode | None:
+    def transition(self, output:ActionNodeOutput, state: StateModel, workflow_nodes:set[str]) -> str | None:
         pass
 
     @classmethod
@@ -31,7 +32,7 @@ class BaseTransaction(ABC):
         pass
 
     @abstractmethod
-    def check_error(self,workflow_nodes: dict[str, WorkflowNode]):
+    def check_error(self,workflow_nodes: set[str]):
         pass
 
     @classmethod
@@ -56,10 +57,10 @@ class WithNextNode(BaseTransaction,ABC):
     def data_keys(cls) -> list[str]:
         return ['next']
 
-    def check_next_node_id(self,workflow_nodes: dict[str, WorkflowNode])->bool:
+    def check_next_node_id(self,workflow_nodes: set[str])->bool:
         return self.next_node in workflow_nodes
 
-    def check_error(self, workflow_nodes: dict[str, WorkflowNode]):
+    def check_error(self, workflow_nodes: set[str]):
         if not self.check_next_node_id(workflow_nodes):
             raise WorkflowError(f"Next node '{self.next_node}' not found in workflow nodes")
 

@@ -6,7 +6,7 @@ import pytest
 
 from workflow_engine.exceptions import StateError
 from workflow_engine.models.state import ActionParameter, StateModel
-from workflow_engine.storage.json_storage import JsonStateStorage
+from workflow_engine.storage.json_storage import JsonStorage
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def state(tmp_path):
 @pytest.fixture
 def json_storage(tmp_path, state):
     print(f"Temp dir: {tmp_path.absolute()}")
-    storage = JsonStateStorage(tmp_path)
+    storage = JsonStorage(tmp_path)
     storage.save_state(state)
     return storage
 
@@ -102,7 +102,7 @@ def test_save_state(tmp_path, json_storage):
 
 
 def test_load_state_with_corrupt_timestamp(corrupt_timestamp):
-    storage = JsonStateStorage(corrupt_timestamp)
+    storage = JsonStorage(corrupt_timestamp)
     with pytest.raises(StateError) as error:
         storage.load_state()
     assert error.value.args[0] == "Invalid timestamp format"
@@ -110,7 +110,7 @@ def test_load_state_with_corrupt_timestamp(corrupt_timestamp):
 
 
 def test_load_corrupt_state(corrupt_state):
-    storage = JsonStateStorage(corrupt_state)
+    storage = JsonStorage(corrupt_state)
     with pytest.raises(StateError) as error:
         storage.load_state()
     assert error.value.args[0] == "Invalid State JSON format"
@@ -118,7 +118,7 @@ def test_load_corrupt_state(corrupt_state):
 
 
 def test_load_corrupt_json(corrupt_json):
-    storage = JsonStateStorage(corrupt_json)
+    storage = JsonStorage(corrupt_json)
     with pytest.raises(StateError) as error:
         storage.load_state()
     assert error.value.args[0] == "Invalid JSON format"
@@ -126,7 +126,7 @@ def test_load_corrupt_json(corrupt_json):
 
 
 def test_load_not_exist_work_dir(not_exist_work_dir):
-    storage = JsonStateStorage(not_exist_work_dir)
+    storage = JsonStorage(not_exist_work_dir)
     with pytest.raises(StateError) as error:
         storage.load_state()
     assert error.value.args[0].startswith("Invalid work_dir path")

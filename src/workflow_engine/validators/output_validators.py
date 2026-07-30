@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Self
 
@@ -18,10 +18,23 @@ from workflow_engine.registry.function_registry import (
 # If implement it need to be work out CombinedOutputValidator to set in output block which case validator failed or description for all CombinedOutputValidator.
 # ides 2: set error code for evry validator - 1. transition can use it to transit to the next node 2. CombinedOutputValidator will get last error code and and use it to fiend error description
 class BaseOutputValidator(ABC):
-
+    reversed: bool = field(default=False, metadata={"description": "If True, the validation result will be reversed."})
+    
+    def __init__(self,data: dict[str, object]):
+        if "reversed" in data:
+            r = data["reversed"]
+            if isinstance(r, bool):
+                self.reversed = r
+    
     @abstractmethod
-    def validate_output(self, output: str, state: StateModel)->bool:
+    def _validate_output(self, output: str, state: StateModel)->bool:
         pass
+    
+    def validate_output(self, output: str, state: StateModel)->bool:
+        result = self._validate_output(output, state)
+        if self.reversed:
+            return not result
+        return result
 
     @classmethod
     @abstractmethod
@@ -54,14 +67,17 @@ class BaseOutputValidator(ABC):
 @dataclass
 class OutputValueValidator(BaseOutputValidator,ABC):
     value: str
+    
+    def __init__(self,data: dict[str, object]):
+        super().__init__(data)
+        value = data[self.data_keys()[0]]
+        if not isinstance(value, str):
+            raise TypeError(f"'value' must be a string found {type(value).__name__}")
+        self.value = value
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
-        cls.validate_keys(data)
-        value = data[cls.data_keys()[0]]
-        if not isinstance(value, str):
-            raise TypeError(f"'value' must be a string found {type(value).__name__}")
-        return cls(value=value)
+        return cls(data)
 
     def converted_value(self,state: StateModel)->str:
         return state.set_parameters({"value":self.value})["value"].__str__()
@@ -70,11 +86,12 @@ class OutputValueValidator(BaseOutputValidator,ABC):
 
 @dataclass
 class OutputContainsValidator(OutputValueValidator):
+
     @classmethod
     def data_keys(cls) -> list[str]:
         return ["contains"]
 
-    def validate_output(self, output: str, state: StateModel) -> bool:
+    def _validate_output(self, output: str, state: StateModel) -> bool:
         return self.converted_value(state) in output
 
 class OutputEqualsValidator(OutputValueValidator):
@@ -82,7 +99,7 @@ class OutputEqualsValidator(OutputValueValidator):
     def data_keys(cls) -> list[str]:
         return ["equals"]
 
-    def validate_output(self, output: str, state: StateModel) -> bool:
+    def _validate_output(self, output: str, state: StateModel) -> bool:
         return self.converted_value(state) == output
 
 class OutputStartWithValidator(OutputValueValidator):
@@ -90,7 +107,7 @@ class OutputStartWithValidator(OutputValueValidator):
     def data_keys(cls) -> list[str]:
         return ["starts_with"]
 
-    def validate_output(self, output: str, state: StateModel) -> bool:
+    def _validate_output(self, output: str, state: StateModel) -> bool:
         return output.startswith(self.converted_value(state))
 
 class OutputEndWithValidator(OutputValueValidator):
@@ -98,7 +115,7 @@ class OutputEndWithValidator(OutputValueValidator):
     def data_keys(cls) -> list[str]:
         return ["ends_with"]
 
-    def validate_output(self, output: str, state: StateModel) -> bool:
+    def _validate_output(self, output: str, state: StateModel) -> bool:
         return output.endswith(self.converted_value(state))
 
 class Combiner(Enum):
@@ -136,7 +153,21 @@ class ValidatorCombiner:
 class CombinedOutputValidator(BaseOutputValidator):
     validators: list[ValidatorCombiner]
 
-    def validate_output(self, output: str, state: StateModel) -> bool:
+    def __init__(self, data: dict[str, object]):
+        super().__init__(data)
+        combiners: list[ValidatorCombiner] = []
+        validators = data["validators"]
+        if not isinstance(validators, list):
+            raise TypeError(f"'validators' must be a list found {type(validators).__name__}")
+        for validator_dict in validators:
+            if isinstance(validator_dict, dict):
+                validator = validator_factory(validator_dict)
+                if validator is not None:
+                    combiners.append(ValidatorCombiner(validator=validator,combiner=Combiner.from_dict(validator_dict)))
+        if not len(combiners) > 0:
+            raise ValueError("Combined Output Validator 'validators' must contain at least one valid validator")
+
+    def _validate_output(self, output: str, state: StateModel) -> bool:
         next_validator_function = None
         for validator in self.validators:
             next_validator_function = validator.combine(next_validator_function)
@@ -147,18 +178,7 @@ class CombinedOutputValidator(BaseOutputValidator):
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
         cls.validate_keys(data)
-        combiners: list[ValidatorCombiner] = []
-        validators = data["validators"]
-        if not isinstance(validators, list):
-            raise TypeError(f"'validators' must be a list found {type(validators).__name__}")
-        for validator_dict in validators:
-            if isinstance(validator_dict, dict):
-                validator = validator_factory(validator_dict)
-                if validator is not None:
-                    combiners.append(ValidatorCombiner(validator=validator,combiner=Combiner.from_dict(validator_dict)))
-        if not combiners:
-            raise ValueError("Combined Output Validator 'validators' must contain at least one valid validator")
-        return cls(validators=combiners)
+        return cls(data)
 
     @classmethod
     def data_keys(cls) -> list[str]:
@@ -169,6 +189,10 @@ class CombinedOutputValidator(BaseOutputValidator):
 class OutputFunctionValidator(BaseOutputValidator):
     registered_validator: RegisteredFunctionExecutor[bool]
 
+    def __init__(self, data: dict[str, object]):
+        super().__init__(data)
+        self.registered_validator = get_and_check_registered(get_registered_validator,data,{"output":""})
+
     @classmethod
     def data_keys(cls) -> list[str]:
         return [FUNCTION_NAME_KEY]
@@ -176,9 +200,9 @@ class OutputFunctionValidator(BaseOutputValidator):
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
         cls.validate_keys(data)
-        return cls(registered_validator=get_and_check_registered(get_registered_validator,data,{"output":""}))
+        return cls(data)
 
-    def validate_output(self, output: str, state: StateModel) -> bool | None:
+    def _validate_output(self, output: str, state: StateModel) -> bool | None:
         return self.registered_validator.execute(parameters_modified=state.set_parameters_with_updater({"output": output}))
 
 VALIDATOR_CLASSES: list[type[BaseOutputValidator]] = [

@@ -36,6 +36,7 @@ def not_empty_str_arg_validator(chek_ars:dict[str,int]):
 
 def folder_exists_arg_validator(chek_ars:dict[str,int]):
     def inner(func):
+        @wraps(func)
         def wrapper(*args, **kwargs):
             # Validate the arguments before calling the function
             _check_args(func.__name__,str, lambda x: Path(x).is_dir(), chek_ars, args=args, kwargs=kwargs)
@@ -46,6 +47,7 @@ def folder_exists_arg_validator(chek_ars:dict[str,int]):
 
 def file_exists_arg_validator(chek_ars:dict[str,int]):
     def inner(func):
+        @wraps(func)
         def wrapper(*args, **kwargs):
             # Validate the arguments before calling the function
             _check_args(func.__name__,str, lambda x: Path(x).is_file(), chek_ars, args=args, kwargs=kwargs)

@@ -3,12 +3,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 from workflow_engine.exceptions import RuntimeParameterError
 from workflow_engine.output import ActionNodeOutput
-from workflow_engine.workflow import WorkflowNode
 
 
 class StateSource(ABC):
@@ -76,34 +75,34 @@ class StateModel:
     def set_parameters_with_updater(self,updater:dict[str, object])->Callable[[dict[str, object]], dict[str, object]]:
         return lambda parameters: self.set_parameters(parameters, updater)
 
-    def _update_cur_node(self,curr_node:WorkflowNode,output:ActionNodeOutput | None) ->None:
+    def _update_cur_node(self, curr_node_id:str, output: ActionNodeOutput | None,save_as:str | None) ->None:
         if output:
             if output.output_text:
-                self.outputs[curr_node.id] = output.output_text
+                self.outputs[curr_node_id] = output.output_text
             if output.error_code:
-                self.errors[curr_node.id] = f"[{datetime.now(tz=UTC)}]({output.error_code}) {output.error_message}"
+                self.errors[curr_node_id] = f"[{datetime.now(tz=UTC)}]({output.error_code}) {output.error_message}"
                 self.error_code = output.error_code
                 self.error_msg = output.error_message
             else:
-                self.outputs[curr_node.id] = output.output_text
-                if curr_node.config.save_as:
-                    self.params[curr_node.config.save_as] = ActionParameter(
-                        source_node_id=curr_node.id,
-                        name=curr_node.config.save_as,
+                self.outputs[curr_node_id] = output.output_text
+                if save_as:
+                    self.params[save_as] = ActionParameter(
+                        source_node_id=curr_node_id,
+                        name=save_as,
                         value=output.output_text
                     )
     
     def _update_stats(self,next_node_id:str | None,curr_node_id:str) -> None:
-        if next_node_id:
-            self.current_node_id = next_node_id
-            if next_node_id == curr_node_id:
-                # update attempt_counters
-                self.attempt_counters[curr_node_id] = self.attempt_counters.get(curr_node_id, 0) + 1
-            else:
-                # reset attempt_counters and update visit_counters
-                self.visit_counters[curr_node_id] = self.visit_counters.get(curr_node_id, 0) + 1
-                self.attempt_counters[curr_node_id] = 0
-                self.nodes_visited +=1
+        if next_node_id and next_node_id == curr_node_id:
+            # update attempt_counters
+            self.attempt_counters[curr_node_id] = self.attempt_counters.get(curr_node_id, 0) + 1
+        else:
+            # reset attempt_counters and update visit_counters
+            self.visit_counters[curr_node_id] = self.visit_counters.get(curr_node_id, 0) + 1
+            self.attempt_counters[curr_node_id] = 0
+            self.nodes_visited +=1
+            if next_node_id:
+                self.current_node_id = next_node_id
                 
     def info(self)->list[str]:
         info = [f"last node id: {self.current_node_id}, total visits: {self.nodes_visited}, flow_budget: {self.flow_budget}"]
@@ -134,6 +133,6 @@ class StateModel:
         outputs = ["All outputs in current workflow:"]
         return outputs + [f"{k}: {v}" for k, v in self.outputs.items()]
 
-    def update(self, curr_node:WorkflowNode,output:ActionNodeOutput | None,next_node_id:str | None):
-        self._update_cur_node(curr_node, output)
-        self._update_stats(next_node_id, curr_node.id)
+    def update(self, curr_node_id:str,save_as:str | None,output:ActionNodeOutput | None,next_node_id:str | None):
+        self._update_cur_node(curr_node_id, output, save_as)
+        self._update_stats(next_node_id, curr_node_id)

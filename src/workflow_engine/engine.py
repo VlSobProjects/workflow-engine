@@ -46,7 +46,7 @@ def _workflow_nodes_errors(workflow: dict[str, WorkflowNode]) ->dict[str,str]:
         try:
             if node.transitions is not None:
                 for transition in node.transitions:
-                    transition.check_error(workflow)
+                    transition.check_error(set(workflow.keys()))
         except WorkflowError as e:
             errors[node.id] = f"Error {error_count} in node {node.id}: {e.__str__()}"
             error_count += 1
@@ -56,7 +56,7 @@ def _workflow_nodes_errors(workflow: dict[str, WorkflowNode]) ->dict[str,str]:
 
 def _validate_output(output:ActionNodeOutput, validators:list[BaseOutputValidator], state:StateModel)->bool:
     for validator in validators:
-        if not validator.validate_output(output.output_text, state):
+        if not validator._validate_output(output.output_text, state):
             return False
     return True
 
@@ -81,9 +81,9 @@ def _transition_on_error(transition:list[BaseTransaction] | None, cur_node: Work
     attempts = state.attempt_counters.get(cur_node.id, 0)
     if transition is not None:
         for tr in [t for t in transition if t.is_on_error()]:
-            next_node = tr.transition(output, state, workflow_nodes)
-            if next_node:
-                return _next_on_error(cur_node,next_node,output,isinstance(tr,WithErrors) and tr.attempts,attempts)
+            next_node_id = tr.transition(output, state, set(workflow_nodes.keys()))
+            if next_node_id and next_node_id in workflow_nodes:
+                return _next_on_error(cur_node,workflow_nodes[next_node_id],output,isinstance(tr,WithErrors) and tr.attempts,attempts)
         
     return _retry_node(output, cur_node, attempts)
 
@@ -101,10 +101,10 @@ def _proceed_with_output(output: ActionNodeOutput | None, cur_node: WorkflowNode
                 print(f"Node {cur_node.id} executed successfully, output: {output.output_text}")
                 if cur_node.transitions is not None:
                     for tr in [t for t in cur_node.transitions if not t.is_on_error()]:
-                        next_node = tr.transition(output, state, workflow_nodes)
-                        if next_node:
-                            print(f"Transitioning to node {next_node.id} from node {cur_node.id}")
-                            return next_node
+                        next_node_id = tr.transition(output, state, set(workflow_nodes.keys()))
+                        if next_node_id and next_node_id in workflow_nodes:
+                            print(f"Transitioning to node {next_node_id} from node {cur_node.id}")
+                            return workflow_nodes[next_node_id]
 
                 print(f"No transition found for node {cur_node.id}, workflow will stop.")
                 return None
@@ -112,12 +112,12 @@ def _proceed_with_output(output: ActionNodeOutput | None, cur_node: WorkflowNode
         return cur_node
 
 
-def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentResponse | None:
+def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentResponse:
     state, workflow = storage.continue_workflow()
     _load_workflow_nodes(workflow)
-    def load_state():
-        nonlocal state
-        state = storage.load_state()
+    # def load_state():
+    #     nonlocal state
+    #     state = storage.load_state()
 
     cur_node = get_workflow_node(state.current_node_id)
     if cur_node is None:
@@ -157,7 +157,7 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
     try:
         while cur_node is not None:
             next_node = _proceed_with_output(output, cur_node, state, WORKFLOW_NODES)
-            state.update(cur_node, output, next_node.id if next_node else None)
+            state.update(cur_node.id,cur_node.config.save_as, output, next_node.id if next_node else None)
             storage.save_state(state)
             cur_node = next_node
 
@@ -166,7 +166,8 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
             elif cur_node and isinstance(cur_node.action, BaseInteractiveAction):
                 return cur_node.action.present(state)
 
-            load_state()
+
+
     except Exception as e:
         print(f"Engine stop: Exception occurred during workflow execution: {e}")
         return PresentResponse(
@@ -181,8 +182,18 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
             errors={f"Exception: {type(e).__name__}": str(e)},
         )
 
-    
-    return None
+    storage.save_state(state)
+
+    return PresentResponse(
+            title="Loop finished",
+            description="All nodes have been processed, and the workflow has completed.",
+            instruction="Workflow execution completed successfully. Check state.",
+            hints=["Current Workflow Sate:", f"working folder: {state.work_dir}"]
+            + state.info()
+            + state.info_errors()
+            + state.info_params()
+            + state.info_outputs(),
+        )
 
 
 

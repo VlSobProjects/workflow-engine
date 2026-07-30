@@ -63,7 +63,7 @@ class WorkflowNodeModel:
             action_type=data['action_type'].__str__(),
             action_parameters=decode_dict(data['action_parameters']),
             save_as=decode_string_none(data.get('save_as')),
-            transitions=decode_list_of_dict_or_none(data.get('transition')),
-            validators=decode_list_of_dict_or_none(data.get('validator')),
+            transitions=decode_list_of_dict_or_none(data.get('transitions')),
+            validators=decode_list_of_dict_or_none(data.get('validators')),
             max_attempts=decode_int_or_default(data.get('max_attempts'), 3)
         )

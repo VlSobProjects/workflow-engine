@@ -14,7 +14,7 @@ from workflow_engine.registry.function_registry import (
 )
 
 
-@register_action
+@register_action()
 @dataclass
 class FunctionAction(ActionWithFunction):
     ACTION_TYPE = 'function'
@@ -28,7 +28,8 @@ class FunctionAction(ActionWithFunction):
         )
 
 
-@register_action
+
+@register_action()
 @dataclass
 class StopAction(ActionWithFunction):
     ACTION_TYPE = 'stop'
@@ -46,6 +47,7 @@ class StopAction(ActionWithFunction):
         return cls(
             registered_function=registered_function
         )
+
 
 @register_action()
 @dataclass

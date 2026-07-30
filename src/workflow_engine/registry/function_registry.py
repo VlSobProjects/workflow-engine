@@ -7,9 +7,12 @@ from dataclasses import dataclass
 from types import UnionType
 from typing import Self, TypeVar, get_type_hints
 
+from pygments.lexers import data
+
+from workflow_engine.exceptions import FunctionParametersTypeError
 from workflow_engine.output import ActionNodeOutput
 
-FUNCTION_PARAMETERS_KEY = "parameters"
+FUNCTION_PARAMETERS_KEY = "function_parameters"
 FUNCTION_NAME_KEY = "function_name"
 
 T = TypeVar('T', str, bool, str | None, ActionNodeOutput)
@@ -18,8 +21,8 @@ type TFunc[T] = Callable[..., T]
 type TDecorator[T] = Callable[[TFunc[T]], TFunc[T]]
 
 
-type ActionNodeOutputFunc = Callable[..., ActionNodeOutput]
-type ActionNodeOutputDecorator = Callable[[ActionNodeOutputFunc], ActionNodeOutput]
+# type ActionNodeOutputFunc = Callable[..., ActionNodeOutput]
+# type ActionNodeOutputDecorator = Callable[[ActionNodeOutputFunc], ActionNodeOutput]
 
 
 FUNCTION_REGISTRY: dict[str,RegisteredFunction] = {}
@@ -32,11 +35,15 @@ class BaseRegisteredFunction[T](ABC):
     signature: inspect.Signature
     hints: dict[str, object]
     function: Callable[..., T]
+    args_cleaner: Callable[[dict[str, object]], dict[str, object]]
     def check_args(self,args:dict[str, object] | None) -> None:
-        if args is not None:
-            self.signature.bind(**args)
-        else:
-            self.signature.bind()
+        try:
+            if args is not None:
+                self.signature.bind(**self.args_cleaner(args))
+            else:
+                self.signature.bind()
+        except TypeError as e:
+            raise FunctionParametersTypeError(func_name=self.name, exception=e) from e
 
     def is_function_return_type(self) -> bool:
         return self.hints["return"] == self.get_expected_type()
@@ -45,7 +52,10 @@ class BaseRegisteredFunction[T](ABC):
     def factory(cls, name:str, signature:inspect.Signature, hints:dict[str, object], function:Callable[..., T]) -> Self:
         if cls == BaseRegisteredFunction:
             raise TypeError("BaseRegisteredFunction cannot be instantiated directly. Use a subclass.")
-        return cls(name=name, signature=signature, hints=hints, function=function)
+
+        arg_c: Callable[[dict[str, object]], dict[str, object]] = lambda data : {k:v for k,v in data.items() if k in signature.parameters}
+
+        return cls(name=name, signature=signature, hints=hints, function=function, args_cleaner=arg_c)
 
     @abstractmethod
     def get_expected_type(self)->type[T]:
@@ -70,10 +80,11 @@ class RegisteredTransaction(BaseRegisteredFunction[str | None]):
     def get_expected_type(self) -> UnionType | type[str]:
         return str | None
 
-def _register[T](func: Callable[..., T],registry: dict[str, BaseRegisteredFunction[T]], register_type:type[BaseRegisteredFunction[T]]) -> Callable[..., T]:
+def _register[T](func: Callable[..., T], registry: dict[str, BaseRegisteredFunction[T]], register_type:type[BaseRegisteredFunction[T]]) -> Callable[..., T]:
     if func.__name__ in registry:
         raise ValueError(f"Function '{func.__name__}' is already registered")
     signature = inspect.signature(func)
+
 
     registered_function = register_type.factory(
         name=func.__name__,
@@ -90,8 +101,7 @@ def _register[T](func: Callable[..., T],registry: dict[str, BaseRegisteredFuncti
 
 def _reg[T](
         func:TFunc[T] | None,
-        registry: dict[str,
-        BaseRegisteredFunction[T]],
+        registry: dict[str,BaseRegisteredFunction[T]],
         register_type:type[BaseRegisteredFunction[T]],
         decorators: Sequence[TDecorator[T]]
 ):
@@ -113,9 +123,9 @@ def _reg[T](
 
 
 def register_function(
-        func: TFunc[ActionNodeOutputFunc] | None = None,
+        func: TFunc[ActionNodeOutput] | None = None,
         *,
-        decorators: Sequence[TDecorator[ActionNodeOutputFunc]] = (),
+        decorators: Sequence[TDecorator[ActionNodeOutput]] = (),
 
 ):
     return _reg(func, FUNCTION_REGISTRY, RegisteredFunction, decorators)
@@ -149,7 +159,7 @@ class RegisteredFunctionExecutor[T]:
         if params is None:
             return self.registered_function.function()
 
-        return self.registered_function.function(**params)
+        return self.registered_function.function(**self.registered_function.args_cleaner(params))
 
     @staticmethod
     def get_registered_function(data: dict[str, object],
@@ -191,7 +201,6 @@ def get_registered_validator(validator_name:str,parameters: dict[str, object] | 
 
 def get_registered_transaction(transaction_name:str,parameters: dict[str, object] | None = None) -> RegisteredFunctionExecutor[str | None] | None:
     return _get_registered_executor(TRANSACTION_REGISTRY, transaction_name, parameters)
-
 
 def get_and_check_registered[T](get_registered: Callable[[str, dict[str, object] | None], RegisteredFunctionExecutor[T] | None], data: dict[str, object], addition_parameters: dict[str, object] | None = None) -> RegisteredFunctionExecutor[T]:
     function_name = data.get(FUNCTION_NAME_KEY)
