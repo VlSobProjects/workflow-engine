@@ -36,7 +36,7 @@ def workflow_node_factory(node_model: WorkflowNodeModel) -> WorkflowNode:
 def stop_on_error_node_factory(error:str):
     params = {"error": error}
     from workflow_engine.actions.action_nodes import StopOnError
-    action  = StopOnError.from_dict(params)
+    action  = StopOnError(params)
     return WorkflowNode(
         id='STOP_ON_ERROR',
         config=WorkflowNodeModel(action.ACTION_TYPE.upper(), action.ACTION_TYPE,params),

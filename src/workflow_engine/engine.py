@@ -56,7 +56,7 @@ def _workflow_nodes_errors(workflow: dict[str, WorkflowNode]) ->dict[str,str]:
 
 def _validate_output(output:ActionNodeOutput, validators:list[BaseOutputValidator], state:StateModel)->bool:
     for validator in validators:
-        if not validator._validate_output(output.output_text, state):
+        if not validator.validate_output(output.output_text, state):
             return False
     return True
 
@@ -162,7 +162,7 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
             cur_node = next_node
 
             if cur_node and isinstance(cur_node.action, BaseAutomaticAction):
-                output = cur_node.action.execute(state)
+                output = cur_node.action.execute(state,output)
             elif cur_node and isinstance(cur_node.action, BaseInteractiveAction):
                 return cur_node.action.present(state)
 

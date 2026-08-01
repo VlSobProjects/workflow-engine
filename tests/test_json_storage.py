@@ -1,4 +1,5 @@
 import datetime
+import importlib
 import json
 from pathlib import Path
 
@@ -10,17 +11,18 @@ from workflow_engine.storage.json_storage import JsonStorage
 
 
 @pytest.fixture
-def state(tmp_path):
+def load_modules():
+    importlib.import_module("workflow_engine.codecs.base_codecs")
+
+
+@pytest.fixture
+def state(load_modules,tmp_path):
     return StateModel(
         timestamp=datetime.datetime.now(tz=datetime.UTC),
         work_dir=tmp_path,
         schema_version="1",
         flow_id="test",
-        params={
-            "test_param": ActionParameter(
-                name="test_param", value="string", source_node_id="test_node_id"
-            )
-        },
+        params={"test_param": ActionParameter.create("test_node_id", "test_param", "string")},
         current_node_id="test_node_id",
     )
 
@@ -53,9 +55,7 @@ def add_output(json_storage):
 def add_param(json_storage):
     state = json_storage.load_state()
     assert state is not None
-    state.params["test_param"] = ActionParameter(
-        name="test_param", value="test_param_value", source_node_id="test_node_id"
-    )
+    state.params["test_param"] = ActionParameter.create("test_node_id", "test_param", "test_param_value")
     json_storage.save_state(state)
     return json_storage
 
@@ -143,7 +143,7 @@ def test_add_output(add_output):
 def test_add_param(add_param):
     state = add_param.load_state()
     assert state is not None
-    assert state.params["test_param"] == ActionParameter(
+    assert state.params["test_param"] == ActionParameter.create(
         name="test_param", value="test_param_value", source_node_id="test_node_id"
     )
     print(f" Added param:  {state.params}")

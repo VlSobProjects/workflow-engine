@@ -8,6 +8,12 @@ from pathlib import Path
 
 from workflow_engine.exceptions import RuntimeParameterError
 from workflow_engine.output import ActionNodeOutput
+from workflow_engine.registry.type_registry import (
+    Codec,
+    NoCodec,
+    convert_from_dict,
+    find_codec,
+)
 
 
 class StateSource(ABC):
@@ -25,8 +31,45 @@ class ActionParameter:
     source_node_id:str
     name: str
     value: object
+    codec:type[Codec]
 
+    @classmethod
+    def create(cls, source_node_id:str, name: str, value: object) -> ActionParameter:
+        codec = find_codec(value)
+        if codec is None:
+            codec = NoCodec
+        return cls(
+            source_node_id=source_node_id,
+            name=name,
+            value=value,
+            codec=codec
+        )
 
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "source_node_id": self.source_node_id,
+            "name": self.name,
+            "value": self.codec.convert_to_dict(self.value),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> ActionParameter:
+        if "source_node_id" in data and "name" in data and "value" in data:
+            source_node_id = data["source_node_id"]
+            name = data["name"]
+            value = data["value"]
+            value, codec = convert_from_dict(value)       
+            if isinstance(source_node_id, str) and isinstance(name, str):
+                return cls(
+                    source_node_id=source_node_id,
+                    name=name,
+                    value=value,
+                    codec=codec,
+                )
+            else:
+                raise RuntimeParameterError(name.__repr__(), source_node_id.__repr__(), value.__repr__(), "Invalid parameter types")
+        else:
+            raise RuntimeParameterError(data.get("name", "N/A").__repr__(), data.get("source_node_id", "N/A").__repr__(), data.get("value", "N/A").__repr__(), "Missing required keys in parameter dictionary")
 
 @dataclass
 class StateModel:
@@ -43,6 +86,7 @@ class StateModel:
     outputs: dict[str, str] = field(default_factory=dict)           # normalized values
     errors: dict[str, str] = field(default_factory=dict)            # error messages
     params: dict[str, ActionParameter] = field(default_factory=dict)            # save_as results
+    artifacts: dict[str, str] = field(default_factory=dict) #folder in workdir with files
     flow_budget: int = 0                               # engine-managed params: _flow_budget (int)
     nodes_visited: int = 0                             # engine-managed params: _nodes_visited (int)
 
@@ -75,6 +119,11 @@ class StateModel:
     def set_parameters_with_updater(self,updater:dict[str, object])->Callable[[dict[str, object]], dict[str, object]]:
         return lambda parameters: self.set_parameters(parameters, updater)
 
+    def get_param(self, param_name:str)->object | None:
+        if param_name in self.params:
+            return self.params[param_name].value
+        return None
+
     def _update_cur_node(self, curr_node_id:str, output: ActionNodeOutput | None,save_as:str | None) ->None:
         if output:
             if output.output_text:
@@ -86,7 +135,7 @@ class StateModel:
             else:
                 self.outputs[curr_node_id] = output.output_text
                 if save_as:
-                    self.params[save_as] = ActionParameter(
+                    self.params[save_as] = ActionParameter.create(
                         source_node_id=curr_node_id,
                         name=save_as,
                         value=output.output_text

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import field
 from enum import Enum, auto
-from typing import Self
+from typing import cast
 
 from workflow_engine.actions.action_present import PresentResponse
 from workflow_engine.models.state import StateModel
@@ -43,25 +43,34 @@ class BaseAction(ABC):
     ACTION_TYPE: str
     save_as: str | None = field(default=None)
 
+    def __init__(self,data: dict[str, object]):
+        if "save_as" in data and isinstance(data["save_as"], str):
+            self.save_as = cast(str, data["save_as"])
+
     def validate_action(self) -> None:
         return
-
-    @classmethod
-    @abstractmethod
-    def from_dict(cls, data: dict[str, object]) -> Self:
-        pass
 
     @classmethod
     @abstractmethod
     def execution_mode(cls) -> ExecutionMode:
         pass
 
-@dataclass
+    @classmethod
+    def get_registered_function(cls, data: dict[str, object])-> RegisteredFunctionExecutor[ActionNodeOutput]:
+        return get_and_check_registered(get_registered_function, data)
+
+
 class BaseAutomaticAction(BaseAction,ABC):
 
+    def __init__(self,data: dict[str, object]):
+        super().__init__(data)
+
     @abstractmethod
-    def execute(self,state: StateModel)->ActionNodeOutput:
+    def _execute(self,state: StateModel,prev_output:ActionNodeOutput | None)->ActionNodeOutput:
         pass
+
+    def execute(self,state: StateModel,prev_output:ActionNodeOutput | None)->ActionNodeOutput:
+        return self._execute(state, prev_output).update_parameters(prev_output)
 
     @classmethod
     def execution_mode(cls) -> ExecutionMode:
@@ -69,6 +78,9 @@ class BaseAutomaticAction(BaseAction,ABC):
 
 
 class BaseInteractiveAction(BaseAction,ABC):
+
+    def __init__(self,data: dict[str, object]):
+        super().__init__(data)
 
     @abstractmethod
     def present(self,state: StateModel) -> PresentResponse:
@@ -81,9 +93,10 @@ class BaseInteractiveAction(BaseAction,ABC):
 class ActionWithFunction(BaseAutomaticAction,ABC):
     registered_function: RegisteredFunctionExecutor[ActionNodeOutput]
 
-    def execute(self, state: StateModel) -> ActionNodeOutput:
-        return self.registered_function.execute(parameters_modified=state.set_parameters)
+    def __init__(self,data: dict[str, object]):
+        super().__init__(data)
+        self.registered_function = get_and_check_registered(get_registered_function, data)
 
-    @classmethod
-    def get_registered_function(cls, data: dict[str, object])-> RegisteredFunctionExecutor[ActionNodeOutput]:
-        return get_and_check_registered(get_registered_function, data)
+    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
+        return self.registered_function.execute(parameters_modified=state.set_parameters_with_updater({"output": prev_output, "state": state}))
+

@@ -31,7 +31,7 @@ def state_encoder(obj):
         return obj.isoformat()
 
     if isinstance(obj, ActionParameter):
-        return {**dataclasses.asdict(obj)}
+        return obj.to_dict()
 
     if isinstance(obj, Path):
         return str(obj)
@@ -60,7 +60,7 @@ def state_fields_decoder(dct):
             for param_key, param_value in value.items():
                 if not isinstance(param_value, dict):
                     raise StateError(f"Invalid param format for key: {param_key}: {param_value}")
-                value[param_key] = ActionParameter(**param_value)
+                value[param_key] = ActionParameter.from_dict(param_value)
     return dct
 
 def workflow_fields_decoder(dct):

@@ -1,3 +1,6 @@
+import pytest
+
+from workflow_engine.exceptions import FunctionArgsError
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.validators.functions_validators import (
     file_exists_arg_validator,
@@ -22,17 +25,21 @@ def function_with_params(file_path: str,
 
 
 def test_action_param_file_exists_validator():
-    test1 = function_with_params(file_path="path/to/file", other_param="value", another_param="value",number=1)
-    assert test1.error_code == "file_not_found"
-    print(f"Test 1: {test1.output_text}, error_code: {test1.error_code}, error_message: {test1.error_message}")
-    test2 = function_with_params(
-        "test_functions_validators.py",
-        "value",
-        1,
-        "value"
-    )
-    assert test2.error_code == "file_not_found"
-    print(f"Test 2: {test2.output_text}, error_code: {test2.error_code}, error_message: {test2.error_message}")
+
+    # assert test1.error_code == "file_not_found"
+    with pytest.raises(FunctionArgsError) as e:
+        _ = function_with_params(file_path="path/to/file", other_param="value", another_param="value",number=1)
+        print(f"FunctionArgsError: {e.value}")
+
+    with pytest.raises(FunctionArgsError) as e:
+        _ = function_with_params(
+            "test_functions_validators.py",
+            "value",
+            1,
+            "value"
+        )
+        print(f"FunctionArgsError: {e.value}")
+    # assert test2.error_code == "file_not_found"
     test3 = function_with_params(
         number=1,
         file_path="test_functions_validators.py",

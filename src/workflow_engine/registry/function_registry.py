@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from types import UnionType
 from typing import Self, TypeVar, get_type_hints
 
-from pygments.lexers import data
-
 from workflow_engine.exceptions import FunctionParametersTypeError
 from workflow_engine.output import ActionNodeOutput
 
@@ -39,9 +37,9 @@ class BaseRegisteredFunction[T](ABC):
     def check_args(self,args:dict[str, object] | None) -> None:
         try:
             if args is not None:
-                self.signature.bind(**self.args_cleaner(args))
+               _ =  self.signature.bind(**self.args_cleaner(args))
             else:
-                self.signature.bind()
+                _ = self.signature.bind()
         except TypeError as e:
             raise FunctionParametersTypeError(func_name=self.name, exception=e) from e
 
@@ -80,7 +78,7 @@ class RegisteredTransaction(BaseRegisteredFunction[str | None]):
     def get_expected_type(self) -> UnionType | type[str]:
         return str | None
 
-def _register[T](func: Callable[..., T], registry: dict[str, BaseRegisteredFunction[T]], register_type:type[BaseRegisteredFunction[T]]) -> Callable[..., T]:
+def _register[T](func: Callable[..., T], registry: dict[str, BaseRegisteredFunction[T]], register_type:type[BaseRegisteredFunction[T]]):
     if func.__name__ in registry:
         raise ValueError(f"Function '{func.__name__}' is already registered")
     signature = inspect.signature(func)
@@ -96,7 +94,6 @@ def _register[T](func: Callable[..., T], registry: dict[str, BaseRegisteredFunct
         raise ValueError(f"Function '{func.__name__}' has an invalid return type expected: {registered_function.get_expected_type().__name__} get : {registered_function.hints['return'].__name__}")
 
     registry[func.__name__] = registered_function
-    return func
 
 
 def _reg[T](
