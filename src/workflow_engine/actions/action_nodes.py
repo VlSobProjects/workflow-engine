@@ -52,6 +52,32 @@ class CreateArtifactAction(BaseAutomaticAction):
         else:
             return ActionNodeOutput(output_text=f"Invalid artifact file name: {file_name}",error_code="invalid_artifact_file_name",error_message=f"Artifact file name is invalid or empty: {file_name}")
 
+class CreateArtifactActionWithContent(CreateArtifactAction, ActionWithFunction):
+
+    def __init__(self,data: dict[str, object]):
+        super().__init__(data)
+
+    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
+        output = super().execute(state, prev_output)
+        if output.error_code is None:
+            if self.registered_function is not None:
+                f_output = self.registered_function.execute(parameters_modified=state.set_parameters_with_updater({"output": output, "state": state}))
+                if f_output is not None and f_output.error_code is None and len(f_output.output_text) > 0:
+                    try:
+                        with open(output.output_text, "w") as f:
+                            f.write(f_output.output_text)
+                    except OSError as e:
+                        return ActionNodeOutput(output_text=f"Exception in writing to file: {output.output_text}",error_code="write_artifact_error",error_message=f"Error writing to artifact file: {e}")
+
+                    return ActionNodeOutput(output_text=output.output_text)
+                else:
+                    return ActionNodeOutput(output_text=f"Error in registered function execution: {f_output.error_message if f_output else 'No output'}",error_code="registered_function_error",error_message=f"Error executing registered function :{self.registered_function} for CreateArtifactActionWithContent")
+            else:
+                return ActionNodeOutput(output_text="No registered function provided for CreateArtifactActionWithContent",error_code="no_registered_function",error_message="No registered function provided for CreateArtifactActionWithContent")
+        else:
+            return output
+
+
 @register_action()
 class ForEachOutputParameterNode(BaseAutomaticAction):
     ACTION_TYPE = "for_each_node"
