@@ -53,8 +53,12 @@ def _target_from(data: dict[str, object]) -> Target:
         if not isinstance(code, str):
             raise TypeError(f"Expected '{FAIL_KEY}' to be a string, got '{type(code).__name__}'")
         return FailTarget(code=code)
-    if data.get(STOP_KEY) is True:
-        return EndTarget()
+    stop = data.get(STOP_KEY)
+    if stop is not None:
+        if not isinstance(stop, bool):
+            raise TypeError(f"Expected '{STOP_KEY}' to be a bool, got '{type(stop).__name__}'")
+        if stop:
+            return EndTarget()
     if ERRORS_KEY in data:
         return FailTarget()
     raise WorkflowError(f"Transition has no target: {data}")

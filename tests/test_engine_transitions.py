@@ -246,3 +246,30 @@ def test_a_configuration_error_names_the_declared_transition(load_modules, tmp_p
 
     assert response.title == "Error in workflow setup"
     assert "NODE_1 transitions[0]" in response.errors
+
+
+def test_stop_must_be_a_boolean(load_modules, tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["transitions"] = [{"stop": "yes"}]
+
+    with pytest.raises(TypeError, match="Expected 'stop' to be a bool, got 'str'"):
+        sart_engine(storage_for(tmp_path, [node]), None)
+
+
+def test_a_transition_without_a_target_is_rejected(load_modules, tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["transitions"] = [{"stop": False}]
+
+    with pytest.raises(WorkflowError, match="no target"):
+        sart_engine(storage_for(tmp_path, [node]), None)
+
+
+def test_stop_ends_the_workflow(load_modules, tmp_path):
+    node = counting_node("NODE_1")
+    node["transitions"] = [{"stop": True}]
+    storage = storage_for(tmp_path, [node])
+
+    response = sart_engine(storage, None)
+
+    assert response.title == "Loop finished"
+    assert EXECUTIONS.count("NODE_1") == 1
