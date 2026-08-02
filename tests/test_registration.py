@@ -26,5 +26,5 @@ def test_action_registration(load_modules):
     print(f"\nRegistered Validators: {list(VALIDATOR_REGISTRY.keys())}")
     print(f"Registered Functions: {list(FUNCTION_REGISTRY.keys())}")
     print(f"Registered Codecs: {list(CODEC_REGISTRY.keys())}")
-    for k,v in ACTION_REGISTRY.items():
+    for k, v in ACTION_REGISTRY.items():
         print(f"Registered Action: {k} -> {v.__name__}")

@@ -11,16 +11,15 @@ from workflow_engine.output import ActionNodeOutput
 
 @dataclass
 class BaseTransaction(ABC):
-
     @abstractmethod
-    def transition(self, output:ActionNodeOutput, state: StateModel, workflow_nodes:set[str]) -> str | None:
+    def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: set[str]) -> str | None:
         pass
 
     @classmethod
     @abstractmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
         pass
-    
+
     @classmethod
     @abstractmethod
     def is_on_error(cls) -> bool:
@@ -32,7 +31,7 @@ class BaseTransaction(ABC):
         pass
 
     @abstractmethod
-    def check_error(self,workflow_nodes: set[str]):
+    def check_error(self, workflow_nodes: set[str]):
         pass
 
     @classmethod
@@ -48,16 +47,16 @@ class BaseTransaction(ABC):
     def is_class(cls, data: dict[str, object]) -> bool:
         return all(key in data for key in cls.data_keys())
 
-@dataclass
-class WithNextNode(BaseTransaction,ABC):
-    next_node: str
 
+@dataclass
+class WithNextNode(BaseTransaction, ABC):
+    next_node: str
 
     @classmethod
     def data_keys(cls) -> list[str]:
-        return ['next']
+        return ["next"]
 
-    def check_next_node_id(self,workflow_nodes: set[str])->bool:
+    def check_next_node_id(self, workflow_nodes: set[str]) -> bool:
         return self.next_node in workflow_nodes
 
     def check_error(self, workflow_nodes: set[str]):
@@ -67,14 +66,14 @@ class WithNextNode(BaseTransaction,ABC):
     @classmethod
     def get_next_node_value(cls, data: dict[str, object]) -> str:
         cls.validate_keys(data)
-        value = data['next']
+        value = data["next"]
         if not isinstance(value, str):
             raise TypeError(f"Expected 'next' is 'str', got '{type(value).__name__}'")
         return value
 
 
 @dataclass
-class WithErrors(BaseTransaction,ABC):
+class WithErrors(BaseTransaction, ABC):
     errors: list[str]
     attempts: bool
 
@@ -86,23 +85,25 @@ class WithErrors(BaseTransaction,ABC):
     def is_on_error(cls) -> bool:
         return True
 
-    def is_error(self, output:ActionNodeOutput) -> bool:
+    def is_error(self, output: ActionNodeOutput) -> bool:
         return output.error_code is not None and output.error_code in self.errors
 
     @classmethod
     def get_errors(cls, data: dict[str, object]) -> list[str]:
         cls.validate_keys(data)
-        err_list = data['errors']
+        err_list = data["errors"]
         if not isinstance(err_list, list):
             raise TypeError(f"Expected 'errors' is 'list', got '{type(err_list).__name__}'")
         if not all(isinstance(err, str) for err in err_list):
-            raise TypeError(f"Expected all elements in 'errors' to be 'str', got '{[type(err).__name__ for err in err_list]}'")
+            raise TypeError(
+                f"Expected all elements in 'errors' to be 'str', got '{[type(err).__name__ for err in err_list]}'"
+            )
         return err_list
 
     @classmethod
     def get_attempts_value(cls, data: dict[str, object]) -> bool:
         cls.validate_keys(data)
-        value = data.get('attempts', False)
+        value = data.get("attempts", False)
         if not isinstance(value, bool):
             raise TypeError(f"Expected 'attempts' is 'bool', got '{type(value).__name__}'")
         return value

@@ -1,5 +1,4 @@
 import importlib
-from pathlib import Path
 
 import pytest
 
@@ -28,15 +27,15 @@ def registration(load_modules):
     assert len(ACTION_REGISTRY) > 0
     print(f"Registered Validators: {list(VALIDATOR_REGISTRY.keys())}")
     print(f"Registered Functions: {list(FUNCTION_REGISTRY.keys())}")
-    for k,v in ACTION_REGISTRY.items():
+    for k, v in ACTION_REGISTRY.items():
         print(f"Registered Action: {k} -> {v.__name__}")
 
-@pytest.fixture
-def init_storage_simple_workflow(registration, tmp_path):
-    storage = JsonStorage(tmp_path)
-    storage.start_workflow(Path("../examples/simple_workflow.json"))
-    return storage
 
+@pytest.fixture
+def init_storage_simple_workflow(registration, tmp_path, examples_dir):
+    storage = JsonStorage(tmp_path)
+    storage.start_workflow(examples_dir / "simple_workflow.json")
+    return storage
 
 
 def test_sart_engine(init_storage_simple_workflow):

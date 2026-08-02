@@ -7,7 +7,7 @@ class SimplePresentResponseRender:
     def __init__(self, present_response: PresentResponse):
         self.present_response = present_response
 
-    def render(self)->str:
+    def render(self) -> str:
         template = Template(
             "====================== PresentResponse ======================\n"
             "Title: $title\n"
@@ -25,6 +25,10 @@ class SimplePresentResponseRender:
             title=self.present_response.title,
             description=self.present_response.description,
             instruction=self.present_response.instruction,
-            hints="\n".join([f"- {hint}" for hint in self.present_response.hints]) if self.present_response.hints else "",
-            errors="\n".join(f"{k}: {v}" for k, v in self.present_response.errors.items()) if self.present_response.errors else "",
+            hints="\n".join([f"- {hint}" for hint in self.present_response.hints])
+            if self.present_response.hints
+            else "",
+            errors="\n".join(f"{k}: {v}" for k, v in self.present_response.errors.items())
+            if self.present_response.errors
+            else "",
         )

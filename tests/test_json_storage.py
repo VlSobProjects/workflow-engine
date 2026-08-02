@@ -1,7 +1,6 @@
 import datetime
 import importlib
 import json
-from pathlib import Path
 
 import pytest
 
@@ -16,7 +15,7 @@ def load_modules():
 
 
 @pytest.fixture
-def state(load_modules,tmp_path):
+def state(load_modules, tmp_path):
     return StateModel(
         timestamp=datetime.datetime.now(tz=datetime.UTC),
         work_dir=tmp_path,
@@ -36,8 +35,8 @@ def json_storage(tmp_path, state):
 
 
 @pytest.fixture
-def json_storage_upload_workflow(json_storage):
-    workflow = json_storage.upload_workflow(Path("../examples/simple_workflow.json"))
+def json_storage_upload_workflow(json_storage, examples_dir):
+    workflow = json_storage.upload_workflow(examples_dir / "simple_workflow.json")
     assert workflow is not None
     return json_storage
 
@@ -61,30 +60,30 @@ def add_param(json_storage):
 
 
 @pytest.fixture
-def corrupt_timestamp(tmp_path,json_storage):
+def corrupt_timestamp(tmp_path, json_storage):
     corrupt(tmp_path, "timestamp", "invalid_timestamp")
     return tmp_path
 
 
 @pytest.fixture
-def corrupt_state(tmp_path,json_storage):
+def corrupt_state(tmp_path, json_storage):
     corrupt(tmp_path, "invalid_field", "invalid_value")
     return tmp_path
 
 
 @pytest.fixture
-def not_exist_work_dir(tmp_path,json_storage):
+def not_exist_work_dir(tmp_path, json_storage):
     corrupt(tmp_path, "work_dir", "not_exist_work_dir")
     return tmp_path
 
 
 @pytest.fixture
-def corrupt_json(tmp_path,json_storage):
+def corrupt_json(tmp_path, json_storage):
     state_file = tmp_path.joinpath("state.json")
-    with open(state_file, "r") as f:
+    with state_file.open() as f:
         data = f.read()
     data = data[:-1]  # Remove the last character to corrupt the JSON
-    with open(state_file, "w") as f:
+    with state_file.open("w") as f:
         f.write(data)
     return tmp_path
 
@@ -151,10 +150,10 @@ def test_add_param(add_param):
 
 def corrupt(json_storage, key: str, corrupted_value):
     state_file = json_storage.joinpath("state.json")
-    with open(state_file, "r") as f:
+    with state_file.open() as f:
         data = json.loads(f.read())
     data[key] = corrupted_value
-    with open(state_file, "w") as f:
+    with state_file.open("w") as f:
         f.write(json.dumps(data))
     return json_storage
 
@@ -163,6 +162,5 @@ def test_upload_workflow(json_storage_upload_workflow):
     workflow = json_storage_upload_workflow.load_workflow()
     assert workflow is not None
     assert workflow.flow_id == "simple-workflow"
-    assert workflow.nodes[0].id== "NODE_1"
+    assert workflow.nodes[0].id == "NODE_1"
     print(f" Uploaded workflow:  {workflow.flow_id}, nodes: {[node.id for node in workflow.nodes]}")
-

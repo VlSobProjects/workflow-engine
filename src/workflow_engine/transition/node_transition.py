@@ -20,9 +20,7 @@ from workflow_engine.workflow import WorkflowNode, stop_on_error_node_factory
 
 @dataclass
 class NextTransition(WithNextNode):
-    
-    def transition(self, output: ActionNodeOutput, state: StateModel,
-                   workflow_nodes: set[str]) -> str | None:
+    def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: set[str]) -> str | None:
         self.check_error(workflow_nodes)
         return self.next_node
 
@@ -33,6 +31,7 @@ class NextTransition(WithNextNode):
     @classmethod
     def is_on_error(cls) -> bool:
         return False
+
 
 @dataclass
 class ValidatorBasedTransition(WithNextNode):
@@ -53,8 +52,8 @@ class ValidatorBasedTransition(WithNextNode):
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
         cls.validate_keys(data)
-        next_node = data['next']
-        validator_dict = data['validator']
+        next_node = data["next"]
+        validator_dict = data["validator"]
         if not isinstance(next_node, str):
             raise TypeError(f"Expected 'next' is 'str', got '{type(next_node).__name__}'")
         if not isinstance(validator_dict, dict):
@@ -68,13 +67,12 @@ class ValidatorBasedTransition(WithNextNode):
 
     @classmethod
     def data_keys(cls) -> list[str]:
-        return WithNextNode.data_keys() + ["validator"]
+        return [*WithNextNode.data_keys(), "validator"]
+
 
 @dataclass
-class NextOnErrorTransition(WithNextNode,WithErrors):
-
-    def transition(self, output: ActionNodeOutput, state: StateModel,
-                   workflow_nodes: set[str]) -> str | None:
+class NextOnErrorTransition(WithNextNode, WithErrors):
+    def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: set[str]) -> str | None:
         self.check_error(workflow_nodes)
         if self.is_error(output):
             return self.next_node
@@ -83,11 +81,14 @@ class NextOnErrorTransition(WithNextNode,WithErrors):
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
-        return cls(next_node=cls.get_next_node_value(data), errors=cls.get_errors(data),attempts=cls.get_attempts_value(data))
+        return cls(
+            next_node=cls.get_next_node_value(data), errors=cls.get_errors(data), attempts=cls.get_attempts_value(data)
+        )
 
     @classmethod
     def data_keys(cls) -> list[str]:
         return WithNextNode.data_keys() + WithErrors.data_keys()
+
 
 @dataclass
 class StopOnErrorTransition(WithErrors):
@@ -103,13 +104,13 @@ class StopOnErrorTransition(WithErrors):
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
-        return cls(errors=cls.get_errors(data),attempts=cls.get_attempts_value(data))
+        return cls(errors=cls.get_errors(data), attempts=cls.get_attempts_value(data))
+
 
 @dataclass
 class FunctionTransition(BaseTransaction):
     registered_transaction: RegisteredFunctionExecutor[str | None]
     parameters: dict[str, object]
-
 
     @classmethod
     def is_on_error(cls) -> bool:
@@ -125,12 +126,21 @@ class FunctionTransition(BaseTransaction):
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Self:
         cls.validate_keys(data)
-        params: dict[str, object] = cast(dict[str, object], data['parameters']) if 'parameters' in data and isinstance(data['parameters'], dict) else {}
-        updated_params =  dict(params)
-        updated_params.update({"output": "", "state": None,"workflow_nodes": None})
-        return cls(registered_transaction=get_and_check_registered(get_registered_transaction, data, updated_params), parameters=updated_params)
+        params: dict[str, object] = (
+            cast(dict[str, object], data["parameters"])
+            if "parameters" in data and isinstance(data["parameters"], dict)
+            else {}
+        )
+        updated_params = dict(params)
+        updated_params.update({"output": "", "state": None, "workflow_nodes": None})
+        return cls(
+            registered_transaction=get_and_check_registered(get_registered_transaction, data, updated_params),
+            parameters=updated_params,
+        )
 
-    def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: dict[str, WorkflowNode]) -> WorkflowNode | None:
+    def transition(
+        self, output: ActionNodeOutput, state: StateModel, workflow_nodes: dict[str, WorkflowNode]
+    ) -> WorkflowNode | None:
         params = dict(self.parameters)
         params.update({"output": output, "state": state, "workflow_nodes": workflow_nodes})
         node_id = self.registered_transaction.execute(parameters_modified=state.set_parameters_with_updater(params))
@@ -141,12 +151,13 @@ class FunctionTransition(BaseTransaction):
     def validate_next_node(self):
         pass
 
+
 TRANSITIONS: list[type[BaseTransaction]] = [
     ValidatorBasedTransition,
     NextOnErrorTransition,
     FunctionTransition,
     NextTransition,
-    StopOnErrorTransition
+    StopOnErrorTransition,
 ]
 
 

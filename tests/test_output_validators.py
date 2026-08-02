@@ -22,8 +22,8 @@ from workflow_engine.validators.output_validators import (
     validator_factory,
 )
 
-CONTAINS_VALIDATOR ={"contains": "test_string"}
-CONTAINS_VALIDATOR_2 ={"contains": "param.test_param"}
+CONTAINS_VALIDATOR = {"contains": "test_string"}
+CONTAINS_VALIDATOR_2 = {"contains": "param.test_param"}
 EQUALS_VALIDATOR = {"equals": "test_string"}
 EQUALS_VALIDATOR_2 = {"equals": "param.test_param"}
 START_WITH_VALIDATOR = {"starts_with": "test_string"}
@@ -31,27 +31,51 @@ START_WITH_VALIDATOR_2 = {"starts_with": "param.test_param"}
 END_WITH_VALIDATOR = {"ends_with": "test_string"}
 END_WITH_VALIDATOR_2 = {"ends_with": "param.test_param"}
 OUTPUT_FUNCTION_VALIDATOR_1 = {FUNCTION_NAME_KEY: "is_output_exist_file"}
-OUTPUT_FUNCTION_VALIDATOR_2 = {FUNCTION_NAME_KEY: "is_output_contains_str", FUNCTION_PARAMETERS_KEY: {"substring": "param.test_param"}}
-COMBINED_OUTPUT_VALIDATOR_1 = {"validators": [CONTAINS_VALIDATOR, {Combiner.dict_key():Combiner.OR.value,"starts_with": "new_test"}]}
-COMBINED_OUTPUT_VALIDATOR_2 = {"validators": [EQUALS_VALIDATOR, {Combiner.dict_key():Combiner.OR.value,"ends_with": "new"}, {Combiner.dict_key():Combiner.OR.value,"ends_with": "param.test_param"}]}
-COMBINED_OUTPUT_VALIDATOR_3 = {
-    "validators":[
+OUTPUT_FUNCTION_VALIDATOR_2 = {
+    FUNCTION_NAME_KEY: "is_output_contains_str",
+    FUNCTION_PARAMETERS_KEY: {"substring": "param.test_param"},
+}
+COMBINED_OUTPUT_VALIDATOR_1 = {
+    "validators": [CONTAINS_VALIDATOR, {Combiner.dict_key(): Combiner.OR.value, "starts_with": "new_test"}]
+}
+COMBINED_OUTPUT_VALIDATOR_2 = {
+    "validators": [
         EQUALS_VALIDATOR,
-        {"validators": [CONTAINS_VALIDATOR, {Combiner.dict_key():Combiner.AND.value,"starts_with": "new_test"}],Combiner.dict_key():Combiner.OR.value},
-        {"validators": [END_WITH_VALIDATOR_2, {Combiner.dict_key():Combiner.OR.value,"starts_with": "param.test_param2"}],Combiner.dict_key():Combiner.OR.value},
+        {Combiner.dict_key(): Combiner.OR.value, "ends_with": "new"},
+        {Combiner.dict_key(): Combiner.OR.value, "ends_with": "param.test_param"},
     ]
 }
-ERROR_FUNC_PARAMETERS_VALIDATOR = {FUNCTION_NAME_KEY: "is_output_contains_str", FUNCTION_PARAMETERS_KEY: {"substring": ""}}
-
-
-VALIDATORS: dict[type[BaseOutputValidator], list[dict[str,object]]] = {
-    OutputContainsValidator:[CONTAINS_VALIDATOR,CONTAINS_VALIDATOR_2],
-    OutputEqualsValidator:[EQUALS_VALIDATOR, EQUALS_VALIDATOR_2],
-    OutputStartWithValidator:[START_WITH_VALIDATOR,START_WITH_VALIDATOR_2],
-    OutputEndWithValidator:[END_WITH_VALIDATOR, END_WITH_VALIDATOR_2],
-    OutputFunctionValidator:[OUTPUT_FUNCTION_VALIDATOR_1, OUTPUT_FUNCTION_VALIDATOR_2],
-    CombinedOutputValidator:[COMBINED_OUTPUT_VALIDATOR_1, COMBINED_OUTPUT_VALIDATOR_2]
+COMBINED_OUTPUT_VALIDATOR_3 = {
+    "validators": [
+        EQUALS_VALIDATOR,
+        {
+            "validators": [CONTAINS_VALIDATOR, {Combiner.dict_key(): Combiner.AND.value, "starts_with": "new_test"}],
+            Combiner.dict_key(): Combiner.OR.value,
+        },
+        {
+            "validators": [
+                END_WITH_VALIDATOR_2,
+                {Combiner.dict_key(): Combiner.OR.value, "starts_with": "param.test_param2"},
+            ],
+            Combiner.dict_key(): Combiner.OR.value,
+        },
+    ]
 }
+ERROR_FUNC_PARAMETERS_VALIDATOR = {
+    FUNCTION_NAME_KEY: "is_output_contains_str",
+    FUNCTION_PARAMETERS_KEY: {"substring": ""},
+}
+
+
+VALIDATORS: dict[type[BaseOutputValidator], list[dict[str, object]]] = {
+    OutputContainsValidator: [CONTAINS_VALIDATOR, CONTAINS_VALIDATOR_2],
+    OutputEqualsValidator: [EQUALS_VALIDATOR, EQUALS_VALIDATOR_2],
+    OutputStartWithValidator: [START_WITH_VALIDATOR, START_WITH_VALIDATOR_2],
+    OutputEndWithValidator: [END_WITH_VALIDATOR, END_WITH_VALIDATOR_2],
+    OutputFunctionValidator: [OUTPUT_FUNCTION_VALIDATOR_1, OUTPUT_FUNCTION_VALIDATOR_2],
+    CombinedOutputValidator: [COMBINED_OUTPUT_VALIDATOR_1, COMBINED_OUTPUT_VALIDATOR_2],
+}
+
 
 @pytest.fixture
 def register_functions():
@@ -63,26 +87,25 @@ def register_functions():
 def state_base(register_functions):
     return StateModel(
         timestamp=datetime.datetime.now(tz=datetime.UTC),
-        work_dir=Path(""),
+        work_dir=Path(),
         schema_version="1",
         flow_id="test",
         params={
             "test_param": ActionParameter.create(name="test_param", value="string", source_node_id="test_node_id"),
-            "test_param2": ActionParameter.create(name="test_param2", value="new_string2", source_node_id="test_node_id")
+            "test_param2": ActionParameter.create(
+                name="test_param2", value="new_string2", source_node_id="test_node_id"
+            ),
         },
         current_node_id="test_node_id",
     )
 
 
-
-
 def test_factory(register_functions):
-    for t,validator_config in  VALIDATORS.items():
+    for t, validator_config in VALIDATORS.items():
         for config in validator_config:
             validator = validator_factory(config)
             assert isinstance(validator, t)
             print(f"validator {validator.__str__()}")
-
 
 
 def test_output_contains_validator(state_base):
@@ -134,13 +157,17 @@ def test_combined_output_validator(state_base):
     assert not validator.validate_output("new_string is a new test", state_base)
 
 
-def test_output_function_validator(state_base):
+def test_output_function_validator(state_base, tests_dir):
     validator = validator_factory(OUTPUT_FUNCTION_VALIDATOR_1)
     assert isinstance(validator, OutputFunctionValidator)
-    assert validator.validate_output("C:\\Users\\Vladimir\\PycharmProjects\\workflow-engine\\src\\workflow_engine\\transition\\transition_functions.py", state_base)
+    assert validator.validate_output(
+        str(tests_dir / "test_output_validators.py"),
+        state_base,
+    )
     validator = validator_factory(OUTPUT_FUNCTION_VALIDATOR_2)
     assert isinstance(validator, OutputFunctionValidator)
     assert validator.validate_output("this is a string", state_base)
+
 
 def test_error_arg_validator(state_base):
     validator = validator_factory(ERROR_FUNC_PARAMETERS_VALIDATOR)
@@ -151,7 +178,6 @@ def test_error_arg_validator(state_base):
     # print(id(is_output_contains_str))
     # print(registered.function is is_output_contains_str)
     # print(hasattr(registered.function, "__wrapped__"))
-    
 
     with pytest.raises(FunctionArgsError):
         validator._validate_output("this is a string", state_base)

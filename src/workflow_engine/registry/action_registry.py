@@ -7,6 +7,7 @@ T = TypeVar("T", bound=BaseAction)
 
 ACTION_REGISTRY: dict[str, type[BaseAction]] = {}
 
+
 def register_action(action_type: str | None = None):
     def decorator(cls: type[T]) -> type[T]:
         key = action_type or cls.ACTION_TYPE
@@ -19,14 +20,14 @@ def register_action(action_type: str | None = None):
 
     return decorator
 
+
 def create_action(action_type: str, data: dict[str, object]) -> BaseAction:
     try:
         cls = ACTION_REGISTRY[action_type]
-    except KeyError:
-        raise ActionRegistryError(f"Unknown action '{action_type}'")
+    except KeyError as ex:
+        raise ActionRegistryError(f"Unknown action '{action_type}'") from ex
 
     inst = cls(data)
     inst.validate_action()
 
     return inst
-
