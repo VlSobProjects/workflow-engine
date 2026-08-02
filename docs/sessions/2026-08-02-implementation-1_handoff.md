@@ -93,6 +93,11 @@ and the registered functions keep their names, as ADR 002 states.
   during this session after a question about one of them. A rule that every key has a declared type,
   and that a mismatch names the key, would remove the class rather than the instances. Material for
   ADR 001.
+- Material for ADR 001: `registry/errors_registry.py` was removed as dead code. It held an
+  unfinished idea, a catalogue mapping every error code to a description, filled by a decorator at
+  import time. Nothing ever used it, and the engine produced codes it did not declare. Whether such
+  a catalogue is worth having, now that the name of a guard is an error code, is a question for the
+  exception architecture.
 - Material for the decision on adopting a type checker: `_register` and `_reg` declare
   `registry: dict[str, BaseRegisteredFunction[T]]`, while the call sites pass
   `dict[str, RegisteredFunction]`. `dict` is invariant in its value, so a strict checker rejects

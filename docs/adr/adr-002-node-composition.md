@@ -256,6 +256,11 @@ What the implementation revealed:
   `attempts`, and an unhandled failure is reported as a failed node.
 - `workflow_fields_decoder` in `json_storage` was removed. It was never called and constructed the
   wrong class, and it could not survive the change of shape of a node.
+- `registry/errors_registry.py` was removed. Nothing imported it, and its four symbols occurred only
+  inside itself. It was an unfinished idea: a registry of error codes with their descriptions,
+  populated by a decorator. The Context above still cites it, because the disagreement between the
+  code it declared and the code the engine actually produced is part of why this decision was made.
+  Whether a catalogue of error codes is worth having belongs to ADR 001.
 - The rename stopped at the classes that were rewritten anyway. `VALIDATOR_REGISTRY`,
   `register_validator` and the registered functions keep their names, as this ADR states that they
   are unaffected.
