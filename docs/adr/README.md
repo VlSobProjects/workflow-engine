@@ -6,7 +6,7 @@ This directory holds the architecture decision records and their registry.
 
 | ID | Title | Status | Summary | Depends on | Active branch | Link |
 | --- | --- | --- | --- | --- | --- | --- |
-| — | No ADRs yet | — | Add the first ADR when an architectural decision needs formal review. | — | — | — |
+| 001 | Exception architecture | Draft | One exception root split into configuration and runtime errors, with context added as an error travels up, and all configuration errors reported before start | — | — | [adr-001-exception-architecture.md](adr-001-exception-architecture.md) |
 
 Keep this table updated on every status change.
 The registry is edited only on `development`.

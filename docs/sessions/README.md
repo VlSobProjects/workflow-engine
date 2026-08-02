@@ -54,7 +54,7 @@ missing from the registry is effectively lost. Add the row when the branch is me
 
 | Date | Type | Summary | Status | Branch | Link |
 | --- | --- | --- | --- | --- | --- |
-| — | — | No sessions yet | — | — | — |
+| 2026-08-02 | documentation | Established the project rules and the documentation system, and brought the repository into a clean state | completed | development | [2026-08-02-documentation-1_handoff.md](2026-08-02-documentation-1_handoff.md) |
 
 `Summary` states what the session was about, in one line.
 `Status` is `completed` or `interrupted`.

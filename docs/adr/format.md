@@ -2,6 +2,13 @@
 
 Formatting rules for an individual ADR document.
 
+## File name
+`adr-<number>-<short-name>.md`
+
+- The number is three digits and is never reused.
+- The short name is lowercase ASCII with hyphens and names the decision.
+- Example: `adr-001-exception-architecture.md`, worked on in `feature/adr_001-exception-architecture`.
+
 ## Structure
 Use the section order defined in `template.md`.
 
