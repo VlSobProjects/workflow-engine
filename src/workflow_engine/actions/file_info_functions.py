@@ -6,7 +6,6 @@ import platform
 import stat
 from datetime import UTC, datetime
 from pathlib import Path
-from pwd import getpwuid
 
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import register_function
@@ -46,7 +45,7 @@ UNITS = ("B", "KB", "MB", "GB", "TB", "PB")
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
-def file_size_human(file_path: Path) -> str:
+def file_size_human(file_path: Path) -> ActionNodeOutput:
     size = file_path.stat().st_size
 
     unit = 0
@@ -55,19 +54,19 @@ def file_size_human(file_path: Path) -> str:
         unit += 1
 
     if unit == 0:
-        return f"{int(size)} {UNITS[unit]}"
+        return ActionNodeOutput(output_text=f"{int(size)} {UNITS[unit]}")
 
-    return f"{size:.2f} {UNITS[unit]}"
+    return ActionNodeOutput(output_text=f"{size:.2f} {UNITS[unit]}")
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
-def file_mime_type(file_path: Path) -> str:
+def file_mime_type(file_path: Path) -> ActionNodeOutput:
     mime, _ = mimetypes.guess_type(file_path)
-    return mime or ""
+    return ActionNodeOutput(output_text=mime or "")
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
-def file_encoding(file_path: Path) -> str:
+def file_encoding(file_path: Path) -> ActionNodeOutput:
     for enc in (
         "utf-8",
         "utf-8-sig",
@@ -77,53 +76,56 @@ def file_encoding(file_path: Path) -> str:
     ):
         try:
             file_path.read_text(encoding=enc)
-            return enc
+            return ActionNodeOutput(output_text=enc)
         except UnicodeDecodeError:
             pass
 
-    return ""
+    return ActionNodeOutput(output_text="")
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
-def file_executable(file_path: Path) -> str:
-    return str(os.access(file_path, os.X_OK)).lower()
+def file_executable(file_path: Path) -> ActionNodeOutput:
+    return ActionNodeOutput(output_text=str(os.access(file_path, os.X_OK)).lower())
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
-def file_permissions(file_path: Path) -> str:
-    return stat.filemode(file_path.stat().st_mode)
+def file_permissions(file_path: Path) -> ActionNodeOutput:
+    return ActionNodeOutput(output_text=stat.filemode(file_path.stat().st_mode))
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
-def file_owner(file_path: Path) -> str:
+def file_owner(file_path: Path) -> ActionNodeOutput:
     match platform.system():
         case "Linux" | "Darwin":
-            return getpwuid(file_path.stat().st_uid).pw_name
+            # pwd is only available on Unix, so it is imported where it is used.
+            from pwd import getpwuid
+
+            return ActionNodeOutput(output_text=getpwuid(file_path.stat().st_uid).pw_name)
         case "Windows":
-            return getpass.getuser()
+            return ActionNodeOutput(output_text=getpass.getuser())
         case _:
-            return "N/A"
+            return ActionNodeOutput(output_text="N/A")
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
-def is_symlink(file_path: Path) -> str:
-    return str(file_path.is_symlink()).lower()
+def is_symlink(file_path: Path) -> ActionNodeOutput:
+    return ActionNodeOutput(output_text=str(file_path.is_symlink()).lower())
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
 def access_time(
     file_path: Path,
     formater: str = "%Y-%m-%d %H:%M:%S",
-) -> str:
-    return datetime.fromtimestamp(file_path.stat().st_atime, tz=UTC).strftime(formater)
+) -> ActionNodeOutput:
+    return ActionNodeOutput(output_text=datetime.fromtimestamp(file_path.stat().st_atime, tz=UTC).strftime(formater))
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
-def sha256_checksum_file(file_path: Path) -> str:
+def sha256_checksum_file(file_path: Path) -> ActionNodeOutput:
     h = hashlib.sha256()
 
     with file_path.open("rb") as f:
         while chunk := f.read(1024 * 1024):
             h.update(chunk)
 
-    return h.hexdigest()
+    return ActionNodeOutput(output_text=h.hexdigest())
