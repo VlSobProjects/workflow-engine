@@ -32,9 +32,9 @@ def registration(load_modules):
         print(f"Registered Action: {k} -> {v.__name__}")
 
 @pytest.fixture
-def init_storage_simple_workflow(registration, tmp_path):
+def init_storage_simple_workflow(registration, tmp_path, examples_dir):
     storage = JsonStorage(tmp_path)
-    storage.start_workflow(Path("../examples/simple_workflow.json"))
+    storage.start_workflow(examples_dir / "simple_workflow.json")
     return storage
 
 

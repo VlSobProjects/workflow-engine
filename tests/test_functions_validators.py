@@ -24,7 +24,7 @@ def function_with_params(file_path: str,
 
 
 
-def test_action_param_file_exists_validator():
+def test_action_param_file_exists_validator(tests_dir):
 
     # assert test1.error_code == "file_not_found"
     with pytest.raises(FunctionArgsError) as e:
@@ -33,7 +33,7 @@ def test_action_param_file_exists_validator():
 
     with pytest.raises(FunctionArgsError) as e:
         _ = function_with_params(
-            "test_functions_validators.py",
+            str(tests_dir / "test_functions_validators.py"),
             "value",
             1,
             "value"
@@ -42,9 +42,9 @@ def test_action_param_file_exists_validator():
     # assert test2.error_code == "file_not_found"
     test3 = function_with_params(
         number=1,
-        file_path="test_functions_validators.py",
-        other_param="test_json_storage.py",
-        another_param="test_output_validators.py"
+        file_path=str(tests_dir / "test_functions_validators.py"),
+        other_param=str(tests_dir / "test_json_storage.py"),
+        another_param=str(tests_dir / "test_output_validators.py")
     )
     print(f"Test 3: {test3.output_text}, error_code: {test3.error_code}, error_message: {test3.error_message}")
     assert test3.output_text == "all good"

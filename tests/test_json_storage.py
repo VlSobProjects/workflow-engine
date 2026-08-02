@@ -36,8 +36,8 @@ def json_storage(tmp_path, state):
 
 
 @pytest.fixture
-def json_storage_upload_workflow(json_storage):
-    workflow = json_storage.upload_workflow(Path("../examples/simple_workflow.json"))
+def json_storage_upload_workflow(json_storage, examples_dir):
+    workflow = json_storage.upload_workflow(examples_dir / "simple_workflow.json")
     assert workflow is not None
     return json_storage
 
