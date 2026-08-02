@@ -15,7 +15,8 @@ class WorkflowSource(ABC):
     def load_workflow(self) -> WorkflowModel:
         """Load and return a workflow model from storage."""
 
-    def read_workflow(self, data: Mapping[str, object]) -> WorkflowModel:
+    @staticmethod
+    def read_workflow(data: Mapping[str, object]) -> WorkflowModel:
         """Read and return a workflow model from storage."""
         return WorkflowModel.from_dict(data)
 

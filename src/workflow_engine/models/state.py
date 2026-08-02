@@ -10,7 +10,6 @@ from workflow_engine.exceptions import RuntimeParameterError
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.type_registry import (
     Codec,
-    NoCodec,
     convert_from_dict,
     find_codec,
 )
@@ -35,10 +34,7 @@ class ActionParameter:
 
     @classmethod
     def create(cls, source_node_id: str, name: str, value: object) -> ActionParameter:
-        codec = find_codec(value)
-        if codec is None:
-            codec = NoCodec
-        return cls(source_node_id=source_node_id, name=name, value=value, codec=codec)
+        return cls(source_node_id=source_node_id, name=name, value=value, codec=find_codec(value))
 
     def to_dict(self) -> dict[str, object]:
         return {
