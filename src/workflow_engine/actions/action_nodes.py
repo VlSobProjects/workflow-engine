@@ -144,12 +144,6 @@ class CreateArtifactActionWithContent(CreateArtifactAction, ActionWithFunction):
                             f"for CreateArtifactActionWithContent"
                         ),
                     )
-            else:
-                return ActionNodeOutput(
-                    output_text="No registered function provided for CreateArtifactActionWithContent",
-                    error_code="no_registered_function",
-                    error_message="No registered function provided for CreateArtifactActionWithContent",
-                )
         else:
             return output
 
