@@ -54,9 +54,21 @@ The implementation was then reviewed, and three defects were found and fixed:
   the `attempts` flag was set. Both spellings of retry now share one allowance, and a node that
   exhausts it fails with `max_attempts_exceeded`.
 
-Verification, run from the command line: `ruff check` reports no findings, `ruff format` reports all
-files formatted, and `pytest` reports 48 passed. Twenty five of those tests are new; the engine tests
-build their workflow in a temporary directory and do not depend on files outside the repository.
+Verification, run from the command line: `ruff check` reports no findings, `ruff format --check`
+reports all files formatted, and `pytest` reports 56 passed, up from 23 at the start. The engine
+tests build their workflow in a temporary directory and do not depend on files outside the
+repository.
+
+Reading the finished code raised further questions, and each of them found something:
+
+- Guards were handed the mutable state, so the purity the decision claimed rested on convention. The
+  state was withdrawn from what a guard function receives.
+- Trying to test that boundary showed that `action_output` had never been usable by a registered
+  function either, so the claim that a guard sees the whole action result had been false in practice.
+- Four configuration keys accepted nonsense silently: `reversed`, `errors` together with `all_of`,
+  and `stop`. Each was found by a question about the one next to it. All four now name the key and
+  the type they found.
+- `registry/errors_registry.py` and a shadowed module level `TypeVar` were removed as dead code.
 
 The rename from validator to guard stopped at the classes that were rewritten anyway. The registry
 and the registered functions keep their names, as ADR 002 states.
@@ -128,13 +140,15 @@ and the registered functions keep their names, as ADR 002 states.
 
 ## Next steps
 
-1. Merge into `development` and set ADR 002 to Accepted, then update `docs/architecture/overview.md`.
-2. Take ADR 001 on the exception architecture to implementation, starting from the argument check
-   that raises where ADR 002 expects a value.
-3. Decide how data passes between nodes, as ADR 003.
+1. ADR 001, the exception architecture. Its open points were filled from this session.
+2. ADR 003, the boundary between persistence and the working directory.
+3. Decide how data passes between nodes, and with it who may read and who may write the state. The
+   state still mixes a journal written by the engine with a bus written by actions.
 4. Make `test_sart_engine` independent of files outside the repository.
 5. Revisit adopting a type checker as its own ADR. The invariance problem recorded above is the first
    concrete case where a checker would have caught something no other tool reports.
+6. Capture the remaining implemented decisions as ADRs and complete `docs/architecture/overview.md`,
+   which now describes only the node model and the parts it settles.
 
 ## References
 
