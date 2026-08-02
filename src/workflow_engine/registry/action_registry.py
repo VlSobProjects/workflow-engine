@@ -24,8 +24,8 @@ def register_action(action_type: str | None = None):
 def create_action(action_type: str, data: dict[str, object]) -> BaseAction:
     try:
         cls = ACTION_REGISTRY[action_type]
-    except KeyError:
-        raise ActionRegistryError(f"Unknown action '{action_type}'")
+    except KeyError as ex:
+        raise ActionRegistryError(f"Unknown action '{action_type}'") from ex
 
     inst = cls(data)
     inst.validate_action()

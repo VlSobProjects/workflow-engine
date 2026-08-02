@@ -85,7 +85,7 @@ def _load_workflow_from_path(work_flow_file_path: Path) -> Mapping[str, object]:
     try:
         if not work_flow_file_path.exists():
             raise WorkflowError(f"Workflow file not found path: {work_flow_file_path.absolute()}")
-        with open(work_flow_file_path) as f:
+        with work_flow_file_path.open() as f:
             json_obj = json.load(f)
         return json_obj
     except FileNotFoundError as ex:
@@ -114,7 +114,7 @@ class JsonStorage(Storage):
         try:
             workflow_file = self.working_dir.joinpath(WORKFLOW_FILE)
             workflow_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(workflow_file, "w") as f:
+            with workflow_file.open("w") as f:
                 json.dump(workflow.__dict__, f, indent=4, default=workflow_encoder)
         except Exception as ex:
             raise WorkflowError("Failed to save workflow") from ex
@@ -124,7 +124,7 @@ class JsonStorage(Storage):
             state_file = self.working_dir.joinpath(STATE_FILE)
             if not state_file.is_file():
                 raise StateError(f"State file not found path: {state_file}")
-            with open(state_file) as f:
+            with state_file.open() as f:
                 json_obj = json.load(f, object_hook=state_fields_decoder)
             return StateModel(**json_obj)
         except FileNotFoundError as ex:
@@ -139,7 +139,7 @@ class JsonStorage(Storage):
         try:
             state_file = self.working_dir.joinpath(STATE_FILE)
             state_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(state_file, "w") as f:
+            with state_file.open("w") as f:
                 json.dump(state.__dict__, f, indent=4, sort_keys=True, default=state_encoder)
         except Exception as ex:
             raise StateError("Failed to save state") from ex

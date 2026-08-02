@@ -67,7 +67,7 @@ class ValidatorBasedTransition(WithNextNode):
 
     @classmethod
     def data_keys(cls) -> list[str]:
-        return WithNextNode.data_keys() + ["validator"]
+        return [*WithNextNode.data_keys(), "validator"]
 
 
 @dataclass

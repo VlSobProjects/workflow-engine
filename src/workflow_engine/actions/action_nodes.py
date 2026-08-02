@@ -50,7 +50,8 @@ class FunctionsAction(BaseAutomaticAction):
                 }
             else:
                 raise ActionConfigError(
-                    f"FunctionsAction action missing required 'functions' it is not a dict. expected dict with 'param_name': function dict , found : {f_config_dict.__repr__()}"
+                    f"FunctionsAction action missing required 'functions' it is not a dict. "
+                    f"expected dict with 'param_name': function dict , found : {f_config_dict.__repr__()}"
                 )
         else:
             raise ActionConfigError("FunctionsAction functions action missing required field: 'functions'")
@@ -121,7 +122,7 @@ class CreateArtifactActionWithContent(CreateArtifactAction, ActionWithFunction):
                 )
                 if f_output is not None and f_output.error_code is None and len(f_output.output_text) > 0:
                     try:
-                        with open(output.output_text, "w") as f:
+                        with Path(output.output_text).open("w") as f:
                             f.write(f_output.output_text)
                     except OSError as e:
                         return ActionNodeOutput(
@@ -133,9 +134,15 @@ class CreateArtifactActionWithContent(CreateArtifactAction, ActionWithFunction):
                     return ActionNodeOutput(output_text=output.output_text)
                 else:
                     return ActionNodeOutput(
-                        output_text=f"Error in registered function execution: {f_output.error_message if f_output else 'No output'}",
+                        output_text=(
+                            f"Error in registered function execution: "
+                            f"{f_output.error_message if f_output else 'No output'}"
+                        ),
                         error_code="registered_function_error",
-                        error_message=f"Error executing registered function :{self.registered_function} for CreateArtifactActionWithContent",
+                        error_message=(
+                            f"Error executing registered function :{self.registered_function} "
+                            f"for CreateArtifactActionWithContent"
+                        ),
                     )
             else:
                 return ActionNodeOutput(

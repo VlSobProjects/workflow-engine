@@ -38,10 +38,8 @@ class BaseRegisteredFunction[T](ABC):
 
     def check_args(self, args: dict[str, object] | None) -> None:
         try:
-            if args is not None:
-                _ = self.signature.bind(**self.args_cleaner(args))
-            else:
-                _ = self.signature.bind()
+            bound_args = self.args_cleaner(args) if args is not None else {}
+            _ = self.signature.bind(**bound_args)
         except TypeError as e:
             raise FunctionParametersTypeError(func_name=self.name, exception=e) from e
 
@@ -55,9 +53,8 @@ class BaseRegisteredFunction[T](ABC):
         if cls == BaseRegisteredFunction:
             raise TypeError("BaseRegisteredFunction cannot be instantiated directly. Use a subclass.")
 
-        arg_c: Callable[[dict[str, object]], dict[str, object]] = lambda data: {
-            k: v for k, v in data.items() if k in signature.parameters
-        }
+        def arg_c(data: dict[str, object]) -> dict[str, object]:
+            return {k: v for k, v in data.items() if k in signature.parameters}
 
         return cls(name=name, signature=signature, hints=hints, function=function, args_cleaner=arg_c)
 
@@ -107,7 +104,9 @@ def _register[T](
     )
     if not registered_function.is_function_return_type():
         raise ValueError(
-            f"Function '{func.__name__}' has an invalid return type expected: {registered_function.get_expected_type().__name__} get : {registered_function.hints['return'].__name__}"
+            f"Function '{func.__name__}' has an invalid return type "
+            f"expected: {registered_function.get_expected_type().__name__} "
+            f"get : {registered_function.hints['return'].__name__}"
         )
 
     registry[func.__name__] = registered_function

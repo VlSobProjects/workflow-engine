@@ -11,7 +11,8 @@ class ActionNodeOutput:
     parameters: dict[str, object] = field(default_factory=dict)
 
     def on_error(self) -> str:
-        return f"Error code {self.error_code}, message: {self.error_message}{f', output: {self.output_text if self.output_text else ""}'}."
+        output_part = f", output: {self.output_text if self.output_text else ''}"
+        return f"Error code {self.error_code}, message: {self.error_message}{output_part}."
 
     def update_parameters(self, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         if prev_output is not None:

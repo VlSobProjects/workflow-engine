@@ -9,7 +9,7 @@ def default_hints() -> list[str]:
 def default_submit() -> str:
     return """
     On Success: [task_success] and any requested in instruction values if any.
-    
+
     On Error: [error_code] from errors with brif reasoning.
     """
 

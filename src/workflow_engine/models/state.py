@@ -173,11 +173,14 @@ class StateModel:
             f"last node id: {self.current_node_id}, total visits: {self.nodes_visited}, flow_budget: {self.flow_budget}"
         ]
         info += [
-            f"Stat: Total errors: {len(self.errors)}, Total outputs: {len(self.outputs)}, Total params: {len(self.params)}"
+            f"Stat: Total errors: {len(self.errors)}, "
+            f"Total outputs: {len(self.outputs)}, "
+            f"Total params: {len(self.params)}"
         ]
         if self.error_code or self.error_msg:
             info.append(
-                f"Last error: {self.error_code if self.error_code else 'N/A'}{f'- {self.error_msg}' if self.error_msg else ''}"
+                f"Last error: {self.error_code if self.error_code else 'N/A'}"
+                f"{f'- {self.error_msg}' if self.error_msg else ''}"
             )
         info.append("Attempts:")
         info += [f"{k}: {v}" for k, v in self.attempt_counters.items()]

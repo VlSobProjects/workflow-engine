@@ -60,10 +60,7 @@ def _workflow_nodes_errors(workflow: dict[str, WorkflowNode]) -> dict[str, str]:
 
 
 def _validate_output(output: ActionNodeOutput, validators: list[BaseOutputValidator], state: StateModel) -> bool:
-    for validator in validators:
-        if not validator.validate_output(output.output_text, state):
-            return False
-    return True
+    return all(validator.validate_output(output.output_text, state) for validator in validators)
 
 
 def _next_on_error(
@@ -71,7 +68,8 @@ def _next_on_error(
 ) -> WorkflowNode:
     if allow_attempts and cur_node.config.max_attempts > attempts:
         print(
-            f"Attempt on error: {attempts + 1} node id: {cur_node.id} max attempts: {cur_node.config.max_attempts}, {output.on_error()}"
+            f"Attempt on error: {attempts + 1} node id: {cur_node.id} "
+            f"max attempts: {cur_node.config.max_attempts}, {output.on_error()}"
         )
         return cur_node
     else:
@@ -82,12 +80,14 @@ def _next_on_error(
 def _retry_node(output: ActionNodeOutput, cur_node: WorkflowNode, attempts: int) -> WorkflowNode | None:
     if cur_node.config.max_attempts > attempts:
         print(
-            f"Attempt on error: {attempts + 1} node id: {cur_node.id} max attempts: {cur_node.config.max_attempts}, {output.on_error()}"
+            f"Attempt on error: {attempts + 1} node id: {cur_node.id} "
+            f"max attempts: {cur_node.config.max_attempts}, {output.on_error()}"
         )
         return cur_node
 
     print(
-        f"No transition on error for node, attempt: {attempts}, max attempts: {cur_node.config.max_attempts}, node id: {cur_node.id}, {output.on_error()}"
+        f"No transition on error for node, attempt: {attempts}, "
+        f"max attempts: {cur_node.config.max_attempts}, node id: {cur_node.id}, {output.on_error()}"
     )
     return None
 
@@ -158,12 +158,17 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
         return PresentResponse(
             title="Error in workflow setup",
             description="Current node not found in workflow by id",
-            instruction="Probably workflow session is corrupted. Please check workflow configuration, and try start new session",
-            hints=["Current Workflow Sate:", f"working folder: {state.work_dir}"]
-            + state.info()
-            + state.info_errors()
-            + state.info_params()
-            + state.info_outputs(),
+            instruction=(
+                "Probably workflow session is corrupted. Please check workflow configuration, and try start new session"
+            ),
+            hints=[
+                "Current Workflow Sate:",
+                f"working folder: {state.work_dir}",
+                *state.info(),
+                *state.info_errors(),
+                *state.info_params(),
+                *state.info_outputs(),
+            ],
             errors={f"Current node id: {state.current_node_id}": "not found in workflow"},
         )
 
@@ -173,13 +178,19 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
             title="Error in workflow setup",
             description="Workflow nodes is not pass validation.",
             instruction="Please check workflow configuration. In errors - all configuration errors",
-            hints=["Current Workflow Sate:", f"working folder: {state.work_dir}"]
-            + state.info()
-            + state.info_errors()
-            + state.info_params()
-            + state.info_outputs(),
+            hints=[
+                "Current Workflow Sate:",
+                f"working folder: {state.work_dir}",
+                *state.info(),
+                *state.info_errors(),
+                *state.info_params(),
+                *state.info_outputs(),
+            ],
             errors=errors,
-            goal="Fix workflow configuration using information from Errors. Re run workflow or start new with fixed version of workflow configuration.",
+            goal=(
+                "Fix workflow configuration using information from Errors. "
+                "Re run workflow or start new with fixed version of workflow configuration."
+            ),
         )
 
     try:
@@ -195,17 +206,21 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
             elif cur_node and isinstance(cur_node.action, BaseInteractiveAction):
                 return cur_node.action.present(state)
 
-    except Exception as e:
+    # The engine boundary turns any failure into a response, so the workflow can report it.
+    except Exception as e:  # noqa: BLE001
         print(f"Engine stop: Exception occurred during workflow execution: {e}")
         return PresentResponse(
             title="Error in workflow execution",
             description="An exception occurred during workflow execution.",
             instruction="Please check Exception in Errors and state,",
-            hints=["Current Workflow Sate:", f"working folder: {state.work_dir}"]
-            + state.info()
-            + state.info_errors()
-            + state.info_params()
-            + state.info_outputs(),
+            hints=[
+                "Current Workflow Sate:",
+                f"working folder: {state.work_dir}",
+                *state.info(),
+                *state.info_errors(),
+                *state.info_params(),
+                *state.info_outputs(),
+            ],
             errors={f"Exception: {type(e).__name__}": str(e)},
         )
 
@@ -215,9 +230,12 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
         title="Loop finished",
         description="All nodes have been processed, and the workflow has completed.",
         instruction="Workflow execution completed successfully. Check state.",
-        hints=["Current Workflow Sate:", f"working folder: {state.work_dir}"]
-        + state.info()
-        + state.info_errors()
-        + state.info_params()
-        + state.info_outputs(),
+        hints=[
+            "Current Workflow Sate:",
+            f"working folder: {state.work_dir}",
+            *state.info(),
+            *state.info_errors(),
+            *state.info_params(),
+            *state.info_outputs(),
+        ],
     )

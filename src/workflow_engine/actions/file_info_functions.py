@@ -15,7 +15,7 @@ from workflow_engine.validators.functions_validators import file_exists_arg_vali
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
 def md5_check_sum_file(file_path: str) -> ActionNodeOutput:
-    with open(file_path, "rb") as fh:
+    with Path(file_path).open("rb") as fh:
         m = hashlib.md5()
         while True:
             data = fh.read(65536)
