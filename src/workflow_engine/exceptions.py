@@ -1,6 +1,3 @@
-from pyexpat import errors
-
-
 class StateError(Exception):
     """Exception raised for errors in state."""
 
@@ -51,5 +48,4 @@ class FunctionParametersTypeError(FunctionArgsError):
     """Exception raised for errors in function args."""
 
     def __init__(self, func_name: str, exception: TypeError) -> None:
-        __cause__ = exception
         super().__init__(func_name=func_name, errors=[exception.__str__()])

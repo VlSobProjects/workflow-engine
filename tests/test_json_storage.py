@@ -1,7 +1,6 @@
 import datetime
 import importlib
 import json
-from pathlib import Path
 
 import pytest
 
@@ -81,7 +80,7 @@ def not_exist_work_dir(tmp_path, json_storage):
 @pytest.fixture
 def corrupt_json(tmp_path, json_storage):
     state_file = tmp_path.joinpath("state.json")
-    with open(state_file, "r") as f:
+    with open(state_file) as f:
         data = f.read()
     data = data[:-1]  # Remove the last character to corrupt the JSON
     with open(state_file, "w") as f:
@@ -151,7 +150,7 @@ def test_add_param(add_param):
 
 def corrupt(json_storage, key: str, corrupted_value):
     state_file = json_storage.joinpath("state.json")
-    with open(state_file, "r") as f:
+    with open(state_file) as f:
         data = json.loads(f.read())
     data[key] = corrupted_value
     with open(state_file, "w") as f:

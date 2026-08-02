@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Iterable, Sized
+from collections.abc import Iterable, Sized
 
 from workflow_engine.models.state import StateModel
 from workflow_engine.registry.function_registry import (

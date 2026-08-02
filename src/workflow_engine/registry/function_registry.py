@@ -186,7 +186,7 @@ class RegisteredFunctionExecutor[T]:
         if registered_function is None:
             raise ValueError(f"'{FUNCTION_NAME_KEY}' is not registered")
 
-        parameters = data.get(FUNCTION_PARAMETERS_KEY, None)
+        parameters = data.get(FUNCTION_PARAMETERS_KEY)
 
         if parameters is not None and not isinstance(parameters, dict):
             raise TypeError(f"'{FUNCTION_PARAMETERS_KEY}' must be a 'dictionary' found {type(parameters).__name__}")
@@ -231,7 +231,7 @@ def get_and_check_registered[T](
     if not isinstance(function_name, str):
         raise TypeError(f"expected '{FUNCTION_NAME_KEY}' type 'str' found: {type(function_name).__name__}")
 
-    parameters = data.get(FUNCTION_PARAMETERS_KEY, None)
+    parameters = data.get(FUNCTION_PARAMETERS_KEY)
     if parameters is not None and not isinstance(parameters, dict):
         raise ValueError(f"expected '{FUNCTION_PARAMETERS_KEY}' type 'dict' found: {type(parameters).__name__}")
 

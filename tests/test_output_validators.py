@@ -87,7 +87,7 @@ def register_functions():
 def state_base(register_functions):
     return StateModel(
         timestamp=datetime.datetime.now(tz=datetime.UTC),
-        work_dir=Path(""),
+        work_dir=Path(),
         schema_version="1",
         flow_id="test",
         params={
@@ -157,11 +157,11 @@ def test_combined_output_validator(state_base):
     assert not validator.validate_output("new_string is a new test", state_base)
 
 
-def test_output_function_validator(state_base):
+def test_output_function_validator(state_base, tests_dir):
     validator = validator_factory(OUTPUT_FUNCTION_VALIDATOR_1)
     assert isinstance(validator, OutputFunctionValidator)
     assert validator.validate_output(
-        "C:\\Users\\Vladimir\\PycharmProjects\\workflow-engine\\src\\workflow_engine\\transition\\transition_functions.py",
+        str(tests_dir / "test_output_validators.py"),
         state_base,
     )
     validator = validator_factory(OUTPUT_FUNCTION_VALIDATOR_2)
