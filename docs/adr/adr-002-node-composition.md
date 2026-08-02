@@ -1,10 +1,10 @@
 # ADR 002: Node composition — one action and guarded transitions
 
 ## Status
-Implementing
+Accepted
 
 ## Active branch
-`feature/adr_002-node-composition`
+None
 
 ## Context
 
