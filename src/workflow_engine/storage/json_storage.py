@@ -15,13 +15,6 @@ STATE_FILE = "state.json"
 WORKFLOW_FILE = "workflow.json"
 
 
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
-
-
 def workflow_encoder(obj):
     if isinstance(obj, WorkflowNodeModel):
         return {**dataclasses.asdict(obj)}
