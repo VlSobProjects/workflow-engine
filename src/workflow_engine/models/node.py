@@ -21,6 +21,13 @@ def decode_dict(obj: object) -> dict[str, object]:
         raise TypeError(f"Expected a dictionary, got {type(obj).__name__}")
 
 
+def decode_string(obj: object, name: str) -> str:
+    """Decode a required string value."""
+    if isinstance(obj, str):
+        return obj
+    raise TypeError(f"Expected '{name}' to be a string, got {type(obj).__name__}")
+
+
 def decode_string_none(obj: object) -> str | None:
     """Decode action parameters from a string."""
     if obj is None:

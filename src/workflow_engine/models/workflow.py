@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from workflow_engine.models.node import WorkflowNodeModel
+from workflow_engine.models.node import WorkflowNodeModel, decode_string
 
 
 class WorkflowSource(ABC):
@@ -49,8 +49,8 @@ class WorkflowModel:
         if not isinstance(nodes, list) or len(nodes) == 0:
             raise TypeError(f"Nodes must be a not empty list of workflow nodes: {type(nodes).__name__}")
         return cls(
-            schema_version=data["schema_version"].__str__(),
-            flow_id=data["flow_id"].__str__(),
-            start_node_id=data["start_node_id"].__str__(),
+            schema_version=decode_string(data.get("schema_version"), "schema_version"),
+            flow_id=decode_string(data.get("flow_id"), "flow_id"),
+            start_node_id=decode_string(data.get("start_node_id"), "start_node_id"),
             nodes=[WorkflowNodeModel.from_dict(node) for node in nodes if isinstance(node, dict)],
         )
