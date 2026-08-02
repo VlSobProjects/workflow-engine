@@ -21,7 +21,7 @@ class WorkflowNode:
         return any(transition.is_routing() for transition in self.transitions)
 
 
-def _post_condition(validator_data: dict[str, object]) -> Transition:
+def _post_condition(validator_data: dict[str, object], index: int) -> Transition:
     """Expand a node level validator into the transition that fails the node.
 
     The transition is taken when the check does not hold, and only when the action produced no error
@@ -31,11 +31,15 @@ def _post_condition(validator_data: dict[str, object]) -> Transition:
     return Transition(
         target=FailTarget(code=name),
         guard=AllOfGuard(guards=[NoErrorGuard(), guard]),
+        origin=f"validators[{index}]",
     )
 
 
 def workflow_node_factory(node_model: WorkflowNodeModel) -> WorkflowNode:
     action = create_action(node_model.action_type, node_model.action_parameters)
-    transitions = [_post_condition(validator) for validator in node_model.validators or []]
-    transitions += [transition_factory(transition) for transition in node_model.transitions or []]
+    transitions = [_post_condition(validator, index) for index, validator in enumerate(node_model.validators or [])]
+    transitions += [
+        transition_factory(transition, f"transitions[{index}]")
+        for index, transition in enumerate(node_model.transitions or [])
+    ]
     return WorkflowNode(id=node_model.id, config=node_model, action=action, transitions=transitions)

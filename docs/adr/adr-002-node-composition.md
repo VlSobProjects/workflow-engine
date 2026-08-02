@@ -67,9 +67,11 @@ A guard may be negated, which is how a post-condition is expressed: the target i
 check does **not** hold.
 
 Retry is expressed as a transition whose target is the node itself, or by the `attempts` flag on a
-transition, which retries the node before taking the declared target. The engine does not retry a
-node that no transition asked to retry. How often a retry is allowed, and what happens when the
-allowance runs out, is the subject of the error and retry decision, not of this one.
+transition, which retries the node before taking the declared target. Both are bounded by the same
+allowance, and a node that exhausts it fails. The `attempts` flag needs a target that is a node,
+because there is nothing to retry before ending or failing. The engine does not retry a node that no
+transition asked to retry. How large the allowance is, and how it interacts with a budget for the
+whole run, is the subject of the error and retry decision, not of this one.
 
 Guards are the only predicate concept in the engine and come from one registry.
 
@@ -87,7 +89,8 @@ rules were evaluated in a node and how each of them answered. A group of guards 
 it evaluated, so a combination is as readable as a single check.
 
 Because the name identifies the rule, it is also the error code of a node that failed a guard. No
-separate code has to be declared in the configuration.
+separate code has to be declared in the configuration. A node that fails keeps the message its action
+wrote whenever that message still explains the code, so a failure never degrades into a tautology.
 
 Rules for recording:
 
@@ -271,6 +274,18 @@ Contradictions this decision exposed and deliberately left alone:
 - Node identity is held in a module level global, which prevents more than one workflow per process.
 - Registered functions raise `FunctionArgsError` when an argument fails its check, so a failure that
   this decision treats as a value becomes an exception instead. This is the boundary with ADR 001.
+- A configuration error raised while a node is built escapes `sart_engine` instead of becoming a
+  response, because nodes are built before the protected section. Two tests record this as the
+  current behaviour. ADR 001 owns it.
+- A registered function whose parameters are all injected, such as `state` or `output`, cannot be
+  constructed: `check_args` binds the signature against the configured parameters only, and reports
+  the injected ones as missing. `save_paths_to_deque` and the first node of
+  `examples/colect_file_info_workflow.json` are unusable for this reason.
+- `state.error_code` and `state.error_msg` are never cleared, so a run that fails a node, recovers
+  and finishes still reports the code of the failure it recovered from.
+- `state_fields_decoder` is a JSON object hook applied to every nested dictionary, so any node whose
+  identifier collides with a state field name, now including `guard_results`, makes a saved state
+  impossible to load.
 
 ## Change log
 
@@ -296,3 +311,9 @@ Contradictions this decision exposed and deliberately left alone:
 - Implemented. The guard contract gained the trace list that the caller passes in, because a group
   has to report its children without writing anything itself. Implicit retry was removed, which the
   decision implied but did not say. Nothing else in the decision changed during implementation.
+- Reviewed after implementation. Three defects were found and fixed: a failed node lost the message
+  its action had written; the first entry into a node was counted as a retry, so a node reached from
+  a predecessor had a larger allowance than the same node at the start; and a transition targeting
+  its own node looped forever, because the allowance was applied only to the `attempts` flag. The
+  decision text now states that both spellings of retry share one allowance, that `attempts` needs a
+  node target, and that a failure keeps the message of its action.

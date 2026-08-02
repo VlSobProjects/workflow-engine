@@ -55,6 +55,7 @@ class Transition:
     target: Target
     guard: BaseGuard | None = field(default=None)
     attempts: bool = field(default=False)
+    origin: str = field(default="transition")
 
     def is_routing(self) -> bool:
         return self.target.is_routing()

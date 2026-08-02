@@ -6,10 +6,12 @@ Recognised forms:
 - ``{"next": "NODE_2", "validator": {...}}`` — go there when the guard holds.
 - ``{"next": "NODE_2", "errors": [...], "attempts": true}`` — go there when the action failed with
   one of the codes; with ``attempts`` the node is retried first.
-- ``{"errors": [...], "fail": "code"}`` — fail the node.
+- ``{"errors": [...]}`` — fail the node, keeping the error code the action produced.
+- ``{"errors": [...], "fail": "code"}`` — fail the node under a code of its own.
 - ``{"stop": true}`` — end the workflow.
 
-See ADR 002.
+``attempts`` is only meaningful for a target that is a node, because there is nothing to retry before
+ending or failing. See ADR 002.
 """
 
 from __future__ import annotations
@@ -29,6 +31,8 @@ FAIL_KEY = "fail"
 def _guard_from(data: dict[str, object]) -> BaseGuard | None:
     for key in (GUARD_KEY, VALIDATOR_KEY):
         if key in data:
+            if ERRORS_KEY in data:
+                raise WorkflowError(f"A transition cannot declare both '{key}' and '{ERRORS_KEY}': {data}")
             guard_data = data[key]
             if not isinstance(guard_data, dict):
                 raise TypeError(f"Expected '{key}' to be a dictionary, got '{type(guard_data).__name__}'")
@@ -63,5 +67,9 @@ def _attempts_from(data: dict[str, object]) -> bool:
     return value
 
 
-def transition_factory(data: dict[str, object]) -> Transition:
-    return Transition(target=_target_from(data), guard=_guard_from(data), attempts=_attempts_from(data))
+def transition_factory(data: dict[str, object], origin: str = "transition") -> Transition:
+    target = _target_from(data)
+    attempts = _attempts_from(data)
+    if attempts and not target.is_routing():
+        raise WorkflowError(f"'{ATTEMPTS_KEY}' needs a target that is a node, there is nothing to retry: {data}")
+    return Transition(target=target, guard=_guard_from(data), attempts=attempts, origin=origin)

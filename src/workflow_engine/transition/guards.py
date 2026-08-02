@@ -32,7 +32,9 @@ class BaseGuard(ABC):
 
     def __init__(self, data: dict[str, object]):
         value = data.get(REVERSED_KEY)
-        if isinstance(value, bool):
+        if value is not None:
+            if not isinstance(value, bool):
+                raise TypeError(f"'{REVERSED_KEY}' must be a bool, found {type(value).__name__}")
             self.negated = value
 
     @abstractmethod

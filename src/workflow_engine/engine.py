@@ -10,12 +10,13 @@ from workflow_engine.models.state import GuardRecord, StateModel
 from workflow_engine.models.workflow import WorkflowModel
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.storage.storage import Storage
-from workflow_engine.transition.base import FailTarget, NodeTarget, Transition
+from workflow_engine.transition.base import EndTarget, FailTarget, NodeTarget, Transition
 from workflow_engine.workflow import WorkflowNode, workflow_node_factory
 
 WORKFLOW_NODES: dict[str, WorkflowNode] = {}
 
 NO_TRANSITION_ERROR = "no_transition_matched"
+ATTEMPTS_EXCEEDED_ERROR = "max_attempts_exceeded"
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,11 +60,11 @@ def _workflow_nodes_errors(workflow: dict[str, WorkflowNode]) -> dict[str, str]:
     errors = {}
     node_ids = set(workflow.keys())
     for node in workflow.values():
-        for count, transition in enumerate(node.transitions, start=1):
+        for transition in node.transitions:
             try:
                 transition.check_error(node_ids)
             except WorkflowError as e:
-                errors[f"{node.id}[{count}]"] = f"Error in transition {count} of node {node.id}: {e}"
+                errors[f"{node.id} {transition.origin}"] = f"Error in {transition.origin} of node {node.id}: {e}"
 
     return errors
 
@@ -80,9 +81,13 @@ def _select_transition(cur_node: WorkflowNode, output: ActionNodeOutput, state: 
 
 
 def _fail(cur_node: WorkflowNode, output: ActionNodeOutput, code: str | None) -> Step:
-    if code is not None:
+    # A code that differs from the one the action produced replaces it, but the message the action
+    # wrote is kept whenever it still explains that code. See ADR 002.
+    if code is not None and code != output.error_code:
         output.error_code = code
         output.error_message = f"Node {cur_node.id} failed: {code}"
+    elif output.error_message is None:
+        output.error_message = f"Node {cur_node.id} failed: {output.error_code}"
     message = output.error_message or output.error_code or "unknown failure"
     return Step(failure=f"{cur_node.id}: {message}")
 
@@ -90,18 +95,22 @@ def _fail(cur_node: WorkflowNode, output: ActionNodeOutput, code: str | None) ->
 def _take(transition: Transition, cur_node: WorkflowNode, output: ActionNodeOutput, state: StateModel) -> Step:
     target = transition.target
     if isinstance(target, NodeTarget):
-        if transition.attempts and state.attempt_counters.get(cur_node.id, 0) < cur_node.config.max_attempts:
+        returns_here = target.node_id == cur_node.id
+        if (transition.attempts or returns_here) and state.attempt_counters.get(
+            cur_node.id, 0
+        ) < cur_node.config.max_attempts:
             return Step(next_node=cur_node)
+        if returns_here:
+            return _fail(cur_node, output, ATTEMPTS_EXCEEDED_ERROR)
         return Step(next_node=WORKFLOW_NODES[target.node_id])
     if isinstance(target, FailTarget):
         return _fail(cur_node, output, target.code)
-    return Step()
+    if isinstance(target, EndTarget):
+        return Step()
+    raise WorkflowError(f"Unknown transition target: {target!r}")
 
 
-def _proceed_with_output(output: ActionNodeOutput | None, cur_node: WorkflowNode, state: StateModel) -> Step:
-    if output is None:
-        return Step(next_node=cur_node)
-
+def _proceed_with_output(output: ActionNodeOutput, cur_node: WorkflowNode, state: StateModel) -> Step:
     transition = _select_transition(cur_node, output, state)
     if transition is not None:
         return _take(transition, cur_node, output, state)
@@ -166,22 +175,26 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
     try:
         while cur_node is not None:
             _set_parameters(state, cur_node.set_parameters, cur_node.override_parameters)
-            step = _proceed_with_output(output, cur_node, state)
-            next_node = step.next_node
-            state.update(cur_node.id, cur_node.config.save_as, output, next_node.id if next_node else None)
-            storage.save_state(state)
 
-            if step.failure is not None:
-                print(f"Engine stop: {step.failure}")
-                return PresentResponse(
-                    title="Node failed",
-                    description="A node did not pass its guards and the workflow cannot continue.",
-                    instruction="Check the guard results in the state and the errors below.",
-                    hints=_state_hints(state),
-                    errors={cur_node.id: step.failure},
-                )
+            # The action of the node the engine resumes at has not run yet. Running it is not an
+            # attempt, so the state is not updated for it.
+            if output is not None:
+                step = _proceed_with_output(output, cur_node, state)
+                next_node = step.next_node
+                state.update(cur_node.id, cur_node.config.save_as, output, next_node.id if next_node else None)
+                storage.save_state(state)
 
-            cur_node = next_node
+                if step.failure is not None:
+                    print(f"Engine stop: {step.failure}")
+                    return PresentResponse(
+                        title="Node failed",
+                        description="A node did not pass its guards and the workflow cannot continue.",
+                        instruction="Check the guard results in the state and the errors below.",
+                        hints=_state_hints(state),
+                        errors={cur_node.id: step.failure},
+                    )
+
+                cur_node = next_node
 
             if cur_node and isinstance(cur_node.action, BaseAutomaticAction):
                 output = cur_node.action.execute(state, output)

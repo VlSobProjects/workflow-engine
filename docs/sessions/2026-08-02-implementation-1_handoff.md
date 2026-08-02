@@ -42,9 +42,24 @@ All completion criteria are met.
 - The transaction registry, `FunctionTransition`, `StopOnErrorTransition` and
   `stop_on_error_node_factory` are removed.
 
-Verification, run from the command line: `ruff check` reports no findings, `ruff format --check`
-reports 67 files already formatted, and `pytest` reports 40 passed. Seven of those tests are new and
-cover the behaviour this ADR decides; they build their workflow in a temporary directory.
+The implementation was then reviewed, and three defects were found and fixed:
+
+- A failed node overwrote the message its action had written with a restatement of the error code,
+  so the real diagnostic was lost from the state. The message is now kept whenever it still explains
+  the code.
+- The first entry into a node was counted as a retry, because the engine updated the state before
+  the action of the resumed node had run. A node reached from a predecessor therefore had one more
+  attempt than the same node at the start of a workflow.
+- A transition targeting its own node looped forever, because the allowance was applied only when
+  the `attempts` flag was set. Both spellings of retry now share one allowance, and a node that
+  exhausts it fails with `max_attempts_exceeded`.
+
+Verification, run from the command line: `ruff check` reports no findings, `ruff format` reports all
+files formatted, and `pytest` reports 48 passed. Twenty five of those tests are new; the engine tests
+build their workflow in a temporary directory and do not depend on files outside the repository.
+
+The rename from validator to guard stopped at the classes that were rewritten anyway. The registry
+and the registered functions keep their names, as ADR 002 states.
 
 ## Decisions
 
@@ -57,13 +72,22 @@ cover the behaviour this ADR decides; they build their workflow in a temporary d
   while `output` keeps its meaning as the output text. No registered function had to change.
 - Implicit retry was removed. The engine no longer retries a node that no transition asked to retry,
   and an unhandled failure is now reported as a failed node instead of a finished run.
-- The rename from validator to guard stopped at the classes that were rewritten anyway. The registry
-  and the registered functions keep their names, as ADR 002 states.
+- Configuration mistakes are rejected rather than ignored: a non boolean `reversed`, a transition
+  declaring both a guard and `errors`, and `attempts` on a target that is not a node.
+- A transition remembers where it came from, so a configuration error names the declared transition
+  rather than an index shifted by the expanded post-conditions.
 
 ## Open questions
 
 - Registered functions raise `FunctionArgsError` when an argument fails its check, so a failure that
   ADR 002 treats as a value becomes an exception. This is the boundary to settle in ADR 001.
+- A configuration error raised while a node is built escapes `sart_engine`, because nodes are built
+  before the protected section. ADR 001 owns this.
+- A registered function whose parameters are all injected cannot be constructed, which makes
+  `save_paths_to_deque` and the first node of `examples/colect_file_info_workflow.json` unusable.
+- `state.error_code` is never cleared, so a run that recovers from a failure still reports it.
+- `state_fields_decoder` is a JSON object hook applied to every nested dictionary, so a node named
+  after a state field, now including `guard_results`, makes a saved state impossible to load.
 - `set_parameters` in a node configuration has no effect, because the factory never populates it.
 - `test_sart_engine` depends on files outside the repository: `C:\out\docs_pdf\...`, `C:\temp1` and
   `C:\temp2`. It passes only on the machine where those exist.
