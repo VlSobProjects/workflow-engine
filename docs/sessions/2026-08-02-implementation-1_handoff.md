@@ -1,0 +1,82 @@
+# Session: ADR 002 implementation
+
+## Type
+implementation
+
+## Goal
+Implement the node model decided in ADR 002: one action and an ordered list of guarded transitions,
+with no validation layer at runtime.
+
+## Completion criteria
+- The runtime node holds an action and transitions only.
+- Guards are a single concept with a name, negation, nested `all_of` and `any_of`, and their results
+  are recorded in the state.
+- Transition targets are a node, the end of the workflow, or failure of the node.
+- The `validators` key still works from the configuration and is expanded when the node is built.
+- Computed transition targets are removed.
+- Ruff and pytest pass from the command line.
+
+## Scope boundaries
+Only what ADR 002 decides. The defects it merely exposes are left alone: action instances holding
+iteration state, the dead `save_as` attribute on `BaseAction`, the module level node registry, and
+the unpopulated `set_parameters` on `WorkflowNode`. The error and retry policy belongs to a later
+decision.
+
+## Status
+completed
+
+## Result
+
+All completion criteria are met.
+
+- `transition/guards.py` holds the single predicate concept: a boolean answer, a name, negation
+  through the existing `reversed` key, value guards, a guard over a registered function, a guard over
+  the error code, a guard for the absence of an error, and the nested groups `all_of` and `any_of`.
+- `transition/base.py` holds `NodeTarget`, `EndTarget` and `FailTarget`, and a transition that is a
+  guard, a target and the `attempts` flag.
+- `workflow_node_factory` expands each `validators` entry into a leading transition
+  `all_of(no_error, not P)` with the target `fail(P)`, so the configuration is unchanged and nothing
+  of the validation layer survives into the runtime node.
+- The engine makes one ordered pass over the transitions of a node, records the guard answers in the
+  state, and ends the run, fails the node, or moves on.
+- The transaction registry, `FunctionTransition`, `StopOnErrorTransition` and
+  `stop_on_error_node_factory` are removed.
+
+Verification, run from the command line: `ruff check` reports no findings, `ruff format --check`
+reports 67 files already formatted, and `pytest` reports 40 passed. Seven of those tests are new and
+cover the behaviour this ADR decides; they build their workflow in a temporary directory.
+
+## Decisions
+
+- The trace of guard answers is passed into `check` by the caller and appended to by each guard,
+  rather than returned. A group has to report its children, and this keeps the guard from touching
+  the state.
+- The rule that a post-condition does not apply to a failed action is expressed as a guard,
+  `all_of(no_error, not P)`, not as a special case in the engine.
+- Registered guard functions receive the action result as a new injected parameter, `action_output`,
+  while `output` keeps its meaning as the output text. No registered function had to change.
+- Implicit retry was removed. The engine no longer retries a node that no transition asked to retry,
+  and an unhandled failure is now reported as a failed node instead of a finished run.
+- The rename from validator to guard stopped at the classes that were rewritten anyway. The registry
+  and the registered functions keep their names, as ADR 002 states.
+
+## Open questions
+
+- Registered functions raise `FunctionArgsError` when an argument fails its check, so a failure that
+  ADR 002 treats as a value becomes an exception. This is the boundary to settle in ADR 001.
+- `set_parameters` in a node configuration has no effect, because the factory never populates it.
+- `test_sart_engine` depends on files outside the repository: `C:\out\docs_pdf\...`, `C:\temp1` and
+  `C:\temp2`. It passes only on the machine where those exist.
+
+## Next steps
+
+1. Merge into `development` and set ADR 002 to Accepted, then update `docs/architecture/overview.md`.
+2. Take ADR 001 on the exception architecture to implementation, starting from the argument check
+   that raises where ADR 002 expects a value.
+3. Decide how data passes between nodes, as ADR 003.
+4. Make `test_sart_engine` independent of files outside the repository.
+
+## References
+
+- Branch: `feature/adr_002-node-composition`.
+- ADR: [002 node composition](../adr/adr-002-node-composition.md), Implementing.

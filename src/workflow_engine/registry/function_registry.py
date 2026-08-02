@@ -4,7 +4,6 @@ import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from types import UnionType
 from typing import Self, TypeVar, get_type_hints
 
 from workflow_engine.exceptions import FunctionParametersTypeError
@@ -19,13 +18,8 @@ type TFunc[T] = Callable[..., T]
 type TDecorator[T] = Callable[[TFunc[T]], TFunc[T]]
 
 
-# type ActionNodeOutputFunc = Callable[..., ActionNodeOutput]
-# type ActionNodeOutputDecorator = Callable[[ActionNodeOutputFunc], ActionNodeOutput]
-
-
 FUNCTION_REGISTRY: dict[str, RegisteredFunction] = {}
 VALIDATOR_REGISTRY: dict[str, RegisteredValidator] = {}
-TRANSACTION_REGISTRY: dict[str, RegisteredTransaction] = {}
 
 
 @dataclass(slots=True)
@@ -77,14 +71,6 @@ class RegisteredValidator(BaseRegisteredFunction[bool]):
 
     def get_expected_type(self) -> type[bool]:
         return bool
-
-
-@dataclass(slots=True)
-class RegisteredTransaction(BaseRegisteredFunction[str | None]):
-    """Transaction output type is optional string"""
-
-    def get_expected_type(self) -> UnionType | type[str]:
-        return str | None
 
 
 def _register[T](
@@ -150,14 +136,6 @@ def register_validator(
     return _reg(func, VALIDATOR_REGISTRY, RegisteredValidator, decorators)
 
 
-def register_transaction(
-    func: TFunc[str | None] | None = None,
-    *,
-    decorators: Sequence[TDecorator[str | None]] = (),
-):
-    return _reg(func, TRANSACTION_REGISTRY, RegisteredTransaction, decorators)
-
-
 @dataclass(slots=True)
 class RegisteredFunctionExecutor[T]:
     registered_function: BaseRegisteredFunction[T]
@@ -213,12 +191,6 @@ def get_registered_validator(
     validator_name: str, parameters: dict[str, object] | None = None
 ) -> RegisteredFunctionExecutor[bool] | None:
     return _get_registered_executor(VALIDATOR_REGISTRY, validator_name, parameters)
-
-
-def get_registered_transaction(
-    transaction_name: str, parameters: dict[str, object] | None = None
-) -> RegisteredFunctionExecutor[str | None] | None:
-    return _get_registered_executor(TRANSACTION_REGISTRY, transaction_name, parameters)
 
 
 def get_and_check_registered[T](

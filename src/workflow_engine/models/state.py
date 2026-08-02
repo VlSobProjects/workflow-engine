@@ -15,6 +15,25 @@ from workflow_engine.registry.type_registry import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class GuardRecord:
+    """One answer of one guard, as recorded in the state. See ADR 002."""
+
+    name: str
+    passed: bool
+
+    def to_dict(self) -> dict[str, object]:
+        return {"name": self.name, "passed": self.passed}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> GuardRecord:
+        name = data.get("name")
+        passed = data.get("passed")
+        if not isinstance(name, str) or not isinstance(passed, bool):
+            raise TypeError(f"Invalid guard record: {data!r}")
+        return cls(name=name, passed=passed)
+
+
 class StateSource(ABC):
     @abstractmethod
     def load_state(self) -> StateModel:
@@ -86,6 +105,7 @@ class StateModel:
     outputs: dict[str, str] = field(default_factory=dict)  # normalized values
     errors: dict[str, str] = field(default_factory=dict)  # error messages
     params: dict[str, ActionParameter] = field(default_factory=dict)  # save_as results
+    guard_results: dict[str, list[GuardRecord]] = field(default_factory=dict)  # latest attempt per node
     artifacts: dict[str, str] = field(default_factory=dict)  # folder in workdir with files
     flow_budget: int = 0  # engine-managed params: _flow_budget (int)
     nodes_visited: int = 0  # engine-managed params: _nodes_visited (int)
@@ -201,6 +221,18 @@ class StateModel:
             return []
         outputs = ["All outputs in current workflow:"]
         return outputs + [f"{k}: {v}" for k, v in self.outputs.items()]
+
+    def info_guards(self) -> list[str]:
+        if len(self.guard_results) == 0:
+            return []
+        guards = ["Guard results of the last attempt of each node:"]
+        for node_id, records in self.guard_results.items():
+            guards += [f"{node_id}: {record.name} -> {record.passed}" for record in records]
+        return guards
+
+    def record_guards(self, node_id: str, records: list[GuardRecord]) -> None:
+        """Keep the guard answers of the latest attempt of a node."""
+        self.guard_results[node_id] = records
 
     def update(self, curr_node_id: str, save_as: str | None, output: ActionNodeOutput | None, next_node_id: str | None):
         self._update_cur_node(curr_node_id, output, save_as)

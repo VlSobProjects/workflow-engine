@@ -31,7 +31,7 @@ def test_action_param_file_exists_validator(tests_dir):
         number=1,
         file_path=str(tests_dir / "test_functions_validators.py"),
         other_param=str(tests_dir / "test_json_storage.py"),
-        another_param=str(tests_dir / "test_output_validators.py"),
+        another_param=str(tests_dir / "test_guards.py"),
     )
     print(f"Test 3: {test3.output_text}, error_code: {test3.error_code}, error_message: {test3.error_message}")
     assert test3.output_text == "all good"

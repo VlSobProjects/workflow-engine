@@ -6,10 +6,9 @@ from pathlib import Path
 
 from workflow_engine.exceptions import StateError, WorkflowError
 from workflow_engine.models.node import WorkflowNodeModel
-from workflow_engine.models.state import ActionParameter, StateModel
+from workflow_engine.models.state import ActionParameter, GuardRecord, StateModel
 from workflow_engine.models.workflow import WorkflowModel
 from workflow_engine.storage.storage import Storage
-from workflow_engine.workflow import WorkflowNode
 
 STATE_FILE = "state.json"
 WORKFLOW_FILE = "workflow.json"
@@ -26,6 +25,9 @@ def state_encoder(obj):
         return obj.isoformat()
 
     if isinstance(obj, ActionParameter):
+        return obj.to_dict()
+
+    if isinstance(obj, GuardRecord):
         return obj.to_dict()
 
     if isinstance(obj, Path):
@@ -49,6 +51,13 @@ def state_fields_decoder(dct):
                 raise StateError(f"Invalid work_dir path: {value}")
             else:
                 dct[key] = Path(value).absolute()
+        if key == "guard_results":
+            if not isinstance(value, dict):
+                raise StateError("Invalid guard_results format")
+            for node_id, records in value.items():
+                if not isinstance(records, list):
+                    raise StateError(f"Invalid guard results for node: {node_id}: {records}")
+                value[node_id] = [GuardRecord.from_dict(record) for record in records]
         if key == "params":
             if not isinstance(value, dict):
                 raise StateError("Invalid params format")
@@ -57,21 +66,6 @@ def state_fields_decoder(dct):
                     raise StateError(f"Invalid param format for key: {param_key}: {param_value}")
                 value[param_key] = ActionParameter.from_dict(param_value)
     return dct
-
-
-def workflow_fields_decoder(dct):
-    """Decode specific filed and rise WorkflowError exception if not possible"""
-    for key, value in dct.items():
-        if key == "nodes":
-            if not isinstance(value, list):
-                raise WorkflowError(f"Invalid nodes format expected: 'list' got: {type(value).__name__}")
-            node_list = []
-            for node in value:
-                if not isinstance(node, dict):
-                    raise WorkflowError(f"Invalid node format expected: 'dict' got: {type(node).__name__}")
-                else:
-                    node_list.append(WorkflowNode(**node))
-            dct[key] = node_list
 
 
 def _load_workflow_from_path(work_flow_file_path: Path) -> Mapping[str, object]:

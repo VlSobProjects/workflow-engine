@@ -1,109 +1,68 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Self
+"""Transition targets and the transition itself.
+
+A transition is a guard and a target. A target is a node, the end of the workflow, or failure of the
+node. Targets are static, so the whole graph is known before execution. See ADR 002.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 
 from workflow_engine.exceptions import WorkflowError
 from workflow_engine.models.state import StateModel
 from workflow_engine.output import ActionNodeOutput
-
-# from workflow_engine.workflow import WorkflowNode
-
-
-@dataclass
-class BaseTransaction(ABC):
-    @abstractmethod
-    def transition(self, output: ActionNodeOutput, state: StateModel, workflow_nodes: set[str]) -> str | None:
-        pass
-
-    @classmethod
-    @abstractmethod
-    def from_dict(cls, data: dict[str, object]) -> Self:
-        pass
-
-    @classmethod
-    @abstractmethod
-    def is_on_error(cls) -> bool:
-        pass
-
-    @classmethod
-    @abstractmethod
-    def data_keys(cls) -> list[str]:
-        pass
-
-    @abstractmethod
-    def check_error(self, workflow_nodes: set[str]):
-        pass
-
-    @classmethod
-    def validate_keys(cls, data: dict[str, object]) -> None:
-        missing_keys = []
-        for key in cls.data_keys():
-            if key not in data:
-                missing_keys.append(key)
-        if missing_keys:
-            raise ValueError(f"Missing keys: {missing_keys}")
-
-    @classmethod
-    def is_class(cls, data: dict[str, object]) -> bool:
-        return all(key in data for key in cls.data_keys())
+from workflow_engine.transition.guards import BaseGuard, GuardRecord
 
 
-@dataclass
-class WithNextNode(BaseTransaction, ABC):
-    next_node: str
+@dataclass(frozen=True)
+class Target:
+    """Where a node goes when a transition is taken."""
 
-    @classmethod
-    def data_keys(cls) -> list[str]:
-        return ["next"]
+    def is_routing(self) -> bool:
+        return False
 
-    def check_next_node_id(self, workflow_nodes: set[str]) -> bool:
-        return self.next_node in workflow_nodes
-
-    def check_error(self, workflow_nodes: set[str]):
-        if not self.check_next_node_id(workflow_nodes):
-            raise WorkflowError(f"Next node '{self.next_node}' not found in workflow nodes")
-
-    @classmethod
-    def get_next_node_value(cls, data: dict[str, object]) -> str:
-        cls.validate_keys(data)
-        value = data["next"]
-        if not isinstance(value, str):
-            raise TypeError(f"Expected 'next' is 'str', got '{type(value).__name__}'")
-        return value
+    def check_error(self, workflow_nodes: set[str]) -> None:
+        """Raise when the target cannot be resolved against the workflow. Static targets cannot."""
+        return
 
 
-@dataclass
-class WithErrors(BaseTransaction, ABC):
-    errors: list[str]
-    attempts: bool
+@dataclass(frozen=True)
+class NodeTarget(Target):
+    node_id: str
 
-    @classmethod
-    def data_keys(cls) -> list[str]:
-        return ["errors"]
-
-    @classmethod
-    def is_on_error(cls) -> bool:
+    def is_routing(self) -> bool:
         return True
 
-    def is_error(self, output: ActionNodeOutput) -> bool:
-        return output.error_code is not None and output.error_code in self.errors
+    def check_error(self, workflow_nodes: set[str]) -> None:
+        if self.node_id not in workflow_nodes:
+            raise WorkflowError(f"Next node '{self.node_id}' not found in workflow nodes")
 
-    @classmethod
-    def get_errors(cls, data: dict[str, object]) -> list[str]:
-        cls.validate_keys(data)
-        err_list = data["errors"]
-        if not isinstance(err_list, list):
-            raise TypeError(f"Expected 'errors' is 'list', got '{type(err_list).__name__}'")
-        if not all(isinstance(err, str) for err in err_list):
-            raise TypeError(
-                f"Expected all elements in 'errors' to be 'str', got '{[type(err).__name__ for err in err_list]}'"
-            )
-        return err_list
 
-    @classmethod
-    def get_attempts_value(cls, data: dict[str, object]) -> bool:
-        cls.validate_keys(data)
-        value = data.get("attempts", False)
-        if not isinstance(value, bool):
-            raise TypeError(f"Expected 'attempts' is 'bool', got '{type(value).__name__}'")
-        return value
+@dataclass(frozen=True)
+class EndTarget(Target):
+    """End the workflow without an error."""
+
+
+@dataclass(frozen=True)
+class FailTarget(Target):
+    """Fail the node. A code of None keeps the error code the action already produced."""
+
+    code: str | None = None
+
+
+@dataclass
+class Transition:
+    target: Target
+    guard: BaseGuard | None = field(default=None)
+    attempts: bool = field(default=False)
+
+    def is_routing(self) -> bool:
+        return self.target.is_routing()
+
+    def check_error(self, workflow_nodes: set[str]) -> None:
+        self.target.check_error(workflow_nodes)
+
+    def matches(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None = None) -> bool:
+        if self.guard is None:
+            return True
+        return self.guard.check(output, state, trace)
