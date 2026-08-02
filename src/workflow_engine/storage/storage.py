@@ -6,8 +6,9 @@ from workflow_engine.models.state import StateModel, StateSource
 from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
 
 
-class Storage(StateSource,WorkflowSource,ABC):
+class Storage(StateSource, WorkflowSource, ABC):
     """Storage class for states and workflows."""
+
     def __init__(self, working_dir: Path):
         self.working_dir = working_dir
 

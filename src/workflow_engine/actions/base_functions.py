@@ -14,16 +14,18 @@ from workflow_engine.validators.functions_validators import (
 )
 
 
-@register_function(decorators=[
+@register_function(
+    decorators=[
         file_exists_arg_validator({"path_source": 0}),
-])
-def copy_file(path_source:str,path_target:str)->ActionNodeOutput:
+    ]
+)
+def copy_file(path_source: str, path_target: str) -> ActionNodeOutput:
     source = Path(path_source)
     if not source.is_file():
         return ActionNodeOutput(
             output_text="Can't copy file",
             error_code="file_not_found",
-            error_message=f"Source file '{source.absolute()}' is not a file or does not exist."
+            error_message=f"Source file '{source.absolute()}' is not a file or does not exist.",
         )
     target = Path(path_target)
     if not target.parent.exists():
@@ -34,20 +36,15 @@ def copy_file(path_source:str,path_target:str)->ActionNodeOutput:
         return ActionNodeOutput(
             output_text="Can't copy file",
             error_code="copy_failed",
-            error_message=f"Failed to copy file from '{source.absolute()}' to '{target.absolute()}': {e!s}"
+            error_message=f"Failed to copy file from '{source.absolute()}' to '{target.absolute()}': {e!s}",
         )
-    return ActionNodeOutput(
-        output_text=str(target)
-    )
+    return ActionNodeOutput(output_text=str(target))
 
 
 @register_function(
-    decorators=[
-        folder_exists_arg_validator({"path_target": 0}),
-        not_empty_str_arg_validator({"folder_name": 1})
-    ]
+    decorators=[folder_exists_arg_validator({"path_target": 0}), not_empty_str_arg_validator({"folder_name": 1})]
 )
-def create_folder(path_target:str, folder_name:str)->ActionNodeOutput:
+def create_folder(path_target: str, folder_name: str) -> ActionNodeOutput:
     folder = Path(path_target) / folder_name
     try:
         folder.mkdir(parents=True, exist_ok=True)
@@ -55,18 +52,13 @@ def create_folder(path_target:str, folder_name:str)->ActionNodeOutput:
         return ActionNodeOutput(
             output_text="Can't create folder",
             error_code="create_failed",
-            error_message=f"Failed to create folder '{folder.absolute()}': {e!s}"
+            error_message=f"Failed to create folder '{folder.absolute()}': {e!s}",
         )
-    return ActionNodeOutput(
-        output_text=str(folder.absolute())
-    )
+    return ActionNodeOutput(output_text=str(folder.absolute()))
 
-@register_function(
-    decorators=[
-        file_exists_arg_validator({"file_path":0})
-    ]
-)
-def file_delete(file_path:str)->ActionNodeOutput:
+
+@register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
+def file_delete(file_path: str) -> ActionNodeOutput:
     file = Path(file_path)
     try:
         file.unlink()
@@ -74,19 +66,15 @@ def file_delete(file_path:str)->ActionNodeOutput:
         return ActionNodeOutput(
             output_text="Can't delete file",
             error_code="delete_failed",
-            error_message=f"Failed to delete file '{file.absolute()}': {e!s}"
+            error_message=f"Failed to delete file '{file.absolute()}': {e!s}",
         )
-    return ActionNodeOutput(
-        output_text=f"File '{file.absolute()}' deleted successfully"
-    )
+    return ActionNodeOutput(output_text=f"File '{file.absolute()}' deleted successfully")
+
 
 @register_function(
-    decorators=[
-        folder_exists_arg_validator({"folder_path": 0}),
-        not_empty_str_arg_validator({"param_name": 1})
-    ]
+    decorators=[folder_exists_arg_validator({"folder_path": 0}), not_empty_str_arg_validator({"param_name": 1})]
 )
-def save_paths_to_deque(folder_path:str, deque_param_name:str, state:StateModel)->ActionNodeOutput:
+def save_paths_to_deque(folder_path: str, deque_param_name: str, state: StateModel) -> ActionNodeOutput:
     folder = Path(folder_path)
     list_of_paths = [item.absolute() for item in folder.iterdir()]
     e_dq = state.get_param(deque_param_name, deque)

@@ -16,7 +16,7 @@ def load_modules():
 
 
 @pytest.fixture
-def state(load_modules,tmp_path):
+def state(load_modules, tmp_path):
     return StateModel(
         timestamp=datetime.datetime.now(tz=datetime.UTC),
         work_dir=tmp_path,
@@ -61,25 +61,25 @@ def add_param(json_storage):
 
 
 @pytest.fixture
-def corrupt_timestamp(tmp_path,json_storage):
+def corrupt_timestamp(tmp_path, json_storage):
     corrupt(tmp_path, "timestamp", "invalid_timestamp")
     return tmp_path
 
 
 @pytest.fixture
-def corrupt_state(tmp_path,json_storage):
+def corrupt_state(tmp_path, json_storage):
     corrupt(tmp_path, "invalid_field", "invalid_value")
     return tmp_path
 
 
 @pytest.fixture
-def not_exist_work_dir(tmp_path,json_storage):
+def not_exist_work_dir(tmp_path, json_storage):
     corrupt(tmp_path, "work_dir", "not_exist_work_dir")
     return tmp_path
 
 
 @pytest.fixture
-def corrupt_json(tmp_path,json_storage):
+def corrupt_json(tmp_path, json_storage):
     state_file = tmp_path.joinpath("state.json")
     with open(state_file, "r") as f:
         data = f.read()
@@ -163,6 +163,5 @@ def test_upload_workflow(json_storage_upload_workflow):
     workflow = json_storage_upload_workflow.load_workflow()
     assert workflow is not None
     assert workflow.flow_id == "simple-workflow"
-    assert workflow.nodes[0].id== "NODE_1"
+    assert workflow.nodes[0].id == "NODE_1"
     print(f" Uploaded workflow:  {workflow.flow_id}, nodes: {[node.id for node in workflow.nodes]}")
-

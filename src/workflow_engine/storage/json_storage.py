@@ -14,6 +14,7 @@ from workflow_engine.workflow import WorkflowNode
 STATE_FILE = "state.json"
 WORKFLOW_FILE = "workflow.json"
 
+
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
@@ -25,6 +26,7 @@ def workflow_encoder(obj):
     if isinstance(obj, WorkflowNodeModel):
         return {**dataclasses.asdict(obj)}
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
 
 def state_encoder(obj):
     if isinstance(obj, datetime):
@@ -63,6 +65,7 @@ def state_fields_decoder(dct):
                 value[param_key] = ActionParameter.from_dict(param_value)
     return dct
 
+
 def workflow_fields_decoder(dct):
     """Decode specific filed and rise WorkflowError exception if not possible"""
     for key, value in dct.items():
@@ -76,7 +79,6 @@ def workflow_fields_decoder(dct):
                 else:
                     node_list.append(WorkflowNode(**node))
             dct[key] = node_list
-
 
 
 def _load_workflow_from_path(work_flow_file_path: Path) -> Mapping[str, object]:
@@ -96,18 +98,17 @@ def _load_workflow_from_path(work_flow_file_path: Path) -> Mapping[str, object]:
 
 class JsonStorage(Storage):
     """JSON Storage class for states and workflows."""
+
     def __init__(self, working_dir: Path) -> None:
         super().__init__(working_dir)
 
     def load_workflow(self) -> WorkflowModel:
         return self.read_workflow(_load_workflow_from_path(self.working_dir.joinpath(WORKFLOW_FILE)))
 
-
     def upload_workflow(self, work_flow_file_path: Path) -> WorkflowModel:
         workflow = self.read_workflow(_load_workflow_from_path(work_flow_file_path))
         self.save_workflow(workflow)
         return self.load_workflow()
-
 
     def save_workflow(self, workflow: WorkflowModel) -> None:
         try:
@@ -142,4 +143,3 @@ class JsonStorage(Storage):
                 json.dump(state.__dict__, f, indent=4, sort_keys=True, default=state_encoder)
         except Exception as ex:
             raise StateError("Failed to save state") from ex
-

@@ -7,6 +7,7 @@ T = TypeVar("T", bound=BaseAction)
 
 ACTION_REGISTRY: dict[str, type[BaseAction]] = {}
 
+
 def register_action(action_type: str | None = None):
     def decorator(cls: type[T]) -> type[T]:
         key = action_type or cls.ACTION_TYPE
@@ -19,6 +20,7 @@ def register_action(action_type: str | None = None):
 
     return decorator
 
+
 def create_action(action_type: str, data: dict[str, object]) -> BaseAction:
     try:
         cls = ACTION_REGISTRY[action_type]
@@ -29,4 +31,3 @@ def create_action(action_type: str, data: dict[str, object]) -> BaseAction:
     inst.validate_action()
 
     return inst
-

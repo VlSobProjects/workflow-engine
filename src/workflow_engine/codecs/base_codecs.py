@@ -40,7 +40,6 @@ class DictCodec(Codec):
 
 @register_type(str)
 class StringCodec(Codec):
-
     @classmethod
     def value_to_dict_obj(cls, value: str) -> object:
         return value
@@ -54,7 +53,6 @@ class StringCodec(Codec):
 
 @register_type(Path)
 class PathCodec(Codec):
-
     @classmethod
     def value_to_dict_obj(cls, value: Path) -> object:
         return str(value)
@@ -68,17 +66,16 @@ class PathCodec(Codec):
 
 @register_type(float)
 class NumberCodec(Codec):
-
     @classmethod
     def value_to_dict_obj(cls, value: float) -> object:
         return value
-    
 
     @classmethod
     def value_from_dict_obj(cls, value: object) -> float:
         if not isinstance(value, (int, float)):
             raise TypeError(f"Expected a float, got {type(value).__name__}")
         return float(value)
+
 
 @register_type(int)
 class IntCodec(Codec):

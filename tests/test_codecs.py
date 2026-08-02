@@ -22,7 +22,6 @@ def load_modules():
     importlib.import_module("workflow_engine.codecs.base_codecs")
 
 
-
 def test_params():
     param = ActionParameter.create("source_node_id", "name", "value")
     assert isinstance(param.codec, type(StringCodec))
@@ -30,17 +29,25 @@ def test_params():
     assert isinstance(param.codec, type(NumberCodec))
     param = ActionParameter.create("source_node_id", "name", Path("/test_registration.py"))
     assert isinstance(param.codec, type(PathCodec))
-    param = ActionParameter.create("source_node_id", "name", {"test":"value"})
+    param = ActionParameter.create("source_node_id", "name", {"test": "value"})
     assert isinstance(param.codec, type(DictCodec))
-    param = ActionParameter.create("source_node_id", "name", ["test","value"])
+    param = ActionParameter.create("source_node_id", "name", ["test", "value"])
     assert isinstance(param.codec, type(ListCodec))
-    param = ActionParameter.create("source_node_id", "name", deque(["test","value"]))
+    param = ActionParameter.create("source_node_id", "name", deque(["test", "value"]))
     assert isinstance(param.codec, type(DequeCodec))
     param = ActionParameter.create("source_node_id", "name", {"test", "value"})
     assert isinstance(param.codec, type(SetCodec))
 
+
 def test_collection_same_types():
-    d = deque([Path("/test_output_validators.py"),Path("/test_registration.py"),Path("/test_codecs.py"),Path("/test_engine.py")])
+    d = deque(
+        [
+            Path("/test_output_validators.py"),
+            Path("/test_registration.py"),
+            Path("/test_codecs.py"),
+            Path("/test_engine.py"),
+        ]
+    )
     param = ActionParameter.create("source_node_id", "name", d)
     assert isinstance(param.codec, type(DequeCodec))
     data = param.to_dict()
@@ -49,6 +56,7 @@ def test_collection_same_types():
     assert param.codec == param_converted.codec
     assert param.value == param_converted.value
 
+
 def test_collection_different_types():
     d = deque(
         [
@@ -56,8 +64,8 @@ def test_collection_different_types():
             "string_value",
             Path("/test_registration.py"),
             123,
-            {"test":"value"},
-            {"test1","test2","test3"},
+            {"test": "value"},
+            {"test1", "test2", "test3"},
         ]
     )
     param = ActionParameter.create("source_node_id", "name", d)
@@ -67,4 +75,3 @@ def test_collection_different_types():
     print(json.dumps(data, indent=4))
     assert param.codec == param_converted.codec
     assert param.value == param_converted.value
-

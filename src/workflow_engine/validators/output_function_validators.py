@@ -14,28 +14,23 @@ def is_output_exist_file(output: str) -> bool:
     return Path(output).is_file()
 
 
-@register_validator(
-    decorators=[
-        not_empty_str_arg_validator({"file_path":0})
-    ]
-)
+@register_validator(decorators=[not_empty_str_arg_validator({"file_path": 0})])
 def is_file_exist(file_path: str) -> bool:
     """checking if file exists"""
     return Path(file_path).is_file()
 
-@register_validator(
-    decorators=[
-        not_empty_str_arg_validator({"substring":1})
-    ]
-)
+
+@register_validator(decorators=[not_empty_str_arg_validator({"substring": 1})])
 def is_output_contains_str(output: str, substring: str) -> bool:
     """checking if output contains a specific string"""
     return substring in output
+
 
 @register_validator
 def is_output_exist_folder(output: str) -> bool:
     """checking if output is an existing folder"""
     return Path(output).is_dir()
+
 
 @register_validator
 def is_output_number(output: str) -> bool:
@@ -44,22 +39,16 @@ def is_output_number(output: str) -> bool:
         return bool(output[1:].isdigit())
     return bool(output.isdigit())
 
-@register_validator(
-    decorators=[
-        not_empty_str_arg_validator({"substring":1})
-    ]
-)
-def chek_state_param(state:StateModel, param_name:str)->bool:
+
+@register_validator(decorators=[not_empty_str_arg_validator({"substring": 1})])
+def chek_state_param(state: StateModel, param_name: str) -> bool:
     """checking if a state parameter exists"""
     param = state.get_param(param_name)
     return param is not None
 
-@register_validator(
-    decorators=[
-        not_empty_str_arg_validator({"substring":1})
-    ]
-)
-def chek_collection_state_param(state:StateModel, param_name:str, not_empty:bool = True)->bool:
+
+@register_validator(decorators=[not_empty_str_arg_validator({"substring": 1})])
+def chek_collection_state_param(state: StateModel, param_name: str, not_empty: bool = True) -> bool:
     """checking if a state parameter exists"""
     param = state.get_param(param_name)
     if param is not None and isinstance(param, Iterable) and isinstance(param, Sized) and not isinstance(param, str):

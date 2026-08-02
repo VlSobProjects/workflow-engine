@@ -24,7 +24,7 @@ class WorkflowSource(ABC):
         """Save a workflow model to the storage."""
 
     @abstractmethod
-    def upload_workflow(self, work_flow_file_path:Path) -> WorkflowModel:
+    def upload_workflow(self, work_flow_file_path: Path) -> WorkflowModel:
         """Upload and return workflow model to the storage."""
 
 
@@ -53,4 +53,3 @@ class WorkflowModel:
             start_node_id=data["start_node_id"].__str__(),
             nodes=[WorkflowNodeModel.from_dict(node) for node in nodes if isinstance(node, dict)],
         )
-
