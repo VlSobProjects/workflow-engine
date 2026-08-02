@@ -47,7 +47,7 @@ class WorkflowModel:
     def from_dict(cls, data: Mapping[str, object]) -> WorkflowModel:
         nodes = data.get("nodes")
         if not isinstance(nodes, list) or len(nodes) == 0:
-            raise TypeError(f"Nodes must be a not empty list of workflow nodes: {nodes.__class__}")
+            raise TypeError(f"Nodes must be a not empty list of workflow nodes: {type(nodes).__name__}")
         return cls(
             schema_version=data["schema_version"].__str__(),
             flow_id=data["flow_id"].__str__(),
