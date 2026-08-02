@@ -240,13 +240,12 @@ class StopAction(BaseAutomaticAction):
         super().__init__(data)
         self.registered_function = self.get_registered_function(data) if FUNCTION_NAME_KEY in data else None
 
-    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput | None:
+    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         if self.registered_function is not None:
             return self.registered_function.execute(
                 parameters_modified=state.set_parameters_with_updater({"output": prev_output, "state": state})
             )
-        else:
-            return None
+        return ActionNodeOutput(output_text=prev_output.output_text if prev_output else "")
 
 
 @register_action()

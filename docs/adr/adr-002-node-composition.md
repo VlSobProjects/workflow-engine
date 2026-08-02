@@ -66,27 +66,36 @@ The distinction matters only for the rule below on unmatched transitions.
 A guard may be negated, which is how a post-condition is expressed: the target is taken when the
 check does **not** hold.
 
-Retry is expressed as a transition whose target is the node itself. How often that is allowed, and
-what happens when the allowance runs out, is the subject of the error and retry decision, not of this
-one.
+Retry is expressed as a transition whose target is the node itself, or by the `attempts` flag on a
+transition, which retries the node before taking the declared target. Both are bounded by the same
+allowance, and a node that exhausts it fails. The `attempts` flag needs a target that is a node,
+because there is nothing to retry before ending or failing. The engine does not retry a node that no
+transition asked to retry. How large the allowance is, and how it interacts with a budget for the
+whole run, is the subject of the error and retry decision, not of this one.
 
 Guards are the only predicate concept in the engine and come from one registry.
 
 ### Guard contract
 
-A guard receives the whole action result and the state, and returns a boolean. In addition it exposes
-a **name** that identifies the rule.
+A guard receives the whole action result and returns a boolean. In addition it exposes a **name**
+that identifies the rule.
 
-The guard does not write anything. The caller — the engine or the transition that evaluated it —
-records the pair of name and result in the state, under the node being executed. A guard therefore
-stays pure and can be evaluated in isolation.
+A guard does not receive the state. It reads the state only indirectly, through the parameter
+references that the engine resolves for it before it is called, so `param.` and `output.` in a guard
+configuration keep working. This is what makes the purity below a property of the design rather than
+a request: the capability to write is not narrowed, it is absent.
+
+The guard does not write anything. The caller passes a list of records to the guard and the guard
+appends its own answer to it; the caller then stores that list in the state, under the node being
+executed. A guard therefore stays pure and can be evaluated in isolation.
 
 The recorded results are what makes an execution explainable: after the fact, the state says which
 rules were evaluated in a node and how each of them answered. A group of guards records every child
 it evaluated, so a combination is as readable as a single check.
 
 Because the name identifies the rule, it is also the error code of a node that failed a guard. No
-separate code has to be declared in the configuration.
+separate code has to be declared in the configuration. A node that fails keeps the message its action
+wrote whenever that message still explains the code, so a failure never degrades into a tautology.
 
 Rules for recording:
 
@@ -188,6 +197,9 @@ if a case appears that guards cannot express.
   runs and an unknown target is a configuration error rather than a runtime one.
 - The runtime node object loses its validator list; the engine loses its separate validation step.
 - A guard sees the error code of the action, so recovery paths can branch on how an action failed.
+- A guard cannot write to the state, because it is never given it. The price is that a guard cannot
+  ask a question about the state that the configuration did not already resolve for it, such as
+  whether a parameter exists at all.
 - Every rule that was evaluated is recorded in the state with its answer, which is what makes an
   execution explainable to an operator, and what lets a transition branch on a named check.
 - The name of a guard is its error code, so two uses of the same registered function in one node
@@ -222,46 +234,88 @@ if a case appears that guards cannot express.
 
 ## Implementation notes
 
-Estimated cost, from the current tree:
+Delivered in `feature/adr_002-node-composition`.
 
-- `output_validators.py`, 176 lines, keeps its classes and its boolean contract. It gains a name on
-  the base class, loses the per-child `operator` fold in favour of `all_of` and `any_of`, and moves
-  under the transition concept. `test_output_validators.py`, 156 lines, is extended rather than
-  rewritten.
-- The eight registered validator functions and `VALIDATOR_REGISTRY` are unaffected.
-- The whole action result can be injected into a guard function the same way `state` already is,
-  through the parameter updater. Functions that do not declare the parameter are unaffected.
-- `StateModel` gains a field for the guard results of the current node, and a codec is not needed for
-  it because it holds only names and booleans.
-- `TRANSACTION_REGISTRY`, `register_transaction`, `get_registered_transaction`, `RegisteredTransaction`
-  and `FunctionTransition` are removed. Nothing is registered against them today.
-- `StopOnErrorTransition` and `stop_on_error_node_factory` become redundant, because stopping is a
-  terminal target. The `stop` action type stays, because it can run a closing function, which is
-  work rather than routing.
-- `engine.py` loses `_validate_output` and the validation branch of `_proceed_with_output`.
-- `workflow.py` loses the `validators` field; the factory gains the expansion step.
-- The four example configurations keep their shape unchanged.
+What the implementation revealed:
 
-Contradictions in the current code that this decision resolves or exposes:
+- A group guard has to report the answers of its children, but a guard is not allowed to write. The
+  caller therefore passes a list to `check`, and each guard appends its own record to it. This keeps
+  the guard pure while a group can still record what it evaluated.
+- The restriction that a post-condition does not apply to an already failed action needed no special
+  case in the engine. The expansion builds `all_of(no_error, not P)`, so it is expressed with the
+  same guards as everything else.
+- Registered guard functions receive the action result under a new name, `action_output`, beside the
+  existing `output`, which stays the output text. Both are declared to the argument check, otherwise
+  a function asking for either cannot be built. Functions that declare neither are unaffected.
+- Guards are not given the state. The two registered functions that took it, `chek_state_param` and
+  `chek_collection_state_param`, were removed: the argument check binds a signature against the
+  configured parameters only, so neither could ever be built. Purity is therefore structural and not
+  a convention.
+- Implicit retry was removed. The engine used to retry a failed node even when no transition asked
+  for it, and then report the run as finished. Retry is now only what a transition declares through
+  `attempts`, and an unhandled failure is reported as a failed node.
+- `workflow_fields_decoder` in `json_storage` was removed. It was never called and constructed the
+  wrong class, and it could not survive the change of shape of a node.
+- `registry/errors_registry.py` was removed. Nothing imported it, and its four symbols occurred only
+  inside itself. It was an unfinished idea: a registry of error codes with their descriptions,
+  populated by a decorator. The Context above still cites it, because the disagreement between the
+  code it declared and the code the engine actually produced is part of why this decision was made.
+  Whether a catalogue of error codes is worth having belongs to ADR 001.
+- The rename stopped at the classes that were rewritten anyway. `VALIDATOR_REGISTRY`,
+  `register_validator` and the registered functions keep their names, as this ADR states that they
+  are unaffected.
 
-- `StopOnErrorTransition.transition` returns a constructed node where the contract requires a target.
-  The engine tests the result for membership in a set of identifiers, so the branch never matches and
-  the node is retried instead of stopping. This decision replaces it with a terminal target.
-- `FunctionTransition.transition` and `check_error` take a mapping of nodes and return a node,
-  contradicting the base signature. The engine passes a set. This decision removes the class.
-- `BaseOutputValidator` already carries a `reversed` flag, which is the negation this decision needs.
-  It is currently readable from the configuration of a validator and has no test.
-- `OutputFunctionValidator._validate_output` is declared to return `bool | None`.
+Contradictions in the code that this decision resolved:
+
+- `StopOnErrorTransition.transition` returned a constructed node where the contract requires a
+  target, so the branch never matched and the node was retried instead of stopping. Replaced by a
+  terminal target.
+- `FunctionTransition.transition` and `check_error` took a mapping of nodes and returned a node,
+  contradicting the base signature. Removed together with the transaction registry.
+- `OutputFunctionValidator._validate_output` was declared to return `bool | None`. The guard contract
+  is a boolean.
+- `StopAction._execute` could return `None` where the contract requires a result. It now returns the
+  previous output text.
+- Combination through a per child `operator` key folded left without precedence. Replaced by nested
+  `all_of` and `any_of`.
+
+Contradictions this decision exposed and deliberately left alone:
+
 - `ForEachOutputParameterNode` and `PopFromQueue` hold iteration state in a field of the action
   instance, but nodes are rebuilt from configuration on every engine turn, so that state is lost.
-  Actions must be stateless.
-- `StopAction._execute` may return `None` where the contract requires a result.
+  Actions must be stateless. Neither is registered, so neither is reachable from a configuration.
 - `BaseAction.save_as` is declared with `dataclasses.field` on a class that is not a dataclass, so it
-  holds a `Field` object. The engine reads `save_as` from the node configuration, so the attribute is
-  dead.
+  holds a `Field` object. The engine reads `save_as` from the node configuration, so it is dead.
 - `WorkflowNode.set_parameters` and `override_parameters` are read by the engine but never populated
-  by the factory.
+  by the factory, so `set_parameters` in a configuration has no effect.
 - Node identity is held in a module level global, which prevents more than one workflow per process.
+- Registered functions raise `FunctionArgsError` when an argument fails its check, so a failure that
+  this decision treats as a value becomes an exception instead. This is the boundary with ADR 001.
+- A configuration error raised while a node is built escapes `sart_engine` instead of becoming a
+  response, because nodes are built before the protected section. Two tests record this as the
+  current behaviour. ADR 001 owns it.
+- A registered function whose parameters are all injected, such as `state` or `output`, cannot be
+  constructed: `check_args` binds the signature against the configured parameters only, and reports
+  the injected ones as missing. `save_paths_to_deque` and the first node of
+  `examples/colect_file_info_workflow.json` are unusable for this reason.
+- `state.error_code` and `state.error_msg` are never cleared, so a run that fails a node, recovers
+  and finishes still reports the code of the failure it recovered from.
+- `state_fields_decoder` is a JSON object hook applied to every nested dictionary, so any node whose
+  identifier collides with a state field name, now including `guard_results`, makes a saved state
+  impossible to load.
+- `ActionNodeOutput` is a mutable dataclass, and a guard receives it whole. A guard can therefore
+  still write to the result it is judging. The surface is much smaller than the state, but it is the
+  same class of hole, and closing it partially by copying would be false comfort because the
+  parameters inside the result stay shared. It belongs to the decision on access to run data.
+- The state is still one object holding two different things: a journal written only by the engine,
+  which now includes the guard results, and a bus of parameters written by actions. Anything holding
+  the state can do both, and the guard results are only safe because the engine writes them. Drawing
+  that boundary belongs to the decision on how data passes between nodes.
+- Parameter resolution is the one thing a guard genuinely needs from the state. It is done today by
+  `StateModel.set_parameters`, so the guard class still holds the state even though the guard
+  function does not. Two ways out have been named and neither is decided: the engine resolves every
+  parameter before anything is called, so no component resolves its own; or a component is handed a
+  resolving function instead of the state.
 
 ## Change log
 
@@ -284,3 +338,20 @@ Contradictions in the current code that this decision resolves or exposes:
   that only asserts something would fail on success. The reason for exactly one action per node was
   stated. Computed targets, and with them `TRANSACTION_REGISTRY`, were removed rather than left
   undecided.
+- Implemented. The guard contract gained the trace list that the caller passes in, because a group
+  has to report its children without writing anything itself. Implicit retry was removed, which the
+  decision implied but did not say. Nothing else in the decision changed during implementation.
+- Reviewed after implementation. Three defects were found and fixed: a failed node lost the message
+  its action had written; the first entry into a node was counted as a retry, so a node reached from
+  a predecessor had a larger allowance than the same node at the start; and a transition targeting
+  its own node looped forever, because the allowance was applied only to the `attempts` flag. The
+  decision text now states that both spellings of retry share one allowance, that `attempts` needs a
+  node target, and that a failure keeps the message of its action.
+- The state was withdrawn from what a guard function receives. The decision claimed guards were
+  pure, but handed them the mutable state, so purity rested on convention and on a test that only
+  covered the built in guards. Since the project uses no type checker, narrowing the annotation
+  would have enforced nothing. Removing the parameter costs nothing, because the argument check
+  binds a signature against the configured parameters only, so no function declaring the state could
+  ever be built. The same check also made `action_output` unusable; it is now declared, so the claim
+  that a guard sees the whole result is true for the first time. The remaining holes, a mutable
+  result object and a state that mixes a journal with a bus, are recorded rather than patched.

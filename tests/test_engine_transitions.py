@@ -1,0 +1,275 @@
+"""Engine behaviour that ADR 002 decides.
+
+These tests build their workflow in the temporary directory, so they do not depend on files outside
+the repository.
+"""
+
+import importlib
+import json
+from pathlib import Path
+
+import pytest
+
+from workflow_engine.engine import NO_TRANSITION_ERROR, sart_engine
+from workflow_engine.exceptions import WorkflowError
+from workflow_engine.output import ActionNodeOutput
+from workflow_engine.registry.function_registry import register_function
+from workflow_engine.storage.json_storage import JsonStorage
+
+EXECUTIONS: list[str] = []
+
+
+@register_function
+def count_execution(node_marker: str) -> ActionNodeOutput:
+    """Record every execution, so that a retry budget is observable from a test."""
+    EXECUTIONS.append(node_marker)
+    return ActionNodeOutput(output_text="counted")
+
+
+@pytest.fixture
+def load_modules():
+    importlib.import_module("workflow_engine.codecs.base_codecs")
+    importlib.import_module("workflow_engine.validators.output_function_validators")
+    importlib.import_module("workflow_engine.actions.base_functions")
+    importlib.import_module("workflow_engine.actions.action_nodes")
+    EXECUTIONS.clear()
+
+
+def counting_node(node_id: str) -> dict[str, object]:
+    return {
+        "id": node_id,
+        "action_type": "function",
+        "action_parameters": {
+            "function_name": "count_execution",
+            "function_parameters": {"node_marker": node_id},
+        },
+    }
+
+
+def create_folder_node(node_id: str, work_dir: Path, folder_name: str) -> dict[str, object]:
+    return {
+        "id": node_id,
+        "action_type": "function",
+        "action_parameters": {
+            "function_name": "create_folder",
+            "function_parameters": {"path_target": str(work_dir), "folder_name": folder_name},
+        },
+    }
+
+
+def storage_for(tmp_path: Path, nodes: list[dict[str, object]]) -> JsonStorage:
+    workflow = {
+        "schema_version": "1",
+        "flow_id": "guard-flow",
+        "start_node_id": nodes[0]["id"],
+        "nodes": nodes,
+    }
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    workflow_file = tmp_path / "source_workflow.json"
+    with workflow_file.open("w") as f:
+        json.dump(workflow, f)
+    storage = JsonStorage(tmp_path)
+    storage.start_workflow(workflow_file)
+    return storage
+
+
+def test_passing_post_condition_ends_the_workflow(load_modules, tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["validators"] = [{"function_name": "is_output_exist_folder"}]
+    storage = storage_for(tmp_path, [node])
+
+    response = sart_engine(storage, None)
+
+    assert response.title == "Loop finished"
+    assert (tmp_path / "made").is_dir()
+
+
+def test_guard_results_are_recorded_in_the_state(load_modules, tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["validators"] = [{"function_name": "is_output_exist_folder"}]
+    storage = storage_for(tmp_path, [node])
+
+    sart_engine(storage, None)
+    state = storage.load_state()
+
+    records = state.guard_results["NODE_1"]
+    assert [record.name for record in records] == ["no_error", "not is_output_exist_folder", "all_of"]
+    assert [record.passed for record in records] == [True, False, False]
+
+
+def test_failing_post_condition_fails_the_node(load_modules, tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["validators"] = [{"function_name": "is_output_exist_file"}]
+    storage = storage_for(tmp_path, [node])
+
+    response = sart_engine(storage, None)
+
+    assert response.title == "Node failed"
+    assert response.errors is not None
+    assert "is_output_exist_file" in response.errors["NODE_1"]
+    assert storage.load_state().error_code == "is_output_exist_file"
+
+
+def test_declared_route_that_matches_nothing_fails_the_node(load_modules, tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["transitions"] = [{"next": "NODE_1", "validator": {"equals": "never"}}]
+    storage = storage_for(tmp_path, [node])
+
+    response = sart_engine(storage, None)
+
+    assert response.title == "Node failed"
+    assert NO_TRANSITION_ERROR in response.errors["NODE_1"]
+
+
+def test_post_condition_does_not_replace_the_error_of_a_failed_action(load_modules, tmp_path):
+    node = {
+        "id": "NODE_1",
+        "action_type": "create_artifact",
+        "action_parameters": {"artifact_file": ""},
+        "validators": [{"function_name": "is_output_exist_file"}],
+        "transitions": [{"errors": ["invalid_artifact_file_name"], "fail": "unrecoverable"}],
+    }
+    storage = storage_for(tmp_path, [node])
+
+    response = sart_engine(storage, None)
+
+    assert response.title == "Node failed"
+    assert "unrecoverable" in response.errors["NODE_1"]
+    records = storage.load_state().guard_results["NODE_1"]
+    assert [record.name for record in records] == ["no_error", "all_of", "errors:invalid_artifact_file_name"]
+    assert [record.passed for record in records] == [False, False, True]
+
+
+def test_unknown_target_is_reported_before_execution(load_modules, tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["transitions"] = [{"next": "MISSING"}]
+    storage = storage_for(tmp_path, [node])
+
+    response = sart_engine(storage, None)
+
+    assert response.title == "Error in workflow setup"
+    assert not (tmp_path / "made").is_dir()
+
+
+def test_guard_branches_on_the_error_code(load_modules, tmp_path):
+    failing = {
+        "id": "NODE_1",
+        "action_type": "create_artifact",
+        "action_parameters": {"artifact_file": ""},
+        "transitions": [{"errors": ["invalid_artifact_file_name"], "next": "NODE_2"}],
+    }
+    recovery = create_folder_node("NODE_2", tmp_path, "recovered")
+    storage = storage_for(tmp_path, [failing, recovery])
+
+    response = sart_engine(storage, None)
+
+    assert response.title == "Loop finished"
+    assert (tmp_path / "recovered").is_dir()
+
+
+def test_failure_keeps_the_message_the_action_wrote(load_modules, tmp_path):
+    node = {
+        "id": "NODE_1",
+        "action_type": "create_artifact",
+        "action_parameters": {"artifact_file": ""},
+        "transitions": [{"next": "NODE_1", "validator": {"equals": "never"}}],
+    }
+    storage = storage_for(tmp_path, [node])
+
+    response = sart_engine(storage, None)
+    state = storage.load_state()
+
+    assert response.title == "Node failed"
+    assert state.error_code == "invalid_artifact_file_name"
+    assert state.error_msg is not None
+    assert "Artifact file name is invalid or empty" in state.error_msg
+
+
+def test_a_self_targeting_transition_is_bounded(load_modules, tmp_path):
+    node = counting_node("NODE_1")
+    node["transitions"] = [{"next": "NODE_1"}]
+    node["max_attempts"] = 2
+    storage = storage_for(tmp_path, [node])
+
+    response = sart_engine(storage, None)
+
+    assert response.title == "Node failed"
+    assert storage.load_state().error_code == "max_attempts_exceeded"
+    assert EXECUTIONS.count("NODE_1") == 3
+
+
+def test_the_retry_budget_does_not_depend_on_how_the_node_was_entered(load_modules, tmp_path):
+    def looping_node() -> dict[str, object]:
+        node = counting_node("LOOP")
+        node["transitions"] = [{"next": "LOOP"}]
+        node["max_attempts"] = 2
+        return node
+
+    entry = counting_node("ENTRY")
+    entry["transitions"] = [{"next": "LOOP"}]
+
+    sart_engine(storage_for(tmp_path / "a", [looping_node()]), None)
+    started = EXECUTIONS.count("LOOP")
+    EXECUTIONS.clear()
+
+    sart_engine(storage_for(tmp_path / "b", [entry, looping_node()]), None)
+    entered = EXECUTIONS.count("LOOP")
+
+    assert started == entered == 3
+
+
+def test_attempts_needs_a_node_target(load_modules, tmp_path):
+    node = counting_node("NODE_1")
+    node["transitions"] = [{"stop": True, "attempts": True}]
+
+    # Nodes are built before the protected section of the engine, so a configuration error escapes
+    # instead of becoming a response. See ADR 001.
+    with pytest.raises(WorkflowError, match="nothing to retry"):
+        sart_engine(storage_for(tmp_path, [node]), None)
+
+
+def test_a_transition_cannot_declare_both_a_guard_and_errors(load_modules, tmp_path):
+    node = counting_node("NODE_1")
+    node["transitions"] = [{"next": "NODE_1", "validator": {"equals": "x"}, "errors": ["e"]}]
+
+    with pytest.raises(WorkflowError, match="cannot declare both"):
+        sart_engine(storage_for(tmp_path, [node]), None)
+
+
+def test_a_configuration_error_names_the_declared_transition(load_modules, tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["validators"] = [{"function_name": "is_output_exist_folder"}]
+    node["transitions"] = [{"next": "MISSING"}]
+    storage = storage_for(tmp_path, [node])
+
+    response = sart_engine(storage, None)
+
+    assert response.title == "Error in workflow setup"
+    assert "NODE_1 transitions[0]" in response.errors
+
+
+def test_stop_must_be_a_boolean(load_modules, tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["transitions"] = [{"stop": "yes"}]
+
+    with pytest.raises(TypeError, match="Expected 'stop' to be a bool, got 'str'"):
+        sart_engine(storage_for(tmp_path, [node]), None)
+
+
+def test_a_transition_without_a_target_is_rejected(load_modules, tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["transitions"] = [{"stop": False}]
+
+    with pytest.raises(WorkflowError, match="no target"):
+        sart_engine(storage_for(tmp_path, [node]), None)
+
+
+def test_stop_ends_the_workflow(load_modules, tmp_path):
+    node = counting_node("NODE_1")
+    node["transitions"] = [{"stop": True}]
+    storage = storage_for(tmp_path, [node])
+
+    response = sart_engine(storage, None)
+
+    assert response.title == "Loop finished"
+    assert EXECUTIONS.count("NODE_1") == 1

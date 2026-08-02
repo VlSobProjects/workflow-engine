@@ -2,9 +2,9 @@
 
 A small engine that executes workflows described in JSON.
 
-A workflow is a graph of nodes. Each node runs an action, an action runs registered functions,
-and validators and transition functions decide where the workflow goes next. The state of a run
-is persisted, so a workflow can be resumed.
+A workflow is a graph of nodes. Each node runs one action, and an ordered list of guarded
+transitions decides where the workflow goes next. The state of a run is persisted, so a workflow can
+be resumed.
 
 ## Layout
 
