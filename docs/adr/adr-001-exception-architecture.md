@@ -10,9 +10,9 @@ None
 
 The engine reports failures inconsistently, and the current structure makes good reporting impossible.
 
-- The seven exception types in `exceptions.py` all derive from `Exception` directly. There is no common
-  root, so callers cannot catch engine failures as a group. This is why `sart_engine` uses a blind
-  `except Exception`.
+- The eight exception types in `exceptions.py` have five separate roots, all sitting directly under
+  `Exception`. There is no common root, so callers cannot catch engine failures as a group. This is why
+  `sart_engine` uses a blind `except Exception`.
 - Around forty raw `TypeError`, `ValueError` and `KeyError` are raised across nine modules. They are not
   part of the vocabulary of the project and cannot be handled by type.
 - Configuration checking is split across two places that disagree with each other. `_load_workflow_nodes`
@@ -73,20 +73,44 @@ and a missing boundary silently loses precision.
 
 ## Related ADRs
 
-None yet. The planned work on shared validation utilities depends on this decision, because the decoding
+- ADR 002, node composition. It treats a failed check as a value carrying an error code, so this
+  decision governs only the failures that are not values. Implementing it produced most of the open
+  points below.
+- ADR 003, the boundary between persistence and the working directory. It moves where a state or a
+  definition is decoded, which is where a large part of these failures are raised.
+
+The planned work on shared validation utilities depends on this decision, because the decoding
 helpers cannot be unified before the shape of their errors is settled.
 
 ## Implementation notes
 
 Open points to settle during implementation:
 
+- Whether error codes need a catalogue that maps each code to a description. `registry/errors_registry.py`
+  held an unfinished attempt at one, filled by a decorator at import time; nothing ever imported it and
+  the engine produced codes it did not declare, so it was removed as dead code while implementing
+  ADR 002. Since the name of a guard is now an error code, a catalogue would have to cover names that
+  are generated rather than declared.
+- Whether the checking of configuration keys deserves a single mechanism. Each key is checked by hand
+  today, and every key that was not checked accepted nonsense silently: `reversed`, `errors`,
+  `all_of` and `stop` were all corrected one after another. A rule that a key has a declared type and
+  that a mismatch names the key would remove the class of defect rather than its instances.
+- A configuration error raised while a node is built escapes `sart_engine` instead of becoming a
+  response, because nodes are built before the protected section. Two tests in
+  `tests/test_engine_transitions.py` record this as the current behaviour and will have to change.
+- Registered functions raise `FunctionArgsError` when an argument fails its check, so a failure that
+  ADR 002 treats as a value becomes an exception instead.
+- `state.error_code` and `state.error_msg` are never cleared, so a run that fails a node, recovers
+  and finishes still reports the code of the failure it recovered from.
 - Where the aggregate of configuration errors is produced, and whether it is one exception carrying many
   entries or a collection returned by a validation call.
 - Whether node construction moves inside the protected section of `sart_engine`, or configuration is
   validated before construction begins.
-- `_workflow_nodes_errors` currently overwrites the entry for each node and resets its counter inside the
-  loop, so it can report only one error per node. Its shape will change with this decision.
 
 ## Change log
 
 - Draft created. Option B chosen for context propagation after comparing it with A and C.
+- Corrected the count of exception types in the context: there are eight, sitting on five separate
+  roots, not seven on one.
+- Recorded the open points that implementing ADR 002 produced, and dropped the note on
+  `_workflow_nodes_errors`, which now reports one error per transition rather than one per node.
