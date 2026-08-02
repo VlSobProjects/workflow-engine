@@ -172,8 +172,11 @@ class ErrorCodeGuard(BaseGuard):
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
         error_codes = data[ERRORS_KEY]
-        if not isinstance(error_codes, list) or not all(isinstance(code, str) for code in error_codes):
-            raise TypeError(f"'{ERRORS_KEY}' must be a list of strings, found {error_codes!r}")
+        if not isinstance(error_codes, list):
+            raise TypeError(f"'{ERRORS_KEY}' must be a list, found {type(error_codes).__name__}")
+        for index, code in enumerate(error_codes):
+            if not isinstance(code, str):
+                raise TypeError(f"'{ERRORS_KEY}[{index}]' must be a string, found {type(code).__name__}")
         self.error_codes = error_codes
 
     @classmethod
@@ -218,12 +221,14 @@ class GroupGuard(BaseGuard, ABC):
             raise ValueError(f"{type(self).__name__} needs either a configuration or a list of guards")
         key = self.data_keys()[0]
         entries = data[key]
-        if not isinstance(entries, list) or len(entries) == 0:
-            raise ValueError(f"'{key}' must be a non empty list of guards, found {entries!r}")
+        if not isinstance(entries, list):
+            raise TypeError(f"'{key}' must be a list, found {type(entries).__name__}")
+        if len(entries) == 0:
+            raise ValueError(f"'{key}' must not be empty, a group needs at least one guard")
         built = []
-        for entry in entries:
+        for index, entry in enumerate(entries):
             if not isinstance(entry, dict):
-                raise TypeError(f"'{key}' entries must be dictionaries, found {type(entry).__name__}")
+                raise TypeError(f"'{key}[{index}]' must be a dictionary, found {type(entry).__name__}")
             built.append(guard_factory(entry))
         self.guards = built
 

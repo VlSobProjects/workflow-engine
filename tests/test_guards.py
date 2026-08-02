@@ -186,9 +186,26 @@ def test_nested_groups(state_base):
     assert not guard.check(out("new_string is a new test"), state_base)
 
 
-def test_empty_group_is_rejected(register_functions):
-    with pytest.raises(ValueError, match="non empty list"):
+def test_a_group_rejects_an_empty_list(register_functions):
+    with pytest.raises(ValueError, match="must not be empty"):
         guard_factory({"all_of": []})
+
+
+def test_a_group_rejects_a_value_that_is_not_a_list(register_functions):
+    with pytest.raises(TypeError, match="'all_of' must be a list, found dict"):
+        guard_factory({"all_of": {"contains": "x"}})
+
+
+def test_a_group_names_the_entry_that_is_not_a_guard(register_functions):
+    with pytest.raises(TypeError, match=r"'all_of\[1\]' must be a dictionary, found str"):
+        guard_factory({"all_of": [CONTAINS_GUARD, "oops"]})
+
+
+def test_error_codes_must_be_a_list_of_strings(register_functions):
+    with pytest.raises(TypeError, match="'errors' must be a list, found str"):
+        guard_factory({"errors": "copy_failed"})
+    with pytest.raises(TypeError, match=r"'errors\[1\]' must be a string, found int"):
+        guard_factory({"errors": ["copy_failed", 7]})
 
 
 def test_trace_records_children_before_the_group(state_base):
