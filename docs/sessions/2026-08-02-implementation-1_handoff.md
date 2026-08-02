@@ -88,6 +88,18 @@ and the registered functions keep their names, as ADR 002 states.
 
 - Registered functions raise `FunctionArgsError` when an argument fails its check, so a failure that
   ADR 002 treats as a value becomes an exception. This is the boundary to settle in ADR 001.
+- Configuration keys are checked one by one, by hand, in four places. Every key that was not checked
+  turned out to accept nonsense silently: `reversed`, `errors`, `all_of` and `stop` were all fixed
+  during this session after a question about one of them. A rule that every key has a declared type,
+  and that a mismatch names the key, would remove the class rather than the instances. Material for
+  ADR 001.
+- Material for the decision on adopting a type checker: `_register` and `_reg` declare
+  `registry: dict[str, BaseRegisteredFunction[T]]`, while the call sites pass
+  `dict[str, RegisteredFunction]`. `dict` is invariant in its value, so a strict checker rejects
+  this, and no tool in the project reports it. Repairing it means making those functions generic
+  over the registry rather than over the value, which changes their signatures. A dead module level
+  `TypeVar` was removed from the same file: every `T` in it is a PEP 695 parameter that shadowed it,
+  and it declared constraints that therefore applied to nothing.
 - A configuration error raised while a node is built escapes `sart_engine`, because nodes are built
   before the protected section. ADR 001 owns this.
 - A registered function whose parameters are all injected cannot be constructed, which makes
@@ -116,6 +128,8 @@ and the registered functions keep their names, as ADR 002 states.
    that raises where ADR 002 expects a value.
 3. Decide how data passes between nodes, as ADR 003.
 4. Make `test_sart_engine` independent of files outside the repository.
+5. Revisit adopting a type checker as its own ADR. The invariance problem recorded above is the first
+   concrete case where a checker would have caught something no other tool reports.
 
 ## References
 

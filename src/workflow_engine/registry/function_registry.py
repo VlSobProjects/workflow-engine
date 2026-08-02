@@ -4,15 +4,13 @@ import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Self, TypeVar, get_type_hints
+from typing import Self, get_type_hints
 
 from workflow_engine.exceptions import FunctionParametersTypeError
 from workflow_engine.output import ActionNodeOutput
 
 FUNCTION_PARAMETERS_KEY = "function_parameters"
 FUNCTION_NAME_KEY = "function_name"
-
-T = TypeVar("T", str, bool, str | None, ActionNodeOutput)
 
 type TFunc[T] = Callable[..., T]
 type TDecorator[T] = Callable[[TFunc[T]], TFunc[T]]
