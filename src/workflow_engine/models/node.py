@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 
@@ -21,11 +22,12 @@ def decode_dict(obj: object) -> dict[str, object]:
         raise TypeError(f"Expected a dictionary, got {type(obj).__name__}")
 
 
-def decode_string(obj: object, name: str) -> str:
-    """Decode a required string value."""
-    if isinstance(obj, str):
-        return obj
-    raise TypeError(f"Expected '{name}' to be a string, got {type(obj).__name__}")
+def decode_string_from_dict(data: Mapping[str, object], key: str) -> str:
+    """Decode a required string field, reporting the key when it is missing or not a string."""
+    value = data.get(key)
+    if isinstance(value, str):
+        return value
+    raise TypeError(f"Expected '{key}' to be a string, got {type(value).__name__}")
 
 
 def decode_string_none(obj: object) -> str | None:
