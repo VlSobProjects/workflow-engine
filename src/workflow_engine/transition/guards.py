@@ -140,7 +140,12 @@ class FunctionGuard(BaseGuard):
         if not isinstance(function_name, str):
             raise TypeError(f"'{FUNCTION_NAME_KEY}' must be a string, found {type(function_name).__name__}")
         self.function_name = function_name
-        self.registered_validator = get_and_check_registered(get_registered_validator, data, {"output": ""})
+        # Both injected parameters have to be declared here, otherwise the argument check reports
+        # them as missing and a function that asks for them cannot be built. The state is not among
+        # them on purpose: a guard reads the state only through resolved parameter references.
+        self.registered_validator = get_and_check_registered(
+            get_registered_validator, data, {"output": "", "action_output": None}
+        )
 
     @classmethod
     def data_keys(cls) -> list[str]:
@@ -150,9 +155,11 @@ class FunctionGuard(BaseGuard):
         return self.function_name
 
     def _check(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None) -> bool:
+        # The state is deliberately not handed to the function. A guard reads the state only through
+        # the parameter references the engine resolves for it, so it cannot write to it. See ADR 002.
         return self.registered_validator.execute(
             parameters_modified=state.set_parameters_with_updater(
-                {"output": output.output_text, "action_output": output, "state": state}
+                {"output": output.output_text, "action_output": output}
             )
         )
 

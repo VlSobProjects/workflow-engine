@@ -77,8 +77,13 @@ Guards are the only predicate concept in the engine and come from one registry.
 
 ### Guard contract
 
-A guard receives the whole action result and the state, and returns a boolean. In addition it exposes
-a **name** that identifies the rule.
+A guard receives the whole action result and returns a boolean. In addition it exposes a **name**
+that identifies the rule.
+
+A guard does not receive the state. It reads the state only indirectly, through the parameter
+references that the engine resolves for it before it is called, so `param.` and `output.` in a guard
+configuration keep working. This is what makes the purity below a property of the design rather than
+a request: the capability to write is not narrowed, it is absent.
 
 The guard does not write anything. The caller passes a list of records to the guard and the guard
 appends its own answer to it; the caller then stores that list in the state, under the node being
@@ -192,6 +197,9 @@ if a case appears that guards cannot express.
   runs and an unknown target is a configuration error rather than a runtime one.
 - The runtime node object loses its validator list; the engine loses its separate validation step.
 - A guard sees the error code of the action, so recovery paths can branch on how an action failed.
+- A guard cannot write to the state, because it is never given it. The price is that a guard cannot
+  ask a question about the state that the configuration did not already resolve for it, such as
+  whether a parameter exists at all.
 - Every rule that was evaluated is recorded in the state with its answer, which is what makes an
   execution explainable to an operator, and what lets a transition branch on a named check.
 - The name of a guard is its error code, so two uses of the same registered function in one node
@@ -237,8 +245,12 @@ What the implementation revealed:
   case in the engine. The expansion builds `all_of(no_error, not P)`, so it is expressed with the
   same guards as everything else.
 - Registered guard functions receive the action result under a new name, `action_output`, beside the
-  existing `output`, which stays the output text. Functions that do not declare the parameter are
-  unaffected, so none of the eight registered functions changed.
+  existing `output`, which stays the output text. Both are declared to the argument check, otherwise
+  a function asking for either cannot be built. Functions that declare neither are unaffected.
+- Guards are not given the state. The two registered functions that took it, `chek_state_param` and
+  `chek_collection_state_param`, were removed: the argument check binds a signature against the
+  configured parameters only, so neither could ever be built. Purity is therefore structural and not
+  a convention.
 - Implicit retry was removed. The engine used to retry a failed node even when no transition asked
   for it, and then report the run as finished. Retry is now only what a transition declares through
   `attempts`, and an unhandled failure is reported as a failed node.
@@ -286,6 +298,19 @@ Contradictions this decision exposed and deliberately left alone:
 - `state_fields_decoder` is a JSON object hook applied to every nested dictionary, so any node whose
   identifier collides with a state field name, now including `guard_results`, makes a saved state
   impossible to load.
+- `ActionNodeOutput` is a mutable dataclass, and a guard receives it whole. A guard can therefore
+  still write to the result it is judging. The surface is much smaller than the state, but it is the
+  same class of hole, and closing it partially by copying would be false comfort because the
+  parameters inside the result stay shared. It belongs to the decision on access to run data.
+- The state is still one object holding two different things: a journal written only by the engine,
+  which now includes the guard results, and a bus of parameters written by actions. Anything holding
+  the state can do both, and the guard results are only safe because the engine writes them. Drawing
+  that boundary belongs to the decision on how data passes between nodes.
+- Parameter resolution is the one thing a guard genuinely needs from the state. It is done today by
+  `StateModel.set_parameters`, so the guard class still holds the state even though the guard
+  function does not. Two ways out have been named and neither is decided: the engine resolves every
+  parameter before anything is called, so no component resolves its own; or a component is handed a
+  resolving function instead of the state.
 
 ## Change log
 
@@ -317,3 +342,11 @@ Contradictions this decision exposed and deliberately left alone:
   its own node looped forever, because the allowance was applied only to the `attempts` flag. The
   decision text now states that both spellings of retry share one allowance, that `attempts` needs a
   node target, and that a failure keeps the message of its action.
+- The state was withdrawn from what a guard function receives. The decision claimed guards were
+  pure, but handed them the mutable state, so purity rested on convention and on a test that only
+  covered the built in guards. Since the project uses no type checker, narrowing the annotation
+  would have enforced nothing. Removing the parameter costs nothing, because the argument check
+  binds a signature against the configured parameters only, so no function declaring the state could
+  ever be built. The same check also made `action_output` unusable; it is now declared, so the claim
+  that a guard sees the whole result is true for the first time. The remaining holes, a mutable
+  result object and a state that mixes a journal with a bus, are recorded rather than patched.

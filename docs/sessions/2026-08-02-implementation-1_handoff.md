@@ -72,6 +72,13 @@ and the registered functions keep their names, as ADR 002 states.
   while `output` keeps its meaning as the output text. No registered function had to change.
 - Implicit retry was removed. The engine no longer retries a node that no transition asked to retry,
   and an unhandled failure is now reported as a failed node instead of a finished run.
+- Guards are not given the state. The capability to write is removed rather than narrowed, because
+  without a type checker a narrower annotation enforces nothing. A guard reads the state only
+  through the parameter references the engine resolves for it.
+- The two registered guard functions that took the state were removed. Neither could ever be built,
+  because the argument check binds a signature against the configured parameters only.
+- The same check made `action_output` unusable by a registered function. Both injected parameters
+  are now declared to it.
 - Configuration mistakes are rejected rather than ignored: a non boolean `reversed`, a transition
   declaring both a guard and `errors`, and `attempts` on a target that is not a node.
 - A transition remembers where it came from, so a configuration error names the declared transition
@@ -85,6 +92,16 @@ and the registered functions keep their names, as ADR 002 states.
   before the protected section. ADR 001 owns this.
 - A registered function whose parameters are all injected cannot be constructed, which makes
   `save_paths_to_deque` and the first node of `examples/colect_file_info_workflow.json` unusable.
+  Guards work around it by declaring their injected parameters to the argument check; actions do
+  not.
+- Parameter resolution is the one thing a guard genuinely needs from the state, and it is still done
+  by `StateModel.set_parameters`, so the guard class holds the state even though the guard function
+  does not. Two ways out, neither decided: the engine resolves every parameter before anything is
+  called; or a component receives a resolving function instead of the state.
+- `ActionNodeOutput` is mutable and a guard receives it whole, so a guard can still write to the
+  result it judges.
+- The state mixes a journal written by the engine with a bus written by actions, and nothing
+  separates the two.
 - `state.error_code` is never cleared, so a run that recovers from a failure still reports it.
 - `state_fields_decoder` is a JSON object hook applied to every nested dictionary, so a node named
   after a state field, now including `guard_results`, makes a saved state impossible to load.

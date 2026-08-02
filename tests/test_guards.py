@@ -5,12 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from workflow_engine.exceptions import FunctionArgsError
+from workflow_engine.exceptions import FunctionArgsError, FunctionParametersTypeError
 from workflow_engine.models.state import ActionParameter, GuardRecord, StateModel
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
     FUNCTION_NAME_KEY,
     FUNCTION_PARAMETERS_KEY,
+    register_validator,
 )
 from workflow_engine.transition.guards import (
     AllOfGuard,
@@ -216,3 +217,27 @@ def test_argument_error_is_raised(state_base):
     guard = guard_factory(ERROR_FUNC_PARAMETERS_GUARD)
     with pytest.raises(FunctionArgsError):
         guard.check(out("this is a string"), state_base)
+
+
+@register_validator
+def guard_sees_the_error_code(action_output: ActionNodeOutput) -> bool:
+    return action_output.error_code == "copy_failed"
+
+
+@register_validator
+def guard_asking_for_the_state(state: object) -> bool:
+    return state is not None
+
+
+def test_a_guard_function_can_read_the_whole_action_result(state_base):
+    guard = guard_factory({FUNCTION_NAME_KEY: "guard_sees_the_error_code"})
+    assert guard.check(out("", error_code="copy_failed"), state_base)
+    assert not guard.check(out("ok"), state_base)
+
+
+def test_a_guard_function_cannot_ask_for_the_state(register_functions):
+    # The state is not among the injected parameters, so a function asking for it cannot be built.
+    # If the argument check ever learns about injected parameters, this boundary has to be decided
+    # again rather than reappearing by accident. See ADR 002.
+    with pytest.raises(FunctionParametersTypeError):
+        guard_factory({FUNCTION_NAME_KEY: "guard_asking_for_the_state"})
