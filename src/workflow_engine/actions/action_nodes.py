@@ -23,6 +23,46 @@ class FunctionAction(ActionWithFunction):
     def __init__(self,data: dict[str, object]):
         super().__init__(data)
 
+class FunctionsAction(BaseAutomaticAction):
+    ACTION_TYPE = 'functions'
+    function_action_list: dict[str, ActionWithFunction]
+    save_to_list: str
+    
+    def __init__(self,data: dict[str, object]):
+        super().__init__(data)
+        if "save_to_list" in data:
+            param = data['save_to_list']
+            if isinstance(param, str):
+                self.save_to_list = param
+            else:
+                raise ActionConfigError(f"FunctionsAction action 'save_to_list' must be a string, found: {param.__repr__()}")
+        else:
+            raise ActionConfigError("FunctionsAction action missing required field: 'save_to_list'")
+
+        if "functions" in data:
+            f_config_dict = data["functions"]
+            if isinstance(f_config_dict, dict):
+                self.function_action_list = {k: FunctionAction(v) for k, v in f_config_dict.items() if isinstance(v, dict) and isinstance(k, str)}
+            else:
+                raise ActionConfigError(f"FunctionsAction action missing required 'functions' it is not a dict. expected dict with 'param_name': function dict , found : {f_config_dict.__repr__()}")
+        else:
+            raise ActionConfigError("FunctionsAction functions action missing required field: 'functions'")
+
+    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
+        result:dict[str, str] = {}
+        for param_name, function_action in self.function_action_list.items():
+            output = function_action.execute(state, prev_output)
+            if output.error_code is not None:
+                result[param_name] = output.error_code
+            else:
+                result[param_name] = output.output_text
+        results = state.get_param(self.save_to_list,list)
+        if results is None:
+            results = []
+            state.add_parameter(self.save_to_list, results)
+        results.append(result)
+        return ActionNodeOutput(output_text="Functions executed successfully")
+
 
 @register_action()
 class CreateArtifactAction(BaseAutomaticAction):
@@ -129,11 +169,11 @@ class PopFromQueue(BaseAutomaticAction):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        output_queue_name = data.get('output_queue_name')
-        if output_queue_name is not None and isinstance(output_queue_name, str):
-            self.parameter_queue_name = output_queue_name
+        queue_name = data.get('queue_name')
+        if queue_name is not None and isinstance(queue_name, str):
+            self.parameter_queue_name = queue_name
         else:
-            raise ActionConfigError("pop_from_queue action missing required field: 'output_queue_name' or it is not a string")
+            raise ActionConfigError("pop_from_queue action missing required field: 'queue_name' or it is not a string")
 
 
     def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
@@ -146,10 +186,6 @@ class PopFromQueue(BaseAutomaticAction):
                 return ActionNodeOutput(output_text="queue_empty")
         else:
             return ActionNodeOutput(output_text="", error_code="queue_not_found", error_message=f"Queue '{self.parameter_queue_name}' not found or is not a deque object")
-
-
-        
-    
 
 @register_action()
 class StopAction(BaseAutomaticAction):

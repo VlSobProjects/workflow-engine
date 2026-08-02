@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from workflow_engine.actions.base_actions import BaseAction
 from workflow_engine.models.node import WorkflowNodeModel
@@ -17,6 +17,8 @@ class WorkflowNode:
     action: BaseAction
     validators: list[BaseOutputValidator] | None
     transitions: list[BaseTransaction] | None
+    override_parameters: bool = field(default=False)
+    set_parameters: dict[str,object] | None = field(default=None)
 
 
 def workflow_node_factory(node_model: WorkflowNodeModel) -> WorkflowNode:

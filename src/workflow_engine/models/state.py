@@ -119,9 +119,11 @@ class StateModel:
     def set_parameters_with_updater(self,updater:dict[str, object])->Callable[[dict[str, object]], dict[str, object]]:
         return lambda parameters: self.set_parameters(parameters, updater)
 
-    def get_param(self, param_name:str)->object | None:
+    def get_param[T](self, param_name:str, param_type: type[T] = object)->T | None:
         if param_name in self.params:
-            return self.params[param_name].value
+            value = self.params[param_name].value
+            if isinstance(value, param_type):
+                return value
         return None
 
     def _update_cur_node(self, curr_node_id:str, output: ActionNodeOutput | None,save_as:str | None) ->None:
@@ -185,3 +187,6 @@ class StateModel:
     def update(self, curr_node_id:str,save_as:str | None,output:ActionNodeOutput | None,next_node_id:str | None):
         self._update_cur_node(curr_node_id, output, save_as)
         self._update_stats(next_node_id, curr_node_id)
+
+    def add_parameter(self, param_name:str, param_value:object):
+        self.params[param_name] = ActionParameter.create(self.current_node_id, param_name, param_value)

@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import Iterable, Sized
 
+from workflow_engine.models.state import StateModel
 from workflow_engine.registry.function_registry import (
     register_validator,
 )
@@ -42,6 +44,26 @@ def is_output_number(output: str) -> bool:
         return bool(output[1:].isdigit())
     return bool(output.isdigit())
 
+@register_validator(
+    decorators=[
+        not_empty_str_arg_validator({"substring":1})
+    ]
+)
+def chek_state_param(state:StateModel, param_name:str)->bool:
+    """checking if a state parameter exists"""
+    param = state.get_param(param_name)
+    return param is not None
 
-
-
+@register_validator(
+    decorators=[
+        not_empty_str_arg_validator({"substring":1})
+    ]
+)
+def chek_collection_state_param(state:StateModel, param_name:str, not_empty:bool = True)->bool:
+    """checking if a state parameter exists"""
+    param = state.get_param(param_name)
+    if param is not None and isinstance(param, Iterable) and isinstance(param, Sized) and not isinstance(param, str):
+        if not_empty:
+            return len(param) > 0
+        return True
+    return False

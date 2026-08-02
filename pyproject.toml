@@ -5,6 +5,7 @@ requires-python = ">=3.13"
 dependencies = [
     "dataclasses>=0.8",
     "importlib>=1.0.4",
+    "prettytable>=3.18.0",
     "pytest==9.1.1",
     "ruff>=0.16.0",
 ]

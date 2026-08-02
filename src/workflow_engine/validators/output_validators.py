@@ -197,7 +197,7 @@ class OutputFunctionValidator(BaseOutputValidator):
         return [FUNCTION_NAME_KEY]
 
     def _validate_output(self, output: str, state: StateModel) -> bool | None:
-        return self.registered_validator.execute(parameters_modified=state.set_parameters_with_updater({"output": output}))
+        return self.registered_validator.execute(parameters_modified=state.set_parameters_with_updater({"output": output,"state":state}))
 
 VALIDATOR_CLASSES: list[type[BaseOutputValidator]] = [
     OutputContainsValidator,

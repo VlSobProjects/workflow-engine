@@ -1,7 +1,8 @@
-import hashlib
 import shutil
+from collections import deque
 from pathlib import Path
 
+from workflow_engine.models.state import StateModel
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
     register_function,
@@ -60,24 +61,6 @@ def create_folder(path_target:str, folder_name:str)->ActionNodeOutput:
         output_text=str(folder.absolute())
     )
 
-
-@register_function(
-    decorators=[
-        file_exists_arg_validator({"file_path":0})
-    ]
-)
-def md5_check_sum_file(file_path: str) -> ActionNodeOutput:
-    with open(file_path, 'rb') as fh:
-        m = hashlib.md5()
-        while True:
-            data = fh.read(65536)
-            if not data:
-                break
-            m.update(data)
-        return ActionNodeOutput(
-            output_text=m.hexdigest()
-        )
-
 @register_function(
     decorators=[
         file_exists_arg_validator({"file_path":0})
@@ -103,10 +86,15 @@ def file_delete(file_path:str)->ActionNodeOutput:
         not_empty_str_arg_validator({"param_name": 1})
     ]
 )
-def save_list_of_paths(folder_path:str,param_name:str)->ActionNodeOutput:
+def save_paths_to_deque(folder_path:str, deque_param_name:str, state:StateModel)->ActionNodeOutput:
     folder = Path(folder_path)
-    list_of_paths = [item for item in folder.iterdir()]
+    list_of_paths = [item.absolute() for item in folder.iterdir()]
+    e_dq = state.get_param(deque_param_name, deque)
+    if e_dq is None:
+        state.add_parameter(deque_param_name, deque(list_of_paths))
+    else:
+        for item in list_of_paths:
+            e_dq.append(item)
     return ActionNodeOutput(
-        output_text=str(folder.absolute()),
-        parameters={param_name: list_of_paths}
+        output_text=str(folder),
     )

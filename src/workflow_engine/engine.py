@@ -111,6 +111,12 @@ def _proceed_with_output(output: ActionNodeOutput | None, cur_node: WorkflowNode
     else:
         return cur_node
 
+def _set_parameters(state:StateModel,parameters:dict[str,object] | None, override:bool)->None:
+    if parameters is not None:
+        for key,value in parameters.items():
+            if key not in state.params or override:
+                state.add_parameter(key,value)
+
 
 def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentResponse:
     state, workflow = storage.continue_workflow()
@@ -156,6 +162,7 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
 
     try:
         while cur_node is not None:
+            _set_parameters(state,cur_node.set_parameters,cur_node.override_parameters)
             next_node = _proceed_with_output(output, cur_node, state, WORKFLOW_NODES)
             state.update(cur_node.id,cur_node.config.save_as, output, next_node.id if next_node else None)
             storage.save_state(state)
