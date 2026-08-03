@@ -1,10 +1,10 @@
 # ADR 001: Exception architecture
 
 ## Status
-Draft
+Accepted
 
 ## Active branch
-feature/adr-001-exception-architecture
+—
 
 ## Context
 
@@ -111,4 +111,4 @@ Follow-up items (not blocking this ADR):
   `_workflow_nodes_errors`, which now reports one error per transition rather than one per node.
 - Updated implementation notes after branch implementation: moved resolved points to delivered behavior
   and left only follow-up items.
-- Freeze is pending merge into `development`, where status and registry are updated under the freeze gate.
+- Frozen as Accepted on `development` after merge of `feature/adr-001-exception-architecture`.
