@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from workflow_engine.exceptions import StateError
+from workflow_engine.exceptions import StateLoadError
 from workflow_engine.models.state import ActionParameter, StateModel
 from workflow_engine.storage.json_storage import JsonStorage
 
@@ -67,7 +67,7 @@ def corrupt_timestamp(tmp_path, json_storage):
 
 @pytest.fixture
 def corrupt_state(tmp_path, json_storage):
-    corrupt(tmp_path, "invalid_field", "invalid_value")
+    corrupt(tmp_path, "timestamp", 10)
     return tmp_path
 
 
@@ -102,33 +102,29 @@ def test_save_state(tmp_path, json_storage):
 
 def test_load_state_with_corrupt_timestamp(corrupt_timestamp):
     storage = JsonStorage(corrupt_timestamp)
-    with pytest.raises(StateError) as error:
+    with pytest.raises(StateLoadError, match="Invalid isoformat string") as error:
         storage.load_state()
-    assert error.value.args[0] == "Invalid timestamp format"
     print(f" Corrupted timestamp error:  {error.value}, cause: {error.value.__cause__}")
 
 
 def test_load_corrupt_state(corrupt_state):
     storage = JsonStorage(corrupt_state)
-    with pytest.raises(StateError) as error:
+    with pytest.raises(StateLoadError, match="Parameter type mismatch") as error:
         storage.load_state()
-    assert error.value.args[0] == "Invalid State JSON format"
     print(f" Corrupted state error:  {error.value}, cause: {error.value.__cause__}")
 
 
 def test_load_corrupt_json(corrupt_json):
     storage = JsonStorage(corrupt_json)
-    with pytest.raises(StateError) as error:
+    with pytest.raises(StateLoadError,match="Invalid JSON format") as error:
         storage.load_state()
-    assert error.value.args[0] == "Invalid JSON format"
     print(f" Corrupted JSON error:  {error.value}, cause: {error.value.__cause__}")
 
 
 def test_load_not_exist_work_dir(not_exist_work_dir):
     storage = JsonStorage(not_exist_work_dir)
-    with pytest.raises(StateError) as error:
+    with pytest.raises(StateLoadError, match="Invalid work_dir path") as error:
         storage.load_state()
-    assert error.value.args[0].startswith("Invalid work_dir path")
     print(f" Not exist work_dir:  {error.value}")
 
 

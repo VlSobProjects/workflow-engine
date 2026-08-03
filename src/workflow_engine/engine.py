@@ -5,7 +5,7 @@ from workflow_engine.actions.base_actions import (
     BaseAutomaticAction,
     BaseInteractiveAction,
 )
-from workflow_engine.exceptions import WorkflowError
+from workflow_engine.exceptions import WorkflowEngineError, WorkflowParameterError, WorkflowRuntimeError
 from workflow_engine.models.state import GuardRecord, StateModel
 from workflow_engine.models.workflow import WorkflowModel
 from workflow_engine.output import ActionNodeOutput
@@ -63,7 +63,7 @@ def _workflow_nodes_errors(workflow: dict[str, WorkflowNode]) -> dict[str, str]:
         for transition in node.transitions:
             try:
                 transition.check_error(node_ids)
-            except WorkflowError as e:
+            except WorkflowParameterError as e:
                 errors[f"{node.id} {transition.origin}"] = f"Error in {transition.origin} of node {node.id}: {e}"
 
     return errors
@@ -107,7 +107,7 @@ def _take(transition: Transition, cur_node: WorkflowNode, output: ActionNodeOutp
         return _fail(cur_node, output, target.code)
     if isinstance(target, EndTarget):
         return Step()
-    raise WorkflowError(f"Unknown transition target: {target!r}")
+    raise WorkflowEngineError(f"Unknown transition target: {target!r}")
 
 
 def _proceed_with_output(output: ActionNodeOutput, cur_node: WorkflowNode, state: StateModel) -> Step:
@@ -131,7 +131,7 @@ def _set_parameters(state: StateModel, parameters: dict[str, object] | None, ove
 
 def _state_hints(state: StateModel) -> list[str]:
     return [
-        "Current Workflow Sate:",
+        "Current Workflow State:",
         f"working folder: {state.work_dir}",
         *state.info(),
         *state.info_errors(),
@@ -141,9 +141,21 @@ def _state_hints(state: StateModel) -> list[str]:
     ]
 
 
-def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentResponse:
-    state, workflow = storage.continue_workflow()
-    _load_workflow_nodes(workflow)
+def start_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentResponse:
+    try:
+        state, workflow = storage.continue_workflow()
+        _load_workflow_nodes(workflow)
+    except WorkflowEngineError as e:
+        return PresentResponse(
+            title="Error in workflow setup",
+            description="Workflow nodes is not pass validation.",
+            instruction="Please check workflow configuration. In errors - all configuration errors",
+            errors={"Exception": str(e)},
+            goal=(
+                "Fix workflow configuration using information from Errors. "
+                "Re run workflow or start new with fixed version of workflow configuration."
+            ),
+        )
 
     cur_node = get_workflow_node(state.current_node_id)
     if cur_node is None:
@@ -171,6 +183,7 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
                 "Re run workflow or start new with fixed version of workflow configuration."
             ),
         )
+
 
     try:
         while cur_node is not None:
@@ -201,8 +214,7 @@ def sart_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRes
             elif cur_node and isinstance(cur_node.action, BaseInteractiveAction):
                 return cur_node.action.present(state)
 
-    # The engine boundary turns any failure into a response, so the workflow can report it.
-    except Exception as e:  # noqa: BLE001
+    except WorkflowRuntimeError as e:
         print(f"Engine stop: Exception occurred during workflow execution: {e}")
         return PresentResponse(
             title="Error in workflow execution",

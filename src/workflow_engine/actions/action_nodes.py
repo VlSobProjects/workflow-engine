@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import cast
 
 from workflow_engine.actions.base_actions import ActionWithFunction, BaseAutomaticAction
-from workflow_engine.exceptions import ActionConfigError
 from workflow_engine.models.state import StateModel
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.action_registry import register_action
@@ -14,6 +13,7 @@ from workflow_engine.registry.function_registry import (
     FUNCTION_NAME_KEY,
     RegisteredFunctionExecutor,
 )
+from workflow_engine.tools import parameter_from_dict
 
 
 @register_action()
@@ -31,30 +31,11 @@ class FunctionsAction(BaseAutomaticAction):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        if "save_to_list" in data:
-            param = data["save_to_list"]
-            if isinstance(param, str):
-                self.save_to_list = param
-            else:
-                raise ActionConfigError(
-                    f"FunctionsAction action 'save_to_list' must be a string, found: {param.__repr__()}"
-                )
-        else:
-            raise ActionConfigError("FunctionsAction action missing required field: 'save_to_list'")
-
-        if "functions" in data:
-            f_config_dict = data["functions"]
-            if isinstance(f_config_dict, dict):
-                self.function_action_list = {
-                    k: FunctionAction(v) for k, v in f_config_dict.items() if isinstance(v, dict) and isinstance(k, str)
-                }
-            else:
-                raise ActionConfigError(
-                    f"FunctionsAction action missing required 'functions' it is not a dict. "
-                    f"expected dict with 'param_name': function dict , found : {f_config_dict.__repr__()}"
-                )
-        else:
-            raise ActionConfigError("FunctionsAction functions action missing required field: 'functions'")
+        self.save_to_list = parameter_from_dict(data, "save_to_list", str)
+        f_config_dict = parameter_from_dict(data, "functions", dict)
+        self.function_action_list = {
+            k: FunctionAction(v) for k, v in f_config_dict.items() if isinstance(v, dict) and isinstance(k, str)
+        }
 
     def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         result: dict[str, str] = {}
@@ -79,11 +60,7 @@ class CreateArtifactAction(BaseAutomaticAction):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        artifact_file = data.get("artifact_file")
-        if artifact_file is not None and isinstance(artifact_file, str):
-            self.artifact_file = artifact_file
-        else:
-            raise ActionConfigError("create_artifact action missing required field: 'artifact_file'")
+        self.artifact_file = parameter_from_dict(data, "artifact_file", str)
 
     def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         file_name = cast(str, state.set_parameters({"artifact_file": self.artifact_file})["artifact_file"])
@@ -91,7 +68,7 @@ class CreateArtifactAction(BaseAutomaticAction):
             artifacts = Path(state.work_dir) / "artifacts"
             try:
                 if not artifacts.is_dir():
-                    artifacts.mkdir(parents=True, exist_ok=True)
+                    artifacts.mkdir(mode=0o777, parents=True, exist_ok=True)
                 artifact_file = artifacts / file_name
                 artifact_file.touch(exist_ok=True)
                 return ActionNodeOutput(str(artifact_file.absolute()))
@@ -157,13 +134,7 @@ class ForEachOutputParameterNode(BaseAutomaticAction):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        output_param_name = data.get("output_param_name")
-        if output_param_name is not None and isinstance(output_param_name, str):
-            self.output_param_name = output_param_name
-        else:
-            raise ActionConfigError(
-                "for_each_node action missing required field: 'output_param_name' or it is not a string"
-            )
+        self.output_param_name = parameter_from_dict(data, "output_param_name", str)
         self.iterator = None
 
     def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
@@ -203,11 +174,7 @@ class PopFromQueue(BaseAutomaticAction):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        queue_name = data.get("queue_name")
-        if queue_name is not None and isinstance(queue_name, str):
-            self.parameter_queue_name = queue_name
-        else:
-            raise ActionConfigError("pop_from_queue action missing required field: 'queue_name' or it is not a string")
+        self.parameter_queue_name = parameter_from_dict(data, "queue_name", str)
 
     def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         deque_obj = state.get_param(self.parameter_queue_name)
@@ -232,7 +199,7 @@ class StopAction(BaseAutomaticAction):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        self.registered_function = self.get_registered_function(data) if FUNCTION_NAME_KEY in data else None
+        self.registered_function = self.get_registered_action_function(data) if FUNCTION_NAME_KEY in data else None
 
     def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         if self.registered_function is not None:
@@ -249,8 +216,4 @@ class StopOnError(StopAction):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        error = data.get("error")
-        if error is not None and isinstance(error, str):
-            self.error = error
-        else:
-            raise ActionConfigError("stop_on_error action missing required field: 'error'")
+        self.error = parameter_from_dict(data, "error", str)

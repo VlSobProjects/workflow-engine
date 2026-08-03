@@ -4,7 +4,7 @@
 Draft
 
 ## Active branch
-None
+feature/adr-001-exception-architecture
 
 ## Context
 

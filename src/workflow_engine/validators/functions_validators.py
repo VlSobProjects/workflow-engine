@@ -3,7 +3,7 @@ from functools import wraps
 from pathlib import Path
 from typing import TypeVar
 
-from workflow_engine.exceptions import FunctionArgsError
+from workflow_engine.exceptions import FunctionRuntimeError
 
 T = TypeVar("T", str, int)
 
@@ -17,7 +17,7 @@ def _check_args[T](
     args: tuple[object],
     kwargs: dict[str, object],
 ):
-    errors: list[str] = []
+    errors: dict[str, str] = {}
     value = None
     for arg, index in chek_ars.items():
         if arg in kwargs:
@@ -25,11 +25,11 @@ def _check_args[T](
         elif index < len(args):
             value = args[index]
         if not isinstance(value, check_type):
-            errors.append(f"Argument '{arg}'={value.__str__()} is not a '{check_type.__name__}'")
+            errors[arg] = f"Argument {value.__str__()} is not a '{check_type.__name__}'"
         elif not checker(value):
-            errors.append(f"Argument '{arg}'='{value.__str__()}' - validation '{on_validation_failed}' failed.")
+            errors[arg] = f"Argument {value.__str__()} - validation '{on_validation_failed}' failed."
     if len(errors) > 0:
-        raise FunctionArgsError(function_name, errors)
+        raise FunctionRuntimeError(function_name,errors)
 
 
 def not_empty_str_arg_validator(chek_ars: dict[str, int]):

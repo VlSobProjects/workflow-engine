@@ -2,40 +2,36 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import field
+from datetime import UTC, datetime
 from enum import Enum, auto
+from pathlib import Path
 from typing import cast
 
 from workflow_engine.actions.action_present import PresentResponse
+from workflow_engine.exceptions import ActionConfigurationError, WorkflowConfigurationError
 from workflow_engine.models.state import StateModel
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
     RegisteredFunctionExecutor,
-    get_and_check_registered,
     get_registered_function,
 )
-
-
-class Action(Enum):
-    START = "Start"
-    ASK_USER_QUESTION = "AskUserQuestion"
-    ASK_USER_QUESTIONS = "AskUserQuestions"
-    SELECT_OPTION = "SelectOption"
-    USER_SELECT_OPTIONS = "UserSelectOptions"
-    USER_SUBMIT_FILE = "UserSubmitFile"
-    ANALYZE_FILE = "AnalyzeFile"
-    COLLECT_REQUIREMENTS = "CollectRequirements"
-    GENERATE_PLAN = "GeneratePlan"
-    CREATE_UPDATE_FILE = "CreateUpdateFile"
-    RUN_TOOL = "RunTool"
-    SUMMARY = "CreateSummary"
-    STOP = "Stop"
-    STOP_ON_ERROR = "StopOnError"
-    RUN_SCRIPT = "RunScript"
 
 
 class ExecutionMode(Enum):
     AUTOMATIC = auto()
     INTERACTIVE = auto()
+
+# To pass in get_and_check_registered function as addition_params
+# To check action function in configuration stage
+# In case action function will have state:StateModel arg so will not accept None
+def _factory_stub() ->StateModel:
+    return StateModel(
+        timestamp=datetime.now(tz=UTC),
+        work_dir=Path("/"),
+        schema_version="1",
+        flow_id="default",
+        current_node_id="start",
+    )
 
 
 class BaseAction(ABC):
@@ -55,8 +51,18 @@ class BaseAction(ABC):
         pass
 
     @classmethod
-    def get_registered_function(cls, data: dict[str, object]) -> RegisteredFunctionExecutor[ActionNodeOutput]:
-        return get_and_check_registered(get_registered_function, data)
+    def get_registered_action_function(
+            cls, data: dict[str, object], addition_params: dict[str, object] | None = None
+    ) -> RegisteredFunctionExecutor[ActionNodeOutput]:
+        try:
+            a_params = addition_params if addition_params else {}
+            a_params.update({"output": "", "state": _factory_stub()})
+            return get_registered_function(cls, ActionNodeOutput, data, a_params)
+        except WorkflowConfigurationError as e:
+            raise ActionConfigurationError(
+                cls.ACTION_TYPE,
+                "exception in get_registered_function"
+            ) from e
 
 
 class BaseAutomaticAction(BaseAction, ABC):
@@ -93,7 +99,7 @@ class ActionWithFunction(BaseAutomaticAction, ABC):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        self.registered_function = get_and_check_registered(get_registered_function, data)
+        self.registered_function = self.get_registered_action_function(data)
 
     def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         return self.registered_function.execute(
