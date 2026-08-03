@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from inspect import getmro
 from typing import Self, get_type_hints
 
-from workflow_engine.exceptions import FunctionConfigurationError
+from workflow_engine.exceptions import FunctionConfigurationError, FunctionRuntimeError
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.tools import parameter_from_dict, parameter_from_dict_optional
 
@@ -162,34 +162,18 @@ class RegisteredFunctionExecutor[T]:
             params = parameters_modified(self.parameters)
         elif parameters_modified is not None:
             params = parameters_modified({})
-        else:
-            return self.registered_function.function()
 
-        return self.registered_function.function(**self.registered_function.args_cleaner(params))
-
-    # @staticmethod
-    # def get_registered_function(
-    #     data: dict[str, object], register_func: Callable[[str], BaseRegisteredFunction[T] | None]
-    # ) -> tuple[BaseRegisteredFunction[T], dict[str, object] | None]:
-    #     function_name = parameter_from_dict(data, FUNCTION_NAME_KEY, str)
-    #     try:
-    #         registered_function = register_func(function_name)
-    #         if registered_function is None:
-    #             raise ValueError(f"'{FUNCTION_NAME_KEY}' is not registered")
-    #
-    #         parameters = parameter_from_dict(data, FUNCTION_PARAMETERS_KEY, dict, optional=True)
-    #
-    #         registered_function.check_args(parameters)
-    #         return registered_function, parameters
-    #     except WorkflowParameterError as e:
-    #         ex = FunctionConfigurationError(
-    #             function_name=function_name
-    #             ,parameters=data
-    #             ,message="error in get_registered_function"
-    #         )
-    #         raise ex from e
-
-
+        try:
+            if params is not None:
+                return self.registered_function.function(**self.registered_function.args_cleaner(params))
+            else:
+                return self.registered_function.function()
+        except Exception as e:
+            raise FunctionRuntimeError(
+                function_name=self.registered_function.name,
+                parameters=params,
+                message=f"Error executing registered function: {e}"
+            ) from e
 
 def _get_registered_executor[T](
     registry: dict[str, BaseRegisteredFunction[T]], name: str, parameters: dict[str, object] | None = None

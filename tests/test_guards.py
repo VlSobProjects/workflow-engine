@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from workflow_engine.exceptions import FunctionConfigurationError, FunctionRuntimeError, WorkflowParameterError
+from workflow_engine.exceptions import (
+    FunctionConfigurationError,
+    FunctionRuntimeError,
+    WorkflowParameterConfigurationError,
+    WorkflowParameterError,
+)
 from workflow_engine.models.state import ActionParameter, GuardRecord, StateModel
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
@@ -102,7 +107,7 @@ def test_factory(register_functions):
 
 
 def test_unknown_guard(register_functions):
-    with pytest.raises(ValueError, match="Failed to create a guard"):
+    with pytest.raises(WorkflowParameterConfigurationError, match="Failed to create a guard"):
         guard_factory({"unknown": "value"})
 
 
@@ -169,7 +174,7 @@ def test_negated_guard_on_an_already_reversed_check(state_base, tests_dir):
 
 
 def test_reversed_must_be_a_boolean(register_functions):
-    with pytest.raises(TypeError, match="must be a bool"):
+    with pytest.raises(WorkflowParameterError, match="of type: 'str' expected type: 'bool'"):
         guard_factory({**CONTAINS_GUARD, "reversed": "yes"})
 
 

@@ -223,7 +223,7 @@ def test_attempts_needs_a_node_target(load_modules, tmp_path):
 
     # Nodes are built before the protected section of the engine, so a configuration error escapes
     # instead of becoming a response. See ADR 001.
-    assert "nothing to retry" in start_engine(storage_for(tmp_path, [node]), None).errors["Exception"]
+    assert "nothing to retry" in start_engine(storage_for(tmp_path, [node]), None).errors["NODE_1"]
 
 
 
@@ -231,8 +231,9 @@ def test_a_transition_cannot_declare_both_a_guard_and_errors(load_modules, tmp_p
     node = counting_node("NODE_1")
     node["transitions"] = [{"next": "NODE_1", "validator": {"equals": "x"}, "errors": ["e"]}]
     resp = start_engine(storage_for(tmp_path, [node]), None)
-    assert "cannot declare both" in resp.errors["Exception"]
-    print(f"Configuration error for transition with both guard and errors: {resp.errors['Exception']}")
+    assert resp.errors
+    assert "cannot declare both" in resp.errors["NODE_1"]
+    print(f"Configuration error for transition with both guard and errors: {resp.errors['NODE_1']}")
 
     # with pytest.raises(WorkflowConfigurationError, match="cannot declare both"):
     #     start_engine(storage_for(tmp_path, [node]), None)
@@ -255,7 +256,7 @@ def test_stop_must_be_a_boolean(load_modules, tmp_path):
     node["transitions"] = [{"stop": "yes"}]
     assert (
             "'stop' of type: 'str' expected type: 'bool'"
-            in start_engine(storage_for(tmp_path, [node]), None).errors["Exception"]
+            in start_engine(storage_for(tmp_path, [node]), None).errors["NODE_1"]
     )
 
 

@@ -51,9 +51,16 @@ def _get_unique_id_for_node(node: WorkflowNode) -> str:
     return node.id + "_" + str(node_id_suffix)
 
 
-def _load_workflow_nodes(workflow: WorkflowModel):
+def _load_workflow_nodes(workflow: WorkflowModel) -> dict[str, str]:
     global WORKFLOW_NODES
-    WORKFLOW_NODES = {node.id: workflow_node_factory(node) for node in workflow.nodes}
+    WORKFLOW_NODES = {}
+    errors: dict[str, str] = {}
+    for node in workflow.nodes:
+        try:
+            WORKFLOW_NODES[node.id] = workflow_node_factory(node)
+        except WorkflowEngineError as e:
+            errors[node.id] = str(e)
+    return errors
 
 
 def _workflow_nodes_errors(workflow: dict[str, WorkflowNode]) -> dict[str, str]:
@@ -144,7 +151,6 @@ def _state_hints(state: StateModel) -> list[str]:
 def start_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentResponse:
     try:
         state, workflow = storage.continue_workflow()
-        _load_workflow_nodes(workflow)
     except WorkflowEngineError as e:
         return PresentResponse(
             title="Error in workflow setup",
@@ -156,7 +162,17 @@ def start_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentRe
                 "Re run workflow or start new with fixed version of workflow configuration."
             ),
         )
-
+    errors = _load_workflow_nodes(workflow)
+    if len(errors) > 0:
+        return PresentResponse(
+            title="Errors in workflow configuration",
+            description="Validation of workflow nodes failed",
+            instruction=(
+                "Please check errors in workflow configuration, and try to start a new session"
+            ),
+            hints=_state_hints(state),
+            errors=errors,
+        )
     cur_node = get_workflow_node(state.current_node_id)
     if cur_node is None:
         print(f"Engine stop: Node with id {state.current_node_id} not found in workflow")

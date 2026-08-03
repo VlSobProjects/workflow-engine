@@ -68,7 +68,7 @@ class CreateArtifactAction(BaseAutomaticAction):
             artifacts = Path(state.work_dir) / "artifacts"
             try:
                 if not artifacts.is_dir():
-                    artifacts.mkdir(mode=0o777, parents=True, exist_ok=True)
+                    artifacts.mkdir(parents=True, exist_ok=True)
                 artifact_file = artifacts / file_name
                 artifact_file.touch(exist_ok=True)
                 return ActionNodeOutput(str(artifact_file.absolute()))

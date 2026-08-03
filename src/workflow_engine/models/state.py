@@ -59,6 +59,25 @@ class ActionParameter:
     value: object
     codec: type[Codec]
 
+    def __init__(self, source_node_id: str, name: str, value: object, codec: type[Codec]) -> None:
+        if value is None:
+            raise StateLoadParameterError(
+                current_node=source_node_id,
+                parameter_name=name,
+                message="Value can't be None"
+            )
+
+        if not codec.can_decode(value):
+            raise StateLoadParameterError(
+                current_node=source_node_id,
+                parameter_name=name,
+                message=f"Value type {type(value).__name__} does not match codec {codec.python_type().__name__}"
+            )
+        self.source_node_id = source_node_id
+        self.name = name
+        self.value = value
+        self.codec = codec
+
     @classmethod
     def create(cls, source_node_id: str, name: str, value: object) -> ActionParameter:
         return cls(source_node_id=source_node_id, name=name, value=value, codec=find_codec(value))

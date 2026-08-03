@@ -8,13 +8,16 @@ import pytest
 from workflow_engine.codecs.base_codecs import (
     DequeCodec,
     DictCodec,
+    IntCodec,
     ListCodec,
     NumberCodec,
     PathCodec,
     SetCodec,
     StringCodec,
 )
+from workflow_engine.exceptions import StateLoadParameterError
 from workflow_engine.models.state import ActionParameter
+from workflow_engine.registry.type_registry import NoCodec
 
 
 @pytest.fixture
@@ -75,3 +78,11 @@ def test_collection_different_types():
     print(json.dumps(data, indent=4))
     assert param.codec == param_converted.codec
     assert param.value == param_converted.value
+
+def test_exception_raised():
+    with pytest.raises(StateLoadParameterError, match="Value can't be None"):
+        ActionParameter.create("source_node_id", "name", None)
+    with pytest.raises(StateLoadParameterError, match="Value can't be None"):
+        ActionParameter("source_node_id", "name", None,NoCodec)
+    with pytest.raises(StateLoadParameterError, match="does not match codec"):
+        ActionParameter("source_node_id", "name", "string",IntCodec)
