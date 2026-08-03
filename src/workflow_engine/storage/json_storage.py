@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
-from workflow_engine.exceptions import StateError, WorkflowError
+from workflow_engine.exceptions import StateLoadError, WorkflowEngineError
 from workflow_engine.models.node import WorkflowNodeModel
 from workflow_engine.models.state import ActionParameter, GuardRecord, StateModel
 from workflow_engine.models.workflow import WorkflowModel
@@ -36,51 +36,25 @@ def state_encoder(obj):
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
-def state_fields_decoder(dct):
-    """Decode specific filed and rise SateError exception if not possible"""
-    for key, value in dct.items():
-        if key == "timestamp":
-            try:
-                dct[key] = datetime.fromisoformat(value)
-            except ValueError as ex:
-                raise StateError("Invalid timestamp format") from ex
-        if key == "work_dir":
-            if not isinstance(value, str):
-                raise StateError("Invalid work_dir format")
-            elif not Path(value).is_dir():
-                raise StateError(f"Invalid work_dir path: {value}")
-            else:
-                dct[key] = Path(value).absolute()
-        if key == "guard_results":
-            if not isinstance(value, dict):
-                raise StateError("Invalid guard_results format")
-            for node_id, records in value.items():
-                if not isinstance(records, list):
-                    raise StateError(f"Invalid guard results for node: {node_id}: {records}")
-                value[node_id] = [GuardRecord.from_dict(record) for record in records]
-        if key == "params":
-            if not isinstance(value, dict):
-                raise StateError("Invalid params format")
-            for param_key, param_value in value.items():
-                if not isinstance(param_value, dict):
-                    raise StateError(f"Invalid param format for key: {param_key}: {param_value}")
-                value[param_key] = ActionParameter.from_dict(param_value)
-    return dct
-
-
 def _load_workflow_from_path(work_flow_file_path: Path) -> Mapping[str, object]:
     try:
         if not work_flow_file_path.exists():
-            raise WorkflowError(f"Workflow file not found path: {work_flow_file_path.absolute()}")
+            raise WorkflowEngineError(f"Workflow file not found at path: {work_flow_file_path.absolute()}")
         with work_flow_file_path.open() as f:
             json_obj = json.load(f)
         return json_obj
     except FileNotFoundError as ex:
-        raise WorkflowError("Workflow file not found path:") from ex
+        raise WorkflowEngineError(
+            f"Workflow file not found at path: {work_flow_file_path.absolute()}"
+        ) from ex
     except json.JSONDecodeError as ex:
-        raise WorkflowError("Invalid JSON format") from ex
+        raise WorkflowEngineError(
+            f"Invalid JSON format in workflow file at path: {work_flow_file_path.absolute()}"
+        ) from ex
     except TypeError as ex:
-        raise WorkflowError("Invalid Workflow JSON format") from ex
+        raise WorkflowEngineError(
+            f"Invalid Workflow JSON format in workflow file at path: {work_flow_file_path.absolute()}"
+        ) from ex
 
 
 class JsonStorage(Storage):
@@ -104,29 +78,36 @@ class JsonStorage(Storage):
             with workflow_file.open("w") as f:
                 json.dump(workflow.__dict__, f, indent=4, default=workflow_encoder)
         except Exception as ex:
-            raise WorkflowError("Failed to save workflow") from ex
+            raise WorkflowEngineError("Failed to save workflow") from ex
 
     def load_state(self) -> StateModel:
+        state_file = self.working_dir.joinpath(STATE_FILE)
         try:
-            state_file = self.working_dir.joinpath(STATE_FILE)
             if not state_file.is_file():
-                raise StateError(f"State file not found path: {state_file}")
+                raise StateLoadError(
+                    "state_file", f"State file not found at path: {state_file.absolute()}"
+                )
             with state_file.open() as f:
-                json_obj = json.load(f, object_hook=state_fields_decoder)
-            return StateModel(**json_obj)
+                json_obj = json.load(f)
+            return StateModel.from_dict(json_obj)
         except FileNotFoundError as ex:
-            raise StateError("State file not found") from ex
+            raise StateLoadError(
+                "state_file", f"State file not found at path: {state_file.absolute()}"
+            ) from ex
         except json.JSONDecodeError as ex:
-            raise StateError("Invalid JSON format") from ex
-        except TypeError as ex:
-            raise StateError("Invalid State JSON format") from ex
+            raise StateLoadError(
+                "state_file",
+                f"Invalid JSON format in state file at path: {state_file.absolute()}"
+            ) from ex
 
     def save_state(self, state: StateModel) -> None:
         """Save state to state file."""
+        state_file = self.working_dir.joinpath(STATE_FILE)
         try:
-            state_file = self.working_dir.joinpath(STATE_FILE)
             state_file.parent.mkdir(parents=True, exist_ok=True)
             with state_file.open("w") as f:
                 json.dump(state.__dict__, f, indent=4, sort_keys=True, default=state_encoder)
         except Exception as ex:
-            raise StateError("Failed to save state") from ex
+            raise StateLoadError(
+                "state_file", f"Failed to save state at path: {state_file.absolute()}"
+            ) from ex

@@ -8,11 +8,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from workflow_engine.exceptions import WorkflowError
+from workflow_engine.exceptions import WorkflowParameterError
 from workflow_engine.models.state import StateModel
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.transition.guards import BaseGuard, GuardRecord
 
+NEXT_KEY = "next"
+VALIDATOR_KEY = "validator"
+GUARD_KEY = "guard"
+ATTEMPTS_KEY = "attempts"
+STOP_KEY = "stop"
+FAIL_KEY = "fail"
 
 @dataclass(frozen=True)
 class Target:
@@ -35,7 +41,7 @@ class NodeTarget(Target):
 
     def check_error(self, workflow_nodes: set[str]) -> None:
         if self.node_id not in workflow_nodes:
-            raise WorkflowError(f"Next node '{self.node_id}' not found in workflow nodes")
+            raise WorkflowParameterError(NEXT_KEY,str,str,f"Next node '{self.node_id}' not found in workflow nodes")
 
 
 @dataclass(frozen=True)

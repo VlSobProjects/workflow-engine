@@ -9,14 +9,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from workflow_engine.exceptions import WorkflowParameterConfigurationError, WorkflowParameterError
 from workflow_engine.models.state import GuardRecord, StateModel
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
     FUNCTION_NAME_KEY,
     RegisteredFunctionExecutor,
-    get_and_check_registered,
-    get_registered_validator,
+    get_registered_function,
 )
+from workflow_engine.tools import parameter_from_dict, parameter_from_dict_default
 
 REVERSED_KEY = "reversed"
 ALL_OF_KEY = "all_of"
@@ -31,11 +32,7 @@ class BaseGuard(ABC):
     negated: bool = False
 
     def __init__(self, data: dict[str, object]):
-        value = data.get(REVERSED_KEY)
-        if value is not None:
-            if not isinstance(value, bool):
-                raise TypeError(f"'{REVERSED_KEY}' must be a bool, found {type(value).__name__}")
-            self.negated = value
+        self.negated = parameter_from_dict_default(data, REVERSED_KEY, bool, False)
 
     @abstractmethod
     def _check(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None) -> bool:
@@ -57,6 +54,16 @@ class BaseGuard(ABC):
         return result
 
     @classmethod
+    def get_function(cls, data:dict[str, object]) -> RegisteredFunctionExecutor[bool]:
+        """Return the registered function executor if this guard is a FunctionGuard, else None."""
+        return get_registered_function(
+            cls
+            , bool
+            , data
+            ,{"output": "", "action_output": ActionNodeOutput("")}
+        )
+
+    @classmethod
     @abstractmethod
     def data_keys(cls) -> list[str]:
         """Configuration keys that identify this guard."""
@@ -73,10 +80,7 @@ class ValueGuard(BaseGuard, ABC):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        value = data[self.data_keys()[0]]
-        if not isinstance(value, str):
-            raise TypeError(f"'{self.data_keys()[0]}' must be a string, found {type(value).__name__}")
-        self.value = value
+        self.value = parameter_from_dict(data, self.data_keys()[0], str)
 
     def _name(self) -> str:
         return f"{self.data_keys()[0]}:{self.value}"
@@ -136,16 +140,8 @@ class FunctionGuard(BaseGuard):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        function_name = data.get(FUNCTION_NAME_KEY)
-        if not isinstance(function_name, str):
-            raise TypeError(f"'{FUNCTION_NAME_KEY}' must be a string, found {type(function_name).__name__}")
-        self.function_name = function_name
-        # Both injected parameters have to be declared here, otherwise the argument check reports
-        # them as missing and a function that asks for them cannot be built. The state is not among
-        # them on purpose: a guard reads the state only through resolved parameter references.
-        self.registered_validator = get_and_check_registered(
-            get_registered_validator, data, {"output": "", "action_output": None}
-        )
+        self.function_name = parameter_from_dict(data, FUNCTION_NAME_KEY, str)
+        self.registered_validator = self.get_function(data)
 
     @classmethod
     def data_keys(cls) -> list[str]:
@@ -171,12 +167,14 @@ class ErrorCodeGuard(BaseGuard):
 
     def __init__(self, data: dict[str, object]):
         super().__init__(data)
-        error_codes = data[ERRORS_KEY]
-        if not isinstance(error_codes, list):
-            raise TypeError(f"'{ERRORS_KEY}' must be a list, found {type(error_codes).__name__}")
+        error_codes = parameter_from_dict(data, ERRORS_KEY, list)
         for index, code in enumerate(error_codes):
             if not isinstance(code, str):
-                raise TypeError(f"'{ERRORS_KEY}[{index}]' must be a string, found {type(code).__name__}")
+                raise WorkflowParameterError(
+                    param_name=f"{ERRORS_KEY}[{index}]",
+                    param_type=type(code),
+                    expected_type=str
+                )
         self.error_codes = error_codes
 
     @classmethod
@@ -218,17 +216,29 @@ class GroupGuard(BaseGuard, ABC):
             self.guards = guards
             return
         if data is None:
-            raise ValueError(f"{type(self).__name__} needs either a configuration or a list of guards")
+            raise WorkflowParameterError(
+                param_name="data",
+                param_type=type(None),
+                expected_type=dict,
+                message=f"{type(self).__name__} needs either a configuration or a list of guards"
+            )
         key = self.data_keys()[0]
-        entries = data[key]
-        if not isinstance(entries, list):
-            raise TypeError(f"'{key}' must be a list, found {type(entries).__name__}")
+        entries = parameter_from_dict(data, key, list)
         if len(entries) == 0:
-            raise ValueError(f"'{key}' must not be empty, a group needs at least one guard")
+            raise WorkflowParameterError(
+                param_name=key,
+                param_type=type(None),
+                expected_type=list,
+                message=f"'{key}' must not be empty, a group needs at least one guard"
+            )
         built = []
         for index, entry in enumerate(entries):
             if not isinstance(entry, dict):
-                raise TypeError(f"'{key}[{index}]' must be a dictionary, found {type(entry).__name__}")
+                raise WorkflowParameterError(
+                    param_name=f"{key}[{index}]",
+                    param_type=type(entry),
+                    expected_type=dict
+                )
             built.append(guard_factory(entry))
         self.guards = built
 
@@ -271,7 +281,7 @@ def guard_factory(data: dict[str, object]) -> BaseGuard:
     for guard_class in GUARD_CLASSES:
         if guard_class.is_class(data):
             return guard_class(data)
-    raise ValueError(f"Failed to create a guard from: {data}")
+    raise WorkflowParameterConfigurationError(f"Failed to create a guard from: {data}")
 
 
 def negated_guard(data: dict[str, object]) -> tuple[BaseGuard, str]:

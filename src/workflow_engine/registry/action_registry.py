@@ -1,7 +1,7 @@
 from typing import TypeVar
 
 from workflow_engine.actions.base_actions import BaseAction
-from workflow_engine.exceptions import ActionRegistryError
+from workflow_engine.exceptions import WorkflowConfigurationError
 
 T = TypeVar("T", bound=BaseAction)
 
@@ -13,7 +13,10 @@ def register_action(action_type: str | None = None):
         key = action_type or cls.ACTION_TYPE
 
         if key in ACTION_REGISTRY:
-            raise ActionRegistryError(f"Action '{key}' already registered")
+            raise WorkflowConfigurationError(
+                f"Action type '{key}' is already registered for class '{ACTION_REGISTRY[key].__name__}'. "
+                f"Cannot register class '{cls.__name__}' for the same action type."
+            )
 
         ACTION_REGISTRY[key] = cls
         return cls
@@ -25,7 +28,7 @@ def create_action(action_type: str, data: dict[str, object]) -> BaseAction:
     try:
         cls = ACTION_REGISTRY[action_type]
     except KeyError as ex:
-        raise ActionRegistryError(f"Unknown action '{action_type}'") from ex
+        raise WorkflowConfigurationError(f"Action type '{action_type}' is not registered.") from ex
 
     inst = cls(data)
     inst.validate_action()

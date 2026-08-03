@@ -16,64 +16,75 @@ ending or failing. See ADR 002.
 
 from __future__ import annotations
 
-from workflow_engine.exceptions import WorkflowError
-from workflow_engine.transition.base import EndTarget, FailTarget, NodeTarget, Target, Transition
+from workflow_engine.exceptions import (
+    TransitionConfigurationError,
+    WorkflowConfigurationError,
+    WorkflowParameterConfigurationError,
+    WorkflowParameterError,
+)
+from workflow_engine.tools import parameter_from_dict, parameter_from_dict_default, parameter_from_dict_optional
+from workflow_engine.transition.base import (
+    ATTEMPTS_KEY,
+    FAIL_KEY,
+    GUARD_KEY,
+    NEXT_KEY,
+    STOP_KEY,
+    VALIDATOR_KEY,
+    EndTarget,
+    FailTarget,
+    NodeTarget,
+    Target,
+    Transition,
+)
 from workflow_engine.transition.guards import ERRORS_KEY, BaseGuard, guard_factory
-
-NEXT_KEY = "next"
-VALIDATOR_KEY = "validator"
-GUARD_KEY = "guard"
-ATTEMPTS_KEY = "attempts"
-STOP_KEY = "stop"
-FAIL_KEY = "fail"
 
 
 def _guard_from(data: dict[str, object]) -> BaseGuard | None:
     for key in (GUARD_KEY, VALIDATOR_KEY):
         if key in data:
             if ERRORS_KEY in data:
-                raise WorkflowError(f"A transition cannot declare both '{key}' and '{ERRORS_KEY}': {data}")
-            guard_data = data[key]
-            if not isinstance(guard_data, dict):
-                raise TypeError(f"Expected '{key}' to be a dictionary, got '{type(guard_data).__name__}'")
-            return guard_factory(guard_data)
+                raise WorkflowParameterConfigurationError(
+                    message=f"A transition cannot declare both '{key}' and '{ERRORS_KEY}'"
+                )
+            return guard_factory(parameter_from_dict(data, key, dict))
     if ERRORS_KEY in data:
         return guard_factory({ERRORS_KEY: data[ERRORS_KEY]})
     return None
 
 
 def _target_from(data: dict[str, object]) -> Target:
-    if NEXT_KEY in data:
-        node_id = data[NEXT_KEY]
-        if not isinstance(node_id, str):
-            raise TypeError(f"Expected '{NEXT_KEY}' to be a string, got '{type(node_id).__name__}'")
+    node_id:str | None = parameter_from_dict_optional(data, NEXT_KEY, str)
+    if node_id is not None:
         return NodeTarget(node_id=node_id)
-    if FAIL_KEY in data:
-        code = data[FAIL_KEY]
-        if not isinstance(code, str):
-            raise TypeError(f"Expected '{FAIL_KEY}' to be a string, got '{type(code).__name__}'")
+
+    code:str | None = parameter_from_dict_optional(data, FAIL_KEY, str)
+    if code or ERRORS_KEY in data:
         return FailTarget(code=code)
-    stop = data.get(STOP_KEY)
-    if stop is not None:
-        if not isinstance(stop, bool):
-            raise TypeError(f"Expected '{STOP_KEY}' to be a bool, got '{type(stop).__name__}'")
-        if stop:
-            return EndTarget()
+
+    stop:bool | None = parameter_from_dict_optional(data, STOP_KEY, bool)
+    if stop:
+        return EndTarget()
+
     if ERRORS_KEY in data:
         return FailTarget()
-    raise WorkflowError(f"Transition has no target: {data}")
 
-
-def _attempts_from(data: dict[str, object]) -> bool:
-    value = data.get(ATTEMPTS_KEY, False)
-    if not isinstance(value, bool):
-        raise TypeError(f"Expected '{ATTEMPTS_KEY}' to be a bool, got '{type(value).__name__}'")
-    return value
+    raise WorkflowConfigurationError("Transition has no target")
 
 
 def transition_factory(data: dict[str, object], origin: str = "transition") -> Transition:
-    target = _target_from(data)
-    attempts = _attempts_from(data)
-    if attempts and not target.is_routing():
-        raise WorkflowError(f"'{ATTEMPTS_KEY}' needs a target that is a node, there is nothing to retry: {data}")
-    return Transition(target=target, guard=_guard_from(data), attempts=attempts, origin=origin)
+    try:
+        target = _target_from(data)
+        attempts = parameter_from_dict_default(data, ATTEMPTS_KEY, bool, default_value=False)
+        if attempts and not target.is_routing():
+            raise TransitionConfigurationError(
+                name=origin,
+                parameters=data,
+                message=f"'{ATTEMPTS_KEY}' needs a target that is a node, there is nothing to retry"
+            )
+        return Transition(target=target, guard=_guard_from(data), attempts=attempts, origin=origin)
+    except (WorkflowParameterError , WorkflowParameterConfigurationError) as e:
+        raise TransitionConfigurationError(
+            name=origin,
+            parameters=data,
+            message=f"Error: {e}"
+        ) from e

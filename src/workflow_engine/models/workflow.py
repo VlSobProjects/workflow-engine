@@ -5,7 +5,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from workflow_engine.models.node import WorkflowNodeModel, decode_string_from_dict
+from workflow_engine.models.node import WorkflowNodeModel
+from workflow_engine.tools import parameter_from_dict, parameter_from_dict_with_checker
 
 
 class WorkflowSource(ABC):
@@ -45,12 +46,17 @@ class WorkflowModel:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> WorkflowModel:
-        nodes = data.get("nodes")
-        if not isinstance(nodes, list) or len(nodes) == 0:
-            raise TypeError(f"Nodes must be a not empty list of workflow nodes: {type(nodes).__name__}")
+        nodes = parameter_from_dict_with_checker(
+            data=data,
+            param_name="nodes",
+            expected_type=list,
+            checker=lambda x: len(x) > 0,
+            fail_message="Nodes must be a not empty list of workflow nodes"
+        )
         return cls(
-            schema_version=decode_string_from_dict(data, "schema_version"),
-            flow_id=decode_string_from_dict(data, "flow_id"),
-            start_node_id=decode_string_from_dict(data, "start_node_id"),
+            schema_version=parameter_from_dict(data, "schema_version",str),
+            flow_id=parameter_from_dict(data, "flow_id",str),
+            start_node_id=parameter_from_dict(data, "start_node_id",str),
             nodes=[WorkflowNodeModel.from_dict(node) for node in nodes if isinstance(node, dict)],
         )
+

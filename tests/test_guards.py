@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from workflow_engine.exceptions import FunctionArgsError, FunctionParametersTypeError
+from workflow_engine.exceptions import (
+    FunctionConfigurationError,
+    FunctionRuntimeError,
+    WorkflowParameterConfigurationError,
+    WorkflowParameterError,
+)
 from workflow_engine.models.state import ActionParameter, GuardRecord, StateModel
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
@@ -102,7 +107,7 @@ def test_factory(register_functions):
 
 
 def test_unknown_guard(register_functions):
-    with pytest.raises(ValueError, match="Failed to create a guard"):
+    with pytest.raises(WorkflowParameterConfigurationError, match="Failed to create a guard"):
         guard_factory({"unknown": "value"})
 
 
@@ -169,7 +174,7 @@ def test_negated_guard_on_an_already_reversed_check(state_base, tests_dir):
 
 
 def test_reversed_must_be_a_boolean(register_functions):
-    with pytest.raises(TypeError, match="must be a bool"):
+    with pytest.raises(WorkflowParameterError, match="of type: 'str' expected type: 'bool'"):
         guard_factory({**CONTAINS_GUARD, "reversed": "yes"})
 
 
@@ -187,24 +192,24 @@ def test_nested_groups(state_base):
 
 
 def test_a_group_rejects_an_empty_list(register_functions):
-    with pytest.raises(ValueError, match="must not be empty"):
+    with pytest.raises(WorkflowParameterError, match="must not be empty"):
         guard_factory({"all_of": []})
 
 
 def test_a_group_rejects_a_value_that_is_not_a_list(register_functions):
-    with pytest.raises(TypeError, match="'all_of' must be a list, found dict"):
+    with pytest.raises(WorkflowParameterError, match="'all_of' of type: 'dict' expected type: 'list'"):
         guard_factory({"all_of": {"contains": "x"}})
 
 
 def test_a_group_names_the_entry_that_is_not_a_guard(register_functions):
-    with pytest.raises(TypeError, match=r"'all_of\[1\]' must be a dictionary, found str"):
+    with pytest.raises(WorkflowParameterError, match=r"'all_of\[1\]' of type: 'str' expected type: 'dict'"):
         guard_factory({"all_of": [CONTAINS_GUARD, "oops"]})
 
 
 def test_error_codes_must_be_a_list_of_strings(register_functions):
-    with pytest.raises(TypeError, match="'errors' must be a list, found str"):
+    with pytest.raises(WorkflowParameterError, match="'errors' of type: 'str' expected type: 'list'"):
         guard_factory({"errors": "copy_failed"})
-    with pytest.raises(TypeError, match=r"'errors\[1\]' must be a string, found int"):
+    with pytest.raises(WorkflowParameterError, match=r"'errors\[1\]' of type: 'int' expected type: 'str'"):
         guard_factory({"errors": ["copy_failed", 7]})
 
 
@@ -232,7 +237,7 @@ def test_guard_does_not_write_to_the_state(state_base, tests_dir):
 
 def test_argument_error_is_raised(state_base):
     guard = guard_factory(ERROR_FUNC_PARAMETERS_GUARD)
-    with pytest.raises(FunctionArgsError):
+    with pytest.raises(FunctionRuntimeError):
         guard.check(out("this is a string"), state_base)
 
 
@@ -256,5 +261,5 @@ def test_a_guard_function_cannot_ask_for_the_state(register_functions):
     # The state is not among the injected parameters, so a function asking for it cannot be built.
     # If the argument check ever learns about injected parameters, this boundary has to be decided
     # again rather than reappearing by accident. See ADR 002.
-    with pytest.raises(FunctionParametersTypeError):
+    with pytest.raises(FunctionConfigurationError):
         guard_factory({FUNCTION_NAME_KEY: "guard_asking_for_the_state"})

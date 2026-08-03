@@ -40,6 +40,9 @@ class Codec(ABC):
         t = cls.python_type()
         return f"{t.__module__}.{t.__qualname__}"
 
+    @classmethod
+    def can_decode(cls, value: object) -> bool:
+        return isinstance(value, cls.python_type())
 
 class NoCodec(Codec):
     _python_type: ClassVar[type] = object

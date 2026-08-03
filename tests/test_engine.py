@@ -2,7 +2,7 @@ import importlib
 
 import pytest
 
-from workflow_engine.engine import sart_engine
+from workflow_engine.engine import start_engine
 from workflow_engine.registry.action_registry import ACTION_REGISTRY
 from workflow_engine.registry.function_registry import (
     FUNCTION_REGISTRY,
@@ -38,8 +38,8 @@ def init_storage_simple_workflow(registration, tmp_path, examples_dir):
     return storage
 
 
-def test_sart_engine(init_storage_simple_workflow):
-    resp = sart_engine(init_storage_simple_workflow, None)
+def test_start_engine(init_storage_simple_workflow):
+    resp = start_engine(init_storage_simple_workflow, None)
     assert resp
     state = init_storage_simple_workflow.load_state()
     print(SimplePresentResponseRender(resp).render())
