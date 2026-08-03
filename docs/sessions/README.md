@@ -58,6 +58,7 @@ missing from the registry is effectively lost. Add the row when the branch is me
 | 2026-08-02 | architecture | Captured the node model as ADR 002 and reduced it from three layers to one action with guarded transitions | completed | docs/adr_002-node-composition | [2026-08-02-architecture-1_handoff.md](2026-08-02-architecture-1_handoff.md) |
 | 2026-08-02 | implementation | Implemented ADR 002, reviewed it, and fixed the defects the review and the code reading found | completed | feature/adr_002-node-composition | [2026-08-02-implementation-1_handoff.md](2026-08-02-implementation-1_handoff.md) |
 | 2026-08-03 | architecture | Reviewed ADR 001 implementation, resolved blocking defects, merged to development, and froze ADR 001 as Accepted | completed | feature/adr-001-exception-architecture | [2026-08-03-architecture-1_handoff.md](2026-08-03-architecture-1_handoff.md) |
+| 2026-08-04 | architecture | Refined ADR 003 to keep work_dir mandatory at run level and move run start orchestration to engine.py until Session abstraction exists | completed | development | [2026-08-04-architecture-1_handoff.md](2026-08-04-architecture-1_handoff.md) |
 
 `Summary` states what the session was about, in one line.
 `Status` is `completed` or `interrupted`.

@@ -1,4 +1,4 @@
-# ADR 003: The boundary between persistence and the working directory
+# ADR 003: Persistence boundary and run workspace
 
 ## Status
 Draft
@@ -8,124 +8,98 @@ None
 
 ## Context
 
-A run of a workflow needs two different things kept somewhere.
+A workflow run needs both persistent data and a real local workspace.
 
-- The **workflow definition and the run state**. These are data. They are written at every turn so
-  that a run can be resumed, and they are the only things the engine itself needs to continue.
-- The **files a run produces**. Artifacts, copies, generated documents. These are the point of many
-  workflows and they are consumed by tools that expect a real path on a real disk.
+- Persistent data: `WorkflowModel` and `StateModel`, saved each turn so a run can resume.
+- Workspace data: generated files and artifacts, consumed by tools that require filesystem paths.
 
-Today both are held by one object. `Storage` is an abstract class over `StateSource` and
-`WorkflowSource`, and `JsonStorage` is its only implementation. The intention was already that the
-medium is replaceable; a backend over a database is planned. The abstraction does not yet support
-that, and the reason is that the two things above are not separated.
+This application is intentionally workspace-dependent: every run must have a local directory.
+Current and planned behavior:
 
-Where the current code prevents a second backend:
+- Start without `--session`: create a new session UUID.
+- Ensure `.workflow-engine` exists in the launch directory.
+- Create `.workflow-engine/<session_id>` and use it as `work_dir` for the run.
 
-- `Storage.__init__` takes a `working_dir: Path`. Every backend, including one over a database, has
-  to accept a directory.
-- `WorkflowSource.upload_workflow` and `Storage.start_workflow` take a `Path` in the abstract
-  signature, so the source of a definition is a file at the level of the contract.
-- `StateModel` has no serialization of its own. `json_storage` reads `state.__dict__` directly and
-  rebuilds the state through a JSON `object_hook`. The knowledge of the shape of the state lives in
-  the backend, so a second backend has to restate it. That decoding is also the source of a defect
-  found while reviewing ADR 002: the hook runs over every nested dictionary, so a node whose
-  identifier matches a state field, such as `params` or `guard_results`, makes a saved state
-  impossible to load.
-- `start_workflow` writes `self.working_dir` into `state.work_dir`, so the place where the state is
-  stored and the place where the run produces files are by construction the same place.
+The issue is not whether `work_dir` is required. It is required. The issue is where this
+requirement is enforced in architecture boundaries.
+
+Today `Storage` also creates the initial state via `start_workflow`, so `Storage.__init__(working_dir)`
+is currently consistent with implementation. But this couples run bootstrapping to persistence.
+For a database backend this forces constructor parameters that belong to run context, not to medium.
 
 ## Decision
 
-Persistence and the working directory are two separate concepts, and the engine depends on both
-separately.
+`work_dir` remains a mandatory run invariant, but run bootstrapping moves out of persistence.
 
-**Persistence** is an abstract contract that carries no assumption about the medium. It moves data,
-not files.
+- `Engine` owns run start and creates initial `StateModel`, including `state.work_dir`.
+- `Storage` owns persistence only: load and save workflow/state data.
+- `Storage` abstract contract does not require `working_dir` in its base constructor.
+- Concrete backends define their own constructor needs:
+  - file backend (`JsonStorage`): may require a directory;
+  - database backend (`MySqlStorage`): may require DB connection/config.
 
-- `StateModel` and `WorkflowModel` own their own conversion to and from a plain dictionary. A backend
-  moves dictionaries and does not know their shape.
-- No signature in the contract mentions a filesystem path. A definition supplied from outside is
-  handed to the engine as data; reading it from a file is the job of whoever calls the engine, or of
-  a helper that belongs to the file based backend.
-- A concrete backend is free to require whatever it needs in its own constructor. The file based
-  backend takes a directory; a database backend takes a connection. That belongs to the backend, not
-  to the contract.
+Because there is no separate Session abstraction yet, this orchestration is implemented in `engine.py`
+as the transitional owner of `start_workflow`.
 
-**The working directory** is a real directory on a real disk, and stays one. It is where a run
-produces files, and it is deliberately not stored in the persistence backend: putting generated files
-into a database is possible but impractical, and the tools that consume them expect paths.
-
-- The working directory is given to a run, not to the persistence backend.
-- It stays in the state, because a resumed run has to find its own files again. It is recorded there
-  as the identity of a workspace, not as the location of the state.
-- A file based backend may keep the state inside the same directory. That is its own choice and not
-  part of the contract.
+`work_dir` stays in `StateModel` and is persisted as run metadata so resumed runs can find their files.
 
 ## Alternatives considered
 
-### A. Keep the path in the contract and let other backends emulate it
-A database backend maps identifiers onto pseudo paths.
-Cheapest today and no change to existing code. Rejected because every backend then has to pretend to
-be a filesystem, and the pretence leaks: the state decoder already checks the working directory with
-`is_dir()`, so a backend that has no directory fails on load rather than at configuration.
+### A. Keep `start_workflow` in `Storage` and keep mandatory `working_dir` in base constructor
+Pros: minimal refactor now.
+Cons: `Storage` remains a mixed abstraction (persistence + run orchestration), and every backend must
+carry run-context constructor state.
 
-### B. Put everything, including the produced files, into the backend
-One place for everything, uniform and simple to reason about.
-Rejected. Generated files are the purpose of many workflows and are consumed by tools that expect a
-path. Streaming them through a database costs more and buys nothing, and the engine would have to
-materialise them on disk anyway before any external tool could use them.
+### B. Move run start to `Engine` and keep `Storage` as persistence only
+Pros: clean separation of concerns; database backends persist state including `work_dir` without
+constructor coupling to filesystem context.
+Cons: caller must provide run context (`work_dir`) to engine start flow.
 
-### C. Keep one object but split its interface into two
-`Storage` continues to exist and exposes both a persistence part and a workspace part.
-Rejected because it preserves exactly the coupling that has to go: a database backend would still be
-required to supply a workspace it has nothing to do with.
+### C. Store workspace artifacts in persistence backend (including DB)
+Pros: one storage location for all outputs.
+Cons: external tools still need real filesystem paths; materialization to disk is still required and
+adds complexity/cost.
 
-### D. Separate persistence from the working directory
-Chosen. The engine asks for state and definition from one collaborator and for a workspace from
-another. Each backend then implements only what it is about. The cost is that the caller now supplies
-two things instead of one, and that both models gain explicit serialization.
+Chosen: **B**.
 
 ## Consequences
 
-- A second backend becomes a matter of moving dictionaries, which is a low bar.
-- Explicit `to_dict` and `from_dict` on the models remove the JSON `object_hook`, and with it the
-  class of defect where a node named after a state field makes a saved state unloadable.
-- The shape of the state is defined in one place, so a change to it is a change to one file rather
-  than to every backend.
-- The caller of the engine supplies both a persistence backend and a working directory. That is more
-  than it supplies today.
-- Existing callers and the file based backend change. The stored format does not have to change.
-- The state is written on every turn. For a file based backend that is a file rewrite; for a database
-  backend it is a transaction per node. This decision does not address how often the state is
-  written, and a backend that finds the frequency expensive will have to raise it as its own
-  decision.
-- Nothing here says the working directory has to be local in the long run. It says it is not the
-  concern of the persistence backend. A remote or virtual workspace remains a later decision.
+- The system still requires a local `work_dir` for every run.
+- `work_dir` is mandatory in `StateModel` regardless of backend type.
+- `MySqlStorage` persists `state.work_dir` as data and does not need it as constructor requirement.
+- `JsonStorage` may still use the session workspace directory for files (`state.json`, `workflow.json`).
+- Existing callers of `Storage.start_workflow` must switch to engine-level run start API.
+- Startup behavior is explicit and testable in one place (`engine.py`) until a dedicated Session layer exists.
 
 ## Related ADRs
 
-- ADR 002 node composition. The decoding defect that this decision removes was found while reviewing
-  its implementation.
-- ADR 001 exception architecture. Failures raised while decoding a state or a definition belong to
-  its hierarchy, and this decision moves where that decoding happens.
-- How data passes between nodes is not decided here, but it determines what has to be serialized.
+- ADR 002 node composition.
+- ADR 001 exception architecture.
 
 ## Implementation notes
 
-Not started. This decision may not enter implementation while ADR 002 is still open.
+Planned implementation sequence:
 
-Open points to settle when it does:
+1. Add engine-level run start API in `engine.py`:
+   - input: `storage`, workflow definition path or data, `work_dir`;
+   - output: initial `StateModel`, `WorkflowModel`.
+2. Move initial state creation (`timestamp`, `work_dir`, `schema_version`, `flow_id`, `current_node_id`)
+   from `Storage.start_workflow` to engine-level API.
+3. Keep `work_dir` persisted in state for resume.
+4. Adapt `JsonStorage` to persistence-only behavior and preserve current file layout if possible.
+5. Add/adjust tests for:
+   - new session path creation and assignment as `state.work_dir`;
+   - resume behavior with persisted `work_dir`;
+   - backend parity (file backend and DB backend contract expectations).
 
-- Whether the workflow definition is still saved by the engine at all, or is supplied on every call.
-  Today `upload_workflow` copies the definition into the storage directory.
-- Whether `work_dir` keeps its current name in the state once it no longer implies where the state
-  lives.
-- Whether the file based backend keeps its current file names and layout, so that existing runs
-  remain readable.
+Open points:
+
+- Workflow definition source at engine boundary: path only, data only, or both.
+- Strictness of `work_dir` validation during load in DB resume scenarios.
+- Whether to keep `Storage.start_workflow` temporarily as compatibility wrapper and deprecate it.
 
 ## Change log
 
-- Draft created. Option D chosen after comparing it with emulating a filesystem in every backend,
-  storing produced files in the backend, and splitting the interface without splitting the object.
-  The working directory was confirmed as a deliberate design choice rather than a leak.
+- Reframed the decision after architecture review: mandatory `work_dir` is a run-level invariant, not
+  a persistence constructor invariant.
+- Chosen boundary clarified: move run start orchestration to `engine.py` until Session abstraction exists.
