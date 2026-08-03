@@ -32,6 +32,8 @@ To find a session, read the registry below; sessions of one type are read in ord
 1. At the start, create the session file with its type, goal and completion criteria.
 2. During the session, keep the scope inside those criteria.
 3. At the end, complete the file with the result, the decisions and the next steps.
+4. Close the session with a git commit that includes the session note and related changes. If a session
+   intentionally ends without a commit, state that explicitly in the session note with the reason.
 
 A session that is interrupted still leaves its file, marked `interrupted`.
 

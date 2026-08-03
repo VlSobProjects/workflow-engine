@@ -54,6 +54,8 @@ Check this regularly, and always before finishing a task:
 - inspect the working tree for untracked and uncommitted files,
 - for each one, decide whether it belongs in the repository or in `.gitignore`,
 - when the answer is not obvious, raise the question with the user instead of deciding silently.
+- do not finish a task or session with uncommitted tracked changes unless the user explicitly accepts
+  ending uncommitted.
 
 Once a remote exists, also check for commits that were never pushed and raise them the same way.
 
