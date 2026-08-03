@@ -12,11 +12,11 @@ The engine reports failures inconsistently, and the current structure makes good
 
 - The eight exception types in `exceptions.py` have five separate roots, all sitting directly under
   `Exception`. There is no common root, so callers cannot catch engine failures as a group. This is why
-  `sart_engine` uses a blind `except Exception`.
+  `start_engine` used a blind `except Exception`.
 - Around forty raw `TypeError`, `ValueError` and `KeyError` are raised across nine modules. They are not
   part of the vocabulary of the project and cannot be handled by type.
 - Configuration checking is split across two places that disagree with each other. `_load_workflow_nodes`
-  builds every node, and therefore validates actions, before the protected section of `sart_engine`, so a
+  builds every node, and therefore validates actions, before the protected section of `start_engine`, so a
   configuration error escapes the engine instead of becoming a response. `_workflow_nodes_errors` does the
   opposite and collects errors, but only for transitions, only for `WorkflowError`, and only after node
   construction already succeeded.
@@ -69,7 +69,7 @@ and a missing boundary silently loses precision.
 - Configuration problems are reported before start, all at once, with the node and field named.
 - Every layer that owns context gains a small amount of error handling code.
 - Existing call sites that rely on `TypeError` from the models will need to change.
-- The blind `except` in `sart_engine` can be narrowed once the hierarchy exists.
+- The blind `except` in `start_engine` can be narrowed once the hierarchy exists.
 
 ## Related ADRs
 
@@ -84,28 +84,23 @@ helpers cannot be unified before the shape of their errors is settled.
 
 ## Implementation notes
 
-Open points to settle during implementation:
+Resolved during implementation:
 
-- Whether error codes need a catalogue that maps each code to a description. `registry/errors_registry.py`
-  held an unfinished attempt at one, filled by a decorator at import time; nothing ever imported it and
-  the engine produced codes it did not declare, so it was removed as dead code while implementing
-  ADR 002. Since the name of a guard is now an error code, a catalogue would have to cover names that
-  are generated rather than declared.
-- Whether the checking of configuration keys deserves a single mechanism. Each key is checked by hand
-  today, and every key that was not checked accepted nonsense silently: `reversed`, `errors`,
-  `all_of` and `stop` were all corrected one after another. A rule that a key has a declared type and
-  that a mismatch names the key would remove the class of defect rather than its instances.
-- A configuration error raised while a node is built escapes `sart_engine` instead of becoming a
-  response, because nodes are built before the protected section. Two tests in
-  `tests/test_engine_transitions.py` record this as the current behaviour and will have to change.
-- Registered functions raise `FunctionArgsError` when an argument fails its check, so a failure that
-  ADR 002 treats as a value becomes an exception instead.
-- `state.error_code` and `state.error_msg` are never cleared, so a run that fails a node, recovers
-  and finishes still reports the code of the failure it recovered from.
-- Where the aggregate of configuration errors is produced, and whether it is one exception carrying many
-  entries or a collection returned by a validation call.
-- Whether node construction moves inside the protected section of `sart_engine`, or configuration is
-  validated before construction begins.
+- Runtime exceptions from registered functions are normalized to `FunctionRuntimeError`, so `start_engine`
+  can catch runtime failures by engine type without falling back to `except Exception`.
+- Raw `TypeError` and `ValueError` in guard configuration paths were replaced by project exception types.
+- Node construction errors are aggregated by node id in `_load_workflow_nodes`, returned as setup errors,
+  and no longer escape setup handling.
+- The aggregate of configuration errors is produced in `_load_workflow_nodes` as a collection
+  (`dict[node_id, message]`) used directly in the setup response.
+- Node construction stays in setup, before execution loop, with explicit configuration validation and
+  aggregation.
+
+Follow-up items (not blocking this ADR):
+
+- Whether error codes need a catalogue mapping each code to a stable description.
+- Whether to introduce a single schema-driven mechanism for configuration key/type validation.
+- Whether `state.error_code` and `state.error_msg` should be cleared after successful recovery paths.
 
 ## Change log
 
@@ -114,3 +109,6 @@ Open points to settle during implementation:
   roots, not seven on one.
 - Recorded the open points that implementing ADR 002 produced, and dropped the note on
   `_workflow_nodes_errors`, which now reports one error per transition rather than one per node.
+- Updated implementation notes after branch implementation: moved resolved points to delivered behavior
+  and left only follow-up items.
+- Freeze is pending merge into `development`, where status and registry are updated under the freeze gate.
