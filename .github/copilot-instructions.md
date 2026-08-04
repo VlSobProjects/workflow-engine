@@ -8,5 +8,6 @@ This repository uses task-scoped documentation. Read only what the current task 
 - Documentation changes: `docs/rules/documentation-rules.md`
 - Branches and merges: `docs/processes/git-workflow.md`
 - Session notes: `docs/sessions/README.md`
+  - For every new session, follow the lifecycle protocol in this document from start to closure/interruption.
 
 This file routes only. It carries no rules of its own.

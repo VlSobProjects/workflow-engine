@@ -10,6 +10,7 @@ This directory holds the architecture decision records and their registry.
 | 002 | Node composition — one action and guarded transitions | Accepted | A node is one action plus an ordered list of guarded transitions; guards replace validators, stay boolean, receive no state, and their named results are recorded in the state | — | — | [adr-002-node-composition.md](adr-002-node-composition.md) |
 | 003 | The boundary between persistence and the working directory | Accepted | Persistence of the definition and the state is a medium neutral contract over dictionaries; run bootstrap moved to session layer, with bootstrap/config snapshot deferred to ADR 004 | — | — | [adr-003-persistence-and-workspace.md](adr-003-persistence-and-workspace.md) |
 | 004 | Session bootstrap and configuration snapshot | Draft | Session creation and resume use immutable session metadata (`storage_profile_id`, `work_dir`) through `SessionRegistry` and `StorageFactory` | 003 | — | [adr-004-session-bootstrap-and-config-snapshot.md](adr-004-session-bootstrap-and-config-snapshot.md) |
+| 005 | Component loading and plugin registration model | Draft | Bootstrap loads local modules and external entry-point plugins before execution, making registries deterministic and enabling stable-core extensibility | 004 | — | [adr-005-component-loading-and-registration.md](adr-005-component-loading-and-registration.md) |
 
 Keep this table updated on every status change.
 The registry is edited only on `development`.

@@ -10,6 +10,7 @@ Read only the documents relevant to the current task:
 - Git and branches: `docs/processes/git-workflow.md`
 - Current architecture: `docs/architecture/overview.md`
 - Session notes: `docs/sessions/README.md`
+  - For every new session, follow the lifecycle protocol in this document from start to closure/interruption.
 
 Do not read unrelated documentation just because it exists.
 
