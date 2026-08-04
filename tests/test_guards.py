@@ -86,6 +86,7 @@ def state_base(register_functions):
         work_dir=Path(),
         schema_version="1",
         flow_id="test",
+        session_id="test-session-id",
         params={
             "test_param": ActionParameter.create(name="test_param", value="string", source_node_id="test_node_id"),
             "test_param2": ActionParameter.create(

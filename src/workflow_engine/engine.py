@@ -1,4 +1,7 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from uuid import uuid4
 
 from workflow_engine.actions.action_present import PresentResponse
 from workflow_engine.actions.base_actions import (
@@ -9,6 +12,7 @@ from workflow_engine.exceptions import WorkflowEngineError, WorkflowParameterErr
 from workflow_engine.models.state import GuardRecord, StateModel
 from workflow_engine.models.workflow import WorkflowModel
 from workflow_engine.output import ActionNodeOutput
+from workflow_engine.storage.json_storage import JsonStorage
 from workflow_engine.storage.storage import Storage
 from workflow_engine.transition.base import EndTarget, FailTarget, NodeTarget, Transition
 from workflow_engine.workflow import WorkflowNode, workflow_node_factory
@@ -17,6 +21,70 @@ WORKFLOW_NODES: dict[str, WorkflowNode] = {}
 
 NO_TRANSITION_ERROR = "no_transition_matched"
 ATTEMPTS_EXCEEDED_ERROR = "max_attempts_exceeded"
+
+class WorkflowSession:
+    def __init__(self, work_dir: Path) -> None:
+        self.work_dir = work_dir
+
+    def continue_session(self,session_id:str,output: ActionNodeOutput | None = None) -> PresentResponse:
+        """Continue a session by loading its state and workflow."""
+        storage = self.load_storage(session_id)
+        return _start_engine(storage, output)
+
+
+    def create_new_session(self,workflow_path:Path)->tuple[PresentResponse, str]:
+        """"""
+        session_id = self._create_session_id()
+        storage = self.load_storage(session_id)
+        workflow = storage.upload_workflow(workflow_path)
+        storage.save_state(
+            StateModel(
+                timestamp=datetime.now(tz=UTC),
+                work_dir=self.work_dir / session_id,
+                schema_version=workflow.schema_version,
+                flow_id=workflow.flow_id,
+                current_node_id=workflow.start_node_id,
+                session_id=session_id,
+            )
+        )
+        return _start_engine(storage, None), session_id
+
+    #TODO Need to implement global application and session config load from file.
+    # Configuration will be source of storage.
+    def load_storage(self, session_id:str) -> Storage:
+        """Load storage for a given session."""
+        return JsonStorage(self.work_dir, session_id=session_id)
+
+    def _create_session_id(self) -> str:
+        """Create a new unique session ID."""
+        session_id = None
+        attempts = 0
+        last_error = None
+        session_dir = None
+        try:
+            while session_id is None and attempts < 3:
+                uuid = str(uuid4())
+                session_dir:Path = self.work_dir / uuid
+                try:
+                    session_dir.mkdir(parents=True, exist_ok=False)
+                    session_id = uuid
+                except FileExistsError as e:
+                    attempts += 1
+                    last_error = e
+        except OSError as e:
+            raise WorkflowEngineError(
+                f"Failed to create a unique session ID work directory {e} session_dir: {session_dir}"
+            ) from e
+
+        if session_id is None:
+            ex = WorkflowEngineError(
+                    "Failed to create a unique session ID work directory after multiple attempts."
+                )
+            if last_error is not None:
+                raise ex from last_error
+            else:
+                raise ex
+        return session_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +216,7 @@ def _state_hints(state: StateModel) -> list[str]:
     ]
 
 
-def start_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentResponse:
+def _start_engine(storage: Storage, output: ActionNodeOutput | None) -> PresentResponse:
     try:
         state, workflow = storage.continue_workflow()
     except WorkflowEngineError as e:

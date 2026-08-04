@@ -107,6 +107,7 @@ class StateModel:
     schema_version: str
     flow_id: str
     current_node_id: str
+    session_id: str
     error_code: str | None = field(default=None)
     error_msg: str | None = field(default=None)
     attempt_counters: dict[str, int] = field(default_factory=dict)  # validation retries
@@ -129,8 +130,9 @@ class StateModel:
                 params["work_dir"] = work_dir.absolute()
             else:
                 raise StateLoadError(parameter_name="work_dir",message=f"Invalid work_dir path: '{work_dir}'")
-            params["schema_version"] = parameter_from_dict(data, "schema_version", str)
 
+            params["schema_version"] = parameter_from_dict(data, "schema_version", str)
+            params["session_id"] = parameter_from_dict(data, "session_id", str)
             params["flow_id"] = parameter_from_dict(data, "flow_id", str)
             params["current_node_id"] = parameter_from_dict(data, "current_node_id", str)
             params["error_code"] = parameter_from_dict_optional(data,"error_code", str)

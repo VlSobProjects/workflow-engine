@@ -1,10 +1,10 @@
 # ADR 003: Persistence boundary and run workspace
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-None
+feature/adr-003-persistence-and-workspace
 
 ## Context
 
@@ -70,36 +70,35 @@ Chosen: **B**.
 - `JsonStorage` may still use the session workspace directory for files (`state.json`, `workflow.json`).
 - Existing callers of `Storage.start_workflow` must switch to engine-level run start API.
 - Startup behavior is explicit and testable in one place (`engine.py`) until a dedicated Session layer exists.
+- Current implementation keeps a temporary coupling (`WorkflowSession` creates `JsonStorage`) and assumes
+  resume under the same session root; this limitation is tracked as follow-up architecture work.
 
 ## Related ADRs
 
 - ADR 002 node composition.
 - ADR 001 exception architecture.
+- ADR 004 session bootstrap and configuration snapshot (Draft, follow-up).
 
 ## Implementation notes
 
-Planned implementation sequence:
+Implemented in this branch:
 
-1. Add engine-level run start API in `engine.py`:
-   - input: `storage`, workflow definition path or data, `work_dir`;
-   - output: initial `StateModel`, `WorkflowModel`.
-2. Move initial state creation (`timestamp`, `work_dir`, `schema_version`, `flow_id`, `current_node_id`)
-   from `Storage.start_workflow` to engine-level API.
-3. Keep `work_dir` persisted in state for resume.
-4. Adapt `JsonStorage` to persistence-only behavior and preserve current file layout if possible.
-5. Add/adjust tests for:
-   - new session path creation and assignment as `state.work_dir`;
-   - resume behavior with persisted `work_dir`;
-   - backend parity (file backend and DB backend contract expectations).
+1. Run start moved out of `Storage` into `WorkflowSession` in `engine.py`.
+2. `Storage` base contract now keeps `session_id` and persistence methods only.
+3. `JsonStorage` now resolves state/workflow files under `<root>/<session_id>/`.
+4. Session creation now persists `StateModel` with explicit `work_dir` and `session_id`.
+5. Engine entry was made internal (`_start_engine`) and is called through `WorkflowSession`.
 
-Open points:
+Open follow-up moved to ADR 004:
 
-- Workflow definition source at engine boundary: path only, data only, or both.
-- Strictness of `work_dir` validation during load in DB resume scenarios.
-- Whether to keep `Storage.start_workflow` temporarily as compatibility wrapper and deprecate it.
+- Backend selection and session-level storage snapshot.
+- Backend-independent session resume (`session_id` lookup to stable session metadata).
+- Session registry contract (`session_id -> storage profile + work_dir`).
 
 ## Change log
 
 - Reframed the decision after architecture review: mandatory `work_dir` is a run-level invariant, not
   a persistence constructor invariant.
 - Chosen boundary clarified: move run start orchestration to `engine.py` until Session abstraction exists.
+- Status changed to `Implementing`; implementation completed in branch
+  `feature/adr-003-persistence-and-workspace`, with deferred bootstrap/config concerns moved to ADR 004.

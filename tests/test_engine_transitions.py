@@ -7,10 +7,12 @@ the repository.
 import importlib
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
-from workflow_engine.engine import NO_TRANSITION_ERROR, start_engine
+from workflow_engine.actions.action_present import PresentResponse
+from workflow_engine.engine import NO_TRANSITION_ERROR, WorkflowSession
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import register_function
 from workflow_engine.storage.json_storage import JsonStorage
@@ -56,7 +58,7 @@ def create_folder_node(node_id: str, work_dir: Path, folder_name: str) -> dict[s
     }
 
 
-def storage_for(tmp_path: Path, nodes: list[dict[str, object]]) -> JsonStorage:
+def storage_for(tmp_path: Path, nodes: list[dict[str, object]]) -> tuple[JsonStorage, PresentResponse]:
     workflow = {
         "schema_version": "1",
         "flow_id": "guard-flow",
@@ -67,17 +69,17 @@ def storage_for(tmp_path: Path, nodes: list[dict[str, object]]) -> JsonStorage:
     workflow_file = tmp_path / "source_workflow.json"
     with workflow_file.open("w") as f:
         json.dump(workflow, f)
-    storage = JsonStorage(tmp_path)
-    storage.start_workflow(workflow_file)
-    return storage
+    session = WorkflowSession(tmp_path)
+    resp, session_id = session.create_new_session(workflow_file)
+    assert resp
+    assert session_id
+    return cast(JsonStorage,session.load_storage(session_id)), resp
 
 
 def test_passing_post_condition_ends_the_workflow(load_modules, tmp_path):
     node = create_folder_node("NODE_1", tmp_path, "made")
     node["validators"] = [{"function_name": "is_output_exist_folder"}]
-    storage = storage_for(tmp_path, [node])
-
-    response = start_engine(storage, None)
+    _, response = storage_for(tmp_path, [node])
 
     assert response.title == "Loop finished"
     assert (tmp_path / "made").is_dir()
@@ -86,9 +88,8 @@ def test_passing_post_condition_ends_the_workflow(load_modules, tmp_path):
 def test_guard_results_are_recorded_in_the_state(load_modules, tmp_path):
     node = create_folder_node("NODE_1", tmp_path, "made")
     node["validators"] = [{"function_name": "is_output_exist_folder"}]
-    storage = storage_for(tmp_path, [node])
+    storage, _ = storage_for(tmp_path, [node])
 
-    start_engine(storage, None)
     state = storage.load_state()
 
     records = state.guard_results["NODE_1"]
@@ -99,9 +100,7 @@ def test_guard_results_are_recorded_in_the_state(load_modules, tmp_path):
 def test_failing_post_condition_fails_the_node(load_modules, tmp_path):
     node = create_folder_node("NODE_1", tmp_path, "made")
     node["validators"] = [{"function_name": "is_output_exist_file"}]
-    storage = storage_for(tmp_path, [node])
-
-    response = start_engine(storage, None)
+    storage, response = storage_for(tmp_path, [node])
 
     assert response.title == "Node failed"
     assert response.errors is not None
@@ -112,11 +111,10 @@ def test_failing_post_condition_fails_the_node(load_modules, tmp_path):
 def test_declared_route_that_matches_nothing_fails_the_node(load_modules, tmp_path):
     node = create_folder_node("NODE_1", tmp_path, "made")
     node["transitions"] = [{"next": "NODE_1", "validator": {"equals": "never"}}]
-    storage = storage_for(tmp_path, [node])
-
-    response = start_engine(storage, None)
+    _, response = storage_for(tmp_path, [node])
 
     assert response.title == "Node failed"
+    assert response.errors
     assert NO_TRANSITION_ERROR in response.errors["NODE_1"]
 
 
@@ -128,11 +126,10 @@ def test_post_condition_does_not_replace_the_error_of_a_failed_action(load_modul
         "validators": [{"function_name": "is_output_exist_file"}],
         "transitions": [{"errors": ["invalid_artifact_file_name"], "fail": "unrecoverable"}],
     }
-    storage = storage_for(tmp_path, [node])
-
-    response = start_engine(storage, None)
+    storage, response = storage_for(tmp_path, [node])
 
     assert response.title == "Node failed"
+    assert response.errors
     assert "unrecoverable" in response.errors["NODE_1"]
     records = storage.load_state().guard_results["NODE_1"]
     assert [record.name for record in records] == ["no_error", "all_of", "errors:invalid_artifact_file_name"]
@@ -142,9 +139,7 @@ def test_post_condition_does_not_replace_the_error_of_a_failed_action(load_modul
 def test_unknown_target_is_reported_before_execution(load_modules, tmp_path):
     node = create_folder_node("NODE_1", tmp_path, "made")
     node["transitions"] = [{"next": "MISSING"}]
-    storage = storage_for(tmp_path, [node])
-
-    response = start_engine(storage, None)
+    _, response = storage_for(tmp_path, [node])
 
     assert response.title == "Error in workflow setup"
     assert not (tmp_path / "made").is_dir()
@@ -158,9 +153,7 @@ def test_guard_branches_on_the_error_code(load_modules, tmp_path):
         "transitions": [{"errors": ["invalid_artifact_file_name"], "next": "NODE_2"}],
     }
     recovery = create_folder_node("NODE_2", tmp_path, "recovered")
-    storage = storage_for(tmp_path, [failing, recovery])
-
-    response = start_engine(storage, None)
+    _, response = storage_for(tmp_path, [failing, recovery])
 
     assert response.title == "Loop finished"
     assert (tmp_path / "recovered").is_dir()
@@ -173,9 +166,8 @@ def test_failure_keeps_the_message_the_action_wrote(load_modules, tmp_path):
         "action_parameters": {"artifact_file": ""},
         "transitions": [{"next": "NODE_1", "validator": {"equals": "never"}}],
     }
-    storage = storage_for(tmp_path, [node])
+    storage, response = storage_for(tmp_path, [node])
 
-    response = start_engine(storage, None)
     state = storage.load_state()
 
     assert response.title == "Node failed"
@@ -188,9 +180,7 @@ def test_a_self_targeting_transition_is_bounded(load_modules, tmp_path):
     node = counting_node("NODE_1")
     node["transitions"] = [{"next": "NODE_1"}]
     node["max_attempts"] = 2
-    storage = storage_for(tmp_path, [node])
-
-    response = start_engine(storage, None)
+    storage,response = storage_for(tmp_path, [node])
 
     assert response.title == "Node failed"
     assert storage.load_state().error_code == "max_attempts_exceeded"
@@ -207,11 +197,12 @@ def test_the_retry_budget_does_not_depend_on_how_the_node_was_entered(load_modul
     entry = counting_node("ENTRY")
     entry["transitions"] = [{"next": "LOOP"}]
 
-    start_engine(storage_for(tmp_path / "a", [looping_node()]), None)
+    storage_for(tmp_path / "a", [looping_node()])
+
     started = EXECUTIONS.count("LOOP")
     EXECUTIONS.clear()
 
-    start_engine(storage_for(tmp_path / "b", [entry, looping_node()]), None)
+    storage_for(tmp_path / "b", [entry, looping_node()])
     entered = EXECUTIONS.count("LOOP")
 
     assert started == entered == 3
@@ -223,14 +214,16 @@ def test_attempts_needs_a_node_target(load_modules, tmp_path):
 
     # Nodes are built before the protected section of the engine, so a configuration error escapes
     # instead of becoming a response. See ADR 001.
-    assert "nothing to retry" in start_engine(storage_for(tmp_path, [node]), None).errors["NODE_1"]
+    _, response = storage_for(tmp_path, [node])
+    assert response.errors
+    assert "nothing to retry" in response.errors["NODE_1"]
 
 
 
 def test_a_transition_cannot_declare_both_a_guard_and_errors(load_modules, tmp_path):
     node = counting_node("NODE_1")
     node["transitions"] = [{"next": "NODE_1", "validator": {"equals": "x"}, "errors": ["e"]}]
-    resp = start_engine(storage_for(tmp_path, [node]), None)
+    _, resp = storage_for(tmp_path, [node])
     assert resp.errors
     assert "cannot declare both" in resp.errors["NODE_1"]
     print(f"Configuration error for transition with both guard and errors: {resp.errors['NODE_1']}")
@@ -243,27 +236,29 @@ def test_a_configuration_error_names_the_declared_transition(load_modules, tmp_p
     node = create_folder_node("NODE_1", tmp_path, "made")
     node["validators"] = [{"function_name": "is_output_exist_folder"}]
     node["transitions"] = [{"next": "MISSING"}]
-    storage = storage_for(tmp_path, [node])
+    _, response = storage_for(tmp_path, [node])
 
-    response = start_engine(storage, None)
 
     assert response.title == "Error in workflow setup"
+    assert response.errors
     assert "NODE_1 transitions[0]" in response.errors
 
 
 def test_stop_must_be_a_boolean(load_modules, tmp_path):
     node = create_folder_node("NODE_1", tmp_path, "made")
     node["transitions"] = [{"stop": "yes"}]
+    _, response = storage_for(tmp_path, [node])
+    assert response.errors
     assert (
             "'stop' of type: 'str' expected type: 'bool'"
-            in start_engine(storage_for(tmp_path, [node]), None).errors["NODE_1"]
+            in response.errors["NODE_1"]
     )
 
 
 def test_a_transition_without_a_target_is_rejected(load_modules, tmp_path):
     node = create_folder_node("NODE_1", tmp_path, "made")
     node["transitions"] = [{"stop": False}]
-    e_result = start_engine(storage_for(tmp_path, [node]), None)
+    _, e_result = storage_for(tmp_path, [node])
     assert e_result.errors
     assert any(v for v in e_result.errors.values() if "no target" in v)
 
@@ -271,9 +266,7 @@ def test_a_transition_without_a_target_is_rejected(load_modules, tmp_path):
 def test_stop_ends_the_workflow(load_modules, tmp_path):
     node = counting_node("NODE_1")
     node["transitions"] = [{"stop": True}]
-    storage = storage_for(tmp_path, [node])
-
-    response = start_engine(storage, None)
+    _, response = storage_for(tmp_path, [node])
 
     assert response.title == "Loop finished"
     assert EXECUTIONS.count("NODE_1") == 1
