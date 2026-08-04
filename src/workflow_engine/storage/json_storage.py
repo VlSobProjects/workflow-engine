@@ -60,11 +60,13 @@ def _load_workflow_from_path(work_flow_file_path: Path) -> Mapping[str, object]:
 class JsonStorage(Storage):
     """JSON Storage class for states and workflows."""
 
-    def __init__(self, working_dir: Path) -> None:
-        super().__init__(working_dir)
+
+    def __init__(self, working_dir: Path,session_id:str) -> None:
+        super().__init__(session_id)
+        self.session_working_dir = working_dir / session_id
 
     def load_workflow(self) -> WorkflowModel:
-        return self.read_workflow(_load_workflow_from_path(self.working_dir.joinpath(WORKFLOW_FILE)))
+        return self.read_workflow(_load_workflow_from_path(self.session_working_dir.joinpath(WORKFLOW_FILE)))
 
     def upload_workflow(self, work_flow_file_path: Path) -> WorkflowModel:
         workflow = self.read_workflow(_load_workflow_from_path(work_flow_file_path))
@@ -73,7 +75,7 @@ class JsonStorage(Storage):
 
     def save_workflow(self, workflow: WorkflowModel) -> None:
         try:
-            workflow_file = self.working_dir.joinpath(WORKFLOW_FILE)
+            workflow_file = self.session_working_dir.joinpath(WORKFLOW_FILE)
             workflow_file.parent.mkdir(parents=True, exist_ok=True)
             with workflow_file.open("w") as f:
                 json.dump(workflow.__dict__, f, indent=4, default=workflow_encoder)
@@ -81,7 +83,7 @@ class JsonStorage(Storage):
             raise WorkflowEngineError("Failed to save workflow") from ex
 
     def load_state(self) -> StateModel:
-        state_file = self.working_dir.joinpath(STATE_FILE)
+        state_file = self.session_working_dir.joinpath(STATE_FILE)
         try:
             if not state_file.is_file():
                 raise StateLoadError(
@@ -102,7 +104,7 @@ class JsonStorage(Storage):
 
     def save_state(self, state: StateModel) -> None:
         """Save state to state file."""
-        state_file = self.working_dir.joinpath(STATE_FILE)
+        state_file = self.session_working_dir.joinpath(STATE_FILE)
         try:
             state_file.parent.mkdir(parents=True, exist_ok=True)
             with state_file.open("w") as f:

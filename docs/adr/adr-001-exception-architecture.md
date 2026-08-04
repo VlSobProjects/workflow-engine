@@ -12,11 +12,11 @@ The engine reports failures inconsistently, and the current structure makes good
 
 - The eight exception types in `exceptions.py` have five separate roots, all sitting directly under
   `Exception`. There is no common root, so callers cannot catch engine failures as a group. This is why
-  `start_engine` used a blind `except Exception`.
+  `_start_engine` used a blind `except Exception`.
 - Around forty raw `TypeError`, `ValueError` and `KeyError` are raised across nine modules. They are not
   part of the vocabulary of the project and cannot be handled by type.
 - Configuration checking is split across two places that disagree with each other. `_load_workflow_nodes`
-  builds every node, and therefore validates actions, before the protected section of `start_engine`, so a
+  builds every node, and therefore validates actions, before the protected section of `_start_engine`, so a
   configuration error escapes the engine instead of becoming a response. `_workflow_nodes_errors` does the
   opposite and collects errors, but only for transitions, only for `WorkflowError`, and only after node
   construction already succeeded.
@@ -69,7 +69,7 @@ and a missing boundary silently loses precision.
 - Configuration problems are reported before start, all at once, with the node and field named.
 - Every layer that owns context gains a small amount of error handling code.
 - Existing call sites that rely on `TypeError` from the models will need to change.
-- The blind `except` in `start_engine` can be narrowed once the hierarchy exists.
+- The blind `except` in `_start_engine` can be narrowed once the hierarchy exists.
 
 ## Related ADRs
 
@@ -86,7 +86,7 @@ helpers cannot be unified before the shape of their errors is settled.
 
 Resolved during implementation:
 
-- Runtime exceptions from registered functions are normalized to `FunctionRuntimeError`, so `start_engine`
+- Runtime exceptions from registered functions are normalized to `FunctionRuntimeError`, so `_start_engine`
   can catch runtime failures by engine type without falling back to `except Exception`.
 - Raw `TypeError` and `ValueError` in guard configuration paths were replaced by project exception types.
 - Node construction errors are aggregated by node id in `_load_workflow_nodes`, returned as setup errors,

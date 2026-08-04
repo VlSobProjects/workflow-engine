@@ -8,6 +8,7 @@ from workflow_engine.exceptions import StateLoadError
 from workflow_engine.models.state import ActionParameter, StateModel
 from workflow_engine.storage.json_storage import JsonStorage
 
+SESSION_ID = "test_session_id"
 
 @pytest.fixture
 def load_modules():
@@ -20,6 +21,7 @@ def state(load_modules, tmp_path):
         timestamp=datetime.datetime.now(tz=datetime.UTC),
         work_dir=tmp_path,
         schema_version="1",
+        session_id=SESSION_ID,
         flow_id="test",
         params={"test_param": ActionParameter.create("test_node_id", "test_param", "string")},
         current_node_id="test_node_id",
@@ -29,7 +31,7 @@ def state(load_modules, tmp_path):
 @pytest.fixture
 def json_storage(tmp_path, state):
     print(f"Temp dir: {tmp_path.absolute()}")
-    storage = JsonStorage(tmp_path)
+    storage = JsonStorage(tmp_path, SESSION_ID)
     storage.save_state(state)
     return storage
 
@@ -79,7 +81,7 @@ def not_exist_work_dir(tmp_path, json_storage):
 
 @pytest.fixture
 def corrupt_json(tmp_path, json_storage):
-    state_file = tmp_path.joinpath("state.json")
+    state_file = tmp_path.joinpath(json_storage.session_id).joinpath("state.json")
     with state_file.open() as f:
         data = f.read()
     data = data[:-1]  # Remove the last character to corrupt the JSON
@@ -94,35 +96,35 @@ def test_load_state(json_storage, state):
 
 
 def test_save_state(tmp_path, json_storage):
-    state_file = tmp_path.joinpath("state.json")
+    state_file = tmp_path.joinpath(json_storage.session_id).joinpath("state.json")
     exist = state_file.is_file()
     print(f" file {state_file.absolute()} exist? {exist}")
     assert exist
 
 
 def test_load_state_with_corrupt_timestamp(corrupt_timestamp):
-    storage = JsonStorage(corrupt_timestamp)
+    storage = JsonStorage(corrupt_timestamp, SESSION_ID)
     with pytest.raises(StateLoadError, match="Invalid isoformat string") as error:
         storage.load_state()
     print(f" Corrupted timestamp error:  {error.value}, cause: {error.value.__cause__}")
 
 
 def test_load_corrupt_state(corrupt_state):
-    storage = JsonStorage(corrupt_state)
+    storage = JsonStorage(corrupt_state,SESSION_ID)
     with pytest.raises(StateLoadError, match="Parameter type mismatch") as error:
         storage.load_state()
     print(f" Corrupted state error:  {error.value}, cause: {error.value.__cause__}")
 
 
 def test_load_corrupt_json(corrupt_json):
-    storage = JsonStorage(corrupt_json)
+    storage = JsonStorage(corrupt_json, SESSION_ID)
     with pytest.raises(StateLoadError,match="Invalid JSON format") as error:
         storage.load_state()
     print(f" Corrupted JSON error:  {error.value}, cause: {error.value.__cause__}")
 
 
 def test_load_not_exist_work_dir(not_exist_work_dir):
-    storage = JsonStorage(not_exist_work_dir)
+    storage = JsonStorage(not_exist_work_dir, SESSION_ID)
     with pytest.raises(StateLoadError, match="Invalid work_dir path") as error:
         storage.load_state()
     print(f" Not exist work_dir:  {error.value}")
@@ -145,7 +147,7 @@ def test_add_param(add_param):
 
 
 def corrupt(json_storage, key: str, corrupted_value):
-    state_file = json_storage.joinpath("state.json")
+    state_file = json_storage.joinpath(SESSION_ID).joinpath("state.json")
     with state_file.open() as f:
         data = json.loads(f.read())
     data[key] = corrupted_value

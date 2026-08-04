@@ -2,14 +2,13 @@ import importlib
 
 import pytest
 
-from workflow_engine.engine import start_engine
+from workflow_engine.engine import WorkflowSession
 from workflow_engine.registry.action_registry import ACTION_REGISTRY
 from workflow_engine.registry.function_registry import (
     FUNCTION_REGISTRY,
     VALIDATOR_REGISTRY,
 )
 from workflow_engine.renderers.simple_render import SimplePresentResponseRender
-from workflow_engine.storage.json_storage import JsonStorage
 
 
 @pytest.fixture
@@ -32,16 +31,18 @@ def registration(load_modules):
 
 
 @pytest.fixture
-def init_storage_simple_workflow(registration, tmp_path, examples_dir):
-    storage = JsonStorage(tmp_path)
-    storage.start_workflow(examples_dir / "simple_workflow.json")
-    return storage
+def init_session(registration, tmp_path, examples_dir):
+    # session = WorkflowSession(tmp_path)
+    # session.
+    # storage.start_workflow(examples_dir / "simple_workflow.json")
+    return WorkflowSession(tmp_path)
 
 
-def test_start_engine(init_storage_simple_workflow):
-    resp = start_engine(init_storage_simple_workflow, None)
+def test_simple_workflow(init_session, examples_dir):
+    resp,session_id = init_session.create_new_session(examples_dir / "simple_workflow.json")
     assert resp
-    state = init_storage_simple_workflow.load_state()
+    storage = init_session.load_storage(session_id)
+    state = storage.load_state()
     print(SimplePresentResponseRender(resp).render())
     assert state
     assert state.visit_counters["NODE_3"] == 1
