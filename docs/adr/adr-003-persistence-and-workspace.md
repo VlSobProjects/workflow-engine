@@ -1,10 +1,10 @@
 # ADR 003: Persistence boundary and run workspace
 
 ## Status
-Implementing
+Accepted
 
 ## Active branch
-feature/adr-003-persistence-and-workspace
+None
 
 ## Context
 
@@ -102,3 +102,4 @@ Open follow-up moved to ADR 004:
 - Chosen boundary clarified: move run start orchestration to `engine.py` until Session abstraction exists.
 - Status changed to `Implementing`; implementation completed in branch
   `feature/adr-003-persistence-and-workspace`, with deferred bootstrap/config concerns moved to ADR 004.
+- Freeze gate passed after merge into `development`; status changed to `Accepted`.
