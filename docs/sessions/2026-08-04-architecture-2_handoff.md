@@ -9,7 +9,7 @@ Review ADR 003 implementation, resolve architecture-level defects, and complete 
 ## Completion criteria
 - ADR 003 implementation is reviewed against architecture rules and accepted with explicit constraints.
 - Follow-up architecture gap is captured as a separate draft ADR.
-- ADR 003 is ready for freeze after merge to `development`.
+- ADR 003 is frozen as `Accepted` on `development`.
 
 ## Scope boundaries
 No redesign of session bootstrap internals in this session beyond creating follow-up ADR draft and documenting boundaries.
@@ -18,7 +18,7 @@ No redesign of session bootstrap internals in this session beyond creating follo
 completed
 
 ## Result
-ADR 003 implementation was reviewed and accepted for merge with one deferred concern moved to ADR 004.
+ADR 003 implementation was reviewed, merged to `development`, and frozen as `Accepted`.
 
 Delivered in this session:
 
@@ -26,14 +26,16 @@ Delivered in this session:
 - Confirmed `Storage` contract is persistence-focused (`session_id`, load/save contract).
 - Confirmed `JsonStorage` stores workflow and state under per-session directory.
 - Reviewed and accepted `_create_session_id` error handling improvements.
-- Updated ADR 003 as implementing with explicit deferred bootstrap/config constraints.
+- Merged `feature/adr-003-persistence-and-workspace` into `development`.
+- Updated ADR 003 from `Implementing` to `Accepted` on `development`.
+- Updated ADR registry and sessions registry on `development`.
 - Created ADR 004 draft for session bootstrap and immutable configuration snapshot.
 
 ## Decisions
 
 - Approve ADR 003 implementation with deferred bootstrap/config snapshot architecture to ADR 004.
 - Keep current `WorkflowSession` to `JsonStorage` coupling as temporary, documented limitation until ADR 004.
-- Proceed with ADR 003 freeze flow: merge branch to `development`, then update ADR status on `development`.
+- Freeze ADR 003 on `development` only after merge gate conditions are met.
 
 Related ADRs:
 
@@ -47,12 +49,13 @@ Related ADRs:
 
 ## Next steps
 
-1. Merge `feature/adr-003-persistence-and-workspace` into `development`.
-2. On `development`, set ADR 003 status to `Accepted` and clear active branch.
-3. Update ADR registry row for ADR 003 to `Accepted`.
-4. Add this session to the sessions registry on `development`.
+1. Run an architecture backlog cleanup session and list missing ADRs for already implemented behavior.
+2. Prioritize and draft ADR for delivery semantics of external actions (idempotency/replay model).
+3. Build an integration workflow scenario matrix beyond `examples/simple_workflow.json` (branching, retries, fail/stop, resume).
+4. Add systematic tests for currently unverified actions (happy path, failure path, edge cases).
+5. Start ADR 004 implementation only after core behavior and action coverage are stabilized by tests.
 
 ## References
 
-- Branch: `feature/adr-003-persistence-and-workspace`.
-- Changed documents: ADR 003, ADR 004 draft, ADR registry.
+- Branches: `feature/adr-003-persistence-and-workspace`, `development`.
+- Changed documents: ADR 003, ADR 004 draft, ADR registry, sessions registry.
