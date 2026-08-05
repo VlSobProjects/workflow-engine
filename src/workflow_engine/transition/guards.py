@@ -54,14 +54,9 @@ class BaseGuard(ABC):
         return result
 
     @classmethod
-    def get_function(cls, data:dict[str, object]) -> RegisteredFunctionExecutor[bool]:
+    def get_function(cls, data: dict[str, object]) -> RegisteredFunctionExecutor[bool]:
         """Return the registered function executor if this guard is a FunctionGuard, else None."""
-        return get_registered_function(
-            cls
-            , bool
-            , data
-            ,{"output": "", "action_output": ActionNodeOutput("")}
-        )
+        return get_registered_function(cls, bool, data, {"output": "", "action_output": ActionNodeOutput("")})
 
     @classmethod
     @abstractmethod
@@ -171,9 +166,7 @@ class ErrorCodeGuard(BaseGuard):
         for index, code in enumerate(error_codes):
             if not isinstance(code, str):
                 raise WorkflowParameterError(
-                    param_name=f"{ERRORS_KEY}[{index}]",
-                    param_type=type(code),
-                    expected_type=str
+                    param_name=f"{ERRORS_KEY}[{index}]", param_type=type(code), expected_type=str
                 )
         self.error_codes = error_codes
 
@@ -220,7 +213,7 @@ class GroupGuard(BaseGuard, ABC):
                 param_name="data",
                 param_type=type(None),
                 expected_type=dict,
-                message=f"{type(self).__name__} needs either a configuration or a list of guards"
+                message=f"{type(self).__name__} needs either a configuration or a list of guards",
             )
         key = self.data_keys()[0]
         entries = parameter_from_dict(data, key, list)
@@ -229,16 +222,12 @@ class GroupGuard(BaseGuard, ABC):
                 param_name=key,
                 param_type=type(None),
                 expected_type=list,
-                message=f"'{key}' must not be empty, a group needs at least one guard"
+                message=f"'{key}' must not be empty, a group needs at least one guard",
             )
         built = []
         for index, entry in enumerate(entries):
             if not isinstance(entry, dict):
-                raise WorkflowParameterError(
-                    param_name=f"{key}[{index}]",
-                    param_type=type(entry),
-                    expected_type=dict
-                )
+                raise WorkflowParameterError(param_name=f"{key}[{index}]", param_type=type(entry), expected_type=dict)
             built.append(guard_factory(entry))
         self.guards = built
 

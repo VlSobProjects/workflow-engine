@@ -7,15 +7,12 @@ from workflow_engine.registry.function_registry import FUNCTION_NAME_KEY, get_re
 
 
 @register_function
-def function_exceptions() ->ActionNodeOutput:
+def function_exceptions() -> ActionNodeOutput:
     raise ValueError("Test value error")
     return ActionNodeOutput("Test value error")
 
 
-
-
-
 def test_execute():
-    func = get_registered_function(BaseAction,ActionNodeOutput,{FUNCTION_NAME_KEY: "function_exceptions"})
-    with pytest.raises(FunctionRuntimeError,match="Test value error"):
+    func = get_registered_function(BaseAction, ActionNodeOutput, {FUNCTION_NAME_KEY: "function_exceptions"})
+    with pytest.raises(FunctionRuntimeError, match="Test value error"):
         func.execute()

@@ -5,6 +5,8 @@ from collections.abc import Iterable
 from inspect import getmro
 from typing import ClassVar
 
+from workflow_engine.exceptions import WorkflowConfigurationError
+
 CODECS: dict[type, type[Codec]] = {}
 CODEC_REGISTRY: dict[str, type[Codec]] = {}
 
@@ -43,6 +45,7 @@ class Codec(ABC):
     @classmethod
     def can_decode(cls, value: object) -> bool:
         return isinstance(value, cls.python_type())
+
 
 class NoCodec(Codec):
     _python_type: ClassVar[type] = object
@@ -124,7 +127,7 @@ def register_type(codec_type: type):
 
         if codec_type in CODECS:
             registered = CODECS[codec_type]
-            raise TypeError(f"{codec_type.__name__!r} already registered by {registered.__name__}")
+            raise WorkflowConfigurationError(f"{codec_type.__name__!r} already registered by {registered.__name__}")
 
         codec_cls._python_type = codec_type
 
@@ -134,3 +137,9 @@ def register_type(codec_type: type):
         return codec_cls
 
     return decorator
+
+
+def get_registered_codec_info() -> dict[str, str]:
+    return {
+        key: cls.python_type().__name__ if cls.python_type() is not None else "" for key, cls in CODEC_REGISTRY.items()
+    }

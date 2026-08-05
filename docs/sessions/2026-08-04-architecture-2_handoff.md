@@ -22,7 +22,7 @@ ADR 003 implementation was reviewed, merged to `development`, and frozen as `Acc
 
 Delivered in this session:
 
-- Validated run/bootstrap boundary moved from `Storage` to `WorkflowSession`.
+- Validated run/bootstrap boundary moved from `Storage` to `WorkflowSessions`.
 - Confirmed `Storage` contract is persistence-focused (`session_id`, load/save contract).
 - Confirmed `JsonStorage` stores workflow and state under per-session directory.
 - Reviewed and accepted `_create_session_id` error handling improvements.
@@ -34,7 +34,7 @@ Delivered in this session:
 ## Decisions
 
 - Approve ADR 003 implementation with deferred bootstrap/config snapshot architecture to ADR 004.
-- Keep current `WorkflowSession` to `JsonStorage` coupling as temporary, documented limitation until ADR 004.
+- Keep current `WorkflowSessions` to `JsonStorage` coupling as temporary, documented limitation until ADR 004.
 - Freeze ADR 003 on `development` only after merge gate conditions are met.
 
 Related ADRs:

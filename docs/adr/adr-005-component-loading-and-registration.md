@@ -28,25 +28,25 @@ Current evidence:
 
 - `docs/architecture/overview.md` states there is no discovery mechanism yet.
 - Tests explicitly import modules to populate registries (`tests/test_registration.py`, `tests/test_engine.py`).
-- `WorkflowSession` does not execute an explicit component loading phase before calling the engine.
+- `WorkflowSessions` does not execute an explicit component loading phase before calling the engine.
 
 As a result, runtime behavior depends on import order and caller discipline.
 
 ## Decision
 
-Introduce an explicit, deterministic plugin loading contract owned by session bootstrap:
+Introduce an explicit, deterministic component loading contract owned by bootstrap:
 
 1. Keep current decorator-based registries as the runtime extension mechanism.
-2. Add a dedicated bootstrap API that loads plugin modules before any workflow node construction.
-3. Support two extension channels:
-   - **Local modules**: explicit manifest of module import paths.
-   - **External packages**: Python entry points in group `workflow_engine.plugins`.
-4. Keep loading deterministic:
-   - load local manifest modules first (declared order),
-   - then load entry-point plugins in stable sorted order by entry-point name.
-5. Fail fast with configuration errors when a declared module or entry-point target cannot be imported.
+2. Add a dedicated bootstrap API that loads component modules before any workflow node construction.
+3. Support two loading sources in this ADR scope:
+   - **Core modules**: fixed manifest shipped with `workflow_engine`.
+   - **External modules**: explicit `external_modules` list from `WorkflowEngineConfiguration`.
+4. Keep loading deterministic at the boundary level:
+   - load all core modules first,
+   - load external modules only after core loading succeeds.
+5. Fail fast with configuration errors when a declared module target cannot be imported or initialized.
 
-Plugin authors only need to provide importable modules that register actions/functions/validators/codecs through existing decorators.
+This ADR does **not** include Python entry-point discovery. Entry points are deferred as a future extension.
 
 ## Alternatives considered
 
@@ -54,21 +54,33 @@ Plugin authors only need to provide importable modules that register actions/fun
 Pros: zero implementation cost.
 Cons: hidden runtime dependency on import order; fragile behavior for new callers; poor operability.
 
-### B. Entry-point discovery only
+### B. Entry-point discovery now
 Pros: natural packaging model for external plugins.
-Cons: weaker local development ergonomics, less explicit control in deployments that require strict loading surface.
+Cons: weaker operator control over what gets loaded; unresolved conflict policy for same-name registrations from different packages.
 
-### C. Hybrid: explicit local manifest + entry-point plugins (chosen)
-Pros: simple local extension path and first-class external plugin path; deterministic startup; auditable loading surface.
-Cons: moderate implementation cost; requires both manifest maintenance and entry-point contract documentation.
+### C. Explicit manifest + explicit config modules (chosen)
+Pros: deterministic startup, auditable loading surface, full operator control over loaded external modules.
+Cons: requires configuration maintenance for external modules.
 
 ## Consequences
 
 - Startup becomes deterministic and reproducible across CLI/tests/integrations.
-- Plugin development is supported both in-project and in separate installed projects.
-- Missing imports/entry points become explicit configuration failures instead of late "not registered" errors.
+- Loading surface is explicit and controlled by configuration.
+- Missing imports become explicit configuration failures instead of late "not registered" errors.
 - Existing callers must invoke bootstrap once per process/session entrypoint.
-- Operational cost: maintain a local manifest and document entry-point conventions.
+- Operational cost: maintain external module paths in configuration.
+- External packages are still supported when installed and referenced explicitly in `external_modules`.
+
+## Deferred extension: entry-point discovery
+
+Entry-point discovery is explicitly deferred and is not part of this ADR implementation freeze.
+
+Before implementing entry points, a separate ADR must define:
+
+- registration conflict policy for same-name components from different modules/packages;
+- whether registries stay name-only or move to module-qualified identifiers;
+- deterministic precedence and override rules;
+- operator visibility/auditability of auto-discovered components.
 
 ## Related ADRs
 
@@ -80,26 +92,29 @@ Cons: moderate implementation cost; requires both manifest maintenance and entry
 
 Target runtime architecture:
 
-- `workflow_engine.bootstrap.component_loader` is the orchestrator and is called from `engine.py`
-  before any node construction (`workflow_node_factory`) and before the execution loop.
-- `workflow_engine.bootstrap.plugin_manifest` loads ordered local modules (built-ins and local plugins).
-- `workflow_engine.bootstrap.plugin_entrypoints` discovers and loads external plugins from Python
-  entry points.
+- `workflow_engine.bootstrap.component_loader` is the orchestrator and is called from bootstrap
+  before engine construction.
+- `workflow_engine.bootstrap.plugin_manifest` loads built-in core modules.
+- `workflow_engine.bootstrap.plugin_external_modules` loads external modules from configuration.
+- `workflow_engine.bootstrap.module_loader` is the shared import/initialization helper and
+  normalizes loading errors.
 
 Suggested package layout:
 
 - `src/workflow_engine/bootstrap/component_loader.py`
 - `src/workflow_engine/bootstrap/plugin_manifest.py`
-- `src/workflow_engine/bootstrap/plugin_entrypoints.py`
+- `src/workflow_engine/bootstrap/plugin_external_modules.py`
+- `src/workflow_engine/bootstrap/module_loader.py`
 - `src/workflow_engine/bootstrap/__init__.py`
 
 Responsibilities and contracts:
 
 - `ComponentLoader` orchestrates loading sources in deterministic order and surfaces typed
   configuration failures.
-- `ManifestPluginSource` imports module paths from manifest in declared order.
-- `EntryPointPluginSource` discovers entry points from group `workflow_engine.plugins`,
-  sorts by entry-point name, and loads each target.
+- `ManifestPluginSource` loads built-in core modules.
+- `plugin_external_modules` loads configured external module targets.
+- `module_loader` imports modules (and optional `module:function` targets) and adds source/module
+  context to configuration errors.
 - Registries remain unchanged; loading only triggers module import so decorator registration runs.
 
 `__init__.py` policy:
@@ -111,54 +126,41 @@ Responsibilities and contracts:
 
 Practical defaults:
 
-- Default built-in local modules are exactly the modules currently imported in tests:
+- Default built-in core modules are:
   - `workflow_engine.codecs.base_codecs`
   - `workflow_engine.validators.output_function_validators`
   - `workflow_engine.actions.base_functions`
   - `workflow_engine.actions.action_nodes`
 
-External plugin discovery model:
-
-- External package declares entry point in its `pyproject.toml`:
-  - `[project.entry-points."workflow_engine.plugins"]`
-  - `my_plugin = "my_wfe_plugin.plugin"`
-- Loader uses `importlib.metadata.entry_points(group="workflow_engine.plugins")`.
-- Entry points are processed in stable sorted order by `name`.
-- Each `ep.load()` imports plugin target module; decorators in that module register components.
-
 Implementation steps:
 
 1. Define bootstrap contract:
    - `ComponentLoader` interface with `load_all()` and typed configuration errors.
-2. Add local module manifest model:
-   - `components.local_modules` (ordered list of module import paths).
-3. Add external plugin contract:
-   - entry-point group `workflow_engine.plugins`;
-   - each entry point resolves to a plugin module import target.
-4. Implement hybrid loader:
-   - import local modules in declared order;
-   - load entry-point plugins in stable sorted order;
-   - collect and report module/entry-point import failures with source and exception type.
-5. Wire into session start/resume:
-   - call loader from `engine.py` before `workflow_node_factory` usage and before engine loop start.
+2. Add core module manifest.
+3. Add external modules contract:
+   - `external_modules` in configuration;
+   - each item is `module` or `module:function`.
+4. Implement loader orchestration:
+   - load core modules first;
+   - load external modules second;
+   - collect and report loading failures with source and exception type.
+5. Wire into bootstrap path so loading happens before engine usage.
 6. Keep backward compatibility:
-   - provide default local manifest equal to current built-in modules.
+   - provide default core modules equal to current built-ins.
 7. Add runtime guardrails:
    - optional strict mode that verifies registries are non-empty after bootstrap.
-8. Publish plugin authoring guide:
-   - minimal plugin layout for local module and external package;
-   - entry-point declaration examples.
+8. Publish plugin authoring guide for explicit module configuration.
 
 Testing steps:
 
 1. Positive local plugin test:
-   - local manifest with built-in and local plugin modules loads expected registry entries.
+   - core modules + local external module load expected registry entries.
 2. Positive external plugin test:
-   - installed test package exposes `workflow_engine.plugins` entry point and registers expected components.
+   - installed external package module path in config registers expected components.
 3. Missing module test:
    - manifest includes one invalid module path and returns a configuration error.
-4. Broken entry-point test:
-   - entry point target import fails and returns explicit configuration error with plugin name.
+4. Broken module target test:
+   - `module:function` target not found and returns explicit configuration error with module and source.
 5. Determinism test:
    - repeated bootstrap calls produce stable registry key sets.
 6. Resume parity test:
@@ -168,10 +170,10 @@ Testing steps:
 
 Success criteria:
 
-- Plugin registration works in both modes: local manifest and installed external package.
+- Plugin registration works in both modes: built-in core modules and configured external modules.
 - No test path needs ad hoc module imports only to populate registries.
 - Workflow start/resume fails fast and explicitly when manifest is invalid.
-- Workflow start/resume fails fast and explicitly when entry-point plugin loading is invalid.
+- Workflow start/resume fails fast and explicitly when external module loading is invalid.
 - Registry content for built-ins is stable across repeated runs.
 - Existing example workflow executes successfully under bootstrap contract.
 
@@ -187,10 +189,10 @@ Test data for testing:
    - valid minimal manifest + `tests.plugins.local_extra_actions`
 3. `manifest_invalid_module`:
    - valid minimal manifest + `workflow_engine.actions.not_existing_module`
-4. `entrypoint_plugin_valid`:
-   - test package entry point: `workflow_engine.plugins = ext_sample = ext_sample.plugin`
-5. `entrypoint_plugin_broken`:
-   - test package entry point points to missing target module
+4. `external_module_valid`:
+   - test package module path in config: `ext_sample.plugin`
+5. `external_module_broken_target`:
+   - config target points to missing `module:function`
 6. `workflow_smoke_function_action`:
    - minimal workflow JSON using `function` action and one guarded transition.
 7. `workflow_resume_same_manifest`:
@@ -202,3 +204,7 @@ Test data for testing:
 - Refined scope: primary goal is plugin extensibility with stable core, in both local-module and external-package models.
 - Added concrete runtime architecture details: bootstrap package layout, `ComponentLoader` orchestration
   point in `engine.py`, `__init__.py` policy, built-in manifest defaults, and entry-point discovery flow.
+- Aligned decision with implemented architecture: explicit core manifest + explicit `external_modules`
+  configuration; deferred entry-point discovery to future work.
+- Added constraint for future entry-point ADR: resolve registration conflict policy (including
+  same-name components from different modules/packages) before implementation.

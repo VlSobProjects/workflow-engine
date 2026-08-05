@@ -29,7 +29,7 @@ def _check_args[T](
         elif not checker(value):
             errors[arg] = f"Argument {value.__str__()} - validation '{on_validation_failed}' failed."
     if len(errors) > 0:
-        raise FunctionRuntimeError(function_name,errors)
+        raise FunctionRuntimeError(function_name, errors)
 
 
 def not_empty_str_arg_validator(chek_ars: dict[str, int]):

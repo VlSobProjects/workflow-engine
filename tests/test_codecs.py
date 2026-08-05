@@ -79,10 +79,11 @@ def test_collection_different_types():
     assert param.codec == param_converted.codec
     assert param.value == param_converted.value
 
+
 def test_exception_raised():
     with pytest.raises(StateLoadParameterError, match="Value can't be None"):
         ActionParameter.create("source_node_id", "name", None)
     with pytest.raises(StateLoadParameterError, match="Value can't be None"):
-        ActionParameter("source_node_id", "name", None,NoCodec)
+        ActionParameter("source_node_id", "name", None, NoCodec)
     with pytest.raises(StateLoadParameterError, match="does not match codec"):
-        ActionParameter("source_node_id", "name", "string",IntCodec)
+        ActionParameter("source_node_id", "name", "string", IntCodec)

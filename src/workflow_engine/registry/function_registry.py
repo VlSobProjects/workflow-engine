@@ -36,9 +36,7 @@ class BaseRegisteredFunction[T](ABC):
             _ = self.signature.bind(**bound_args)
         except TypeError as e:
             ex = FunctionConfigurationError(
-                function_name=self.name,
-                parameters=bound_args,
-                message="signature.bind failed"
+                function_name=self.name, parameters=bound_args, message="signature.bind failed"
             )
             ex.add_note(f"Function signature: {self.signature.parameters.__repr__()}")
             raise ex from e
@@ -47,17 +45,15 @@ class BaseRegisteredFunction[T](ABC):
         r_type = self.hints.get("return")
         if r_type is None:
             raise FunctionConfigurationError(
-                function_name=self.name,
-                parameters=None,
-                message="Function return type is not specified in type hints"
+                function_name=self.name, parameters=None, message="Function return type is not specified in type hints"
             )
         if self.hints["return"] != self.get_expected_type():
             raise FunctionConfigurationError(
                 function_name=self.name,
                 parameters=None,
                 message=f"Function return type is incorrect. "
-                        f"Expected: {self.get_expected_type().__name__}, "
-                        f"got: {r_type.__repr__()}"
+                f"Expected: {self.get_expected_type().__name__}, "
+                f"got: {r_type.__repr__()}",
             )
 
     @classmethod
@@ -172,8 +168,9 @@ class RegisteredFunctionExecutor[T]:
             raise FunctionRuntimeError(
                 function_name=self.registered_function.name,
                 parameters=params,
-                message=f"Error executing registered function: {e}"
+                message=f"Error executing registered function: {e}",
             ) from e
+
 
 def _get_registered_executor[T](
     registry: dict[str, BaseRegisteredFunction[T]], name: str, parameters: dict[str, object] | None = None
@@ -187,11 +184,12 @@ def _get_registered_executor[T](
         )
     return RegisteredFunctionExecutor(registered_function=registered_function, parameters=parameters)
 
+
 def get_registered_function[T](
-        requested_class: type,
-        executor_return: type[T],
-        data: dict[str, object],
-        addition_parameters: dict[str, object] | None = None
+    requested_class: type,
+    executor_return: type[T],
+    data: dict[str, object],
+    addition_parameters: dict[str, object] | None = None,
 ) -> RegisteredFunctionExecutor[T]:
     """Get a registered function or validator based on the requested class and data."""
     from workflow_engine.actions.base_actions import BaseAction
@@ -199,26 +197,18 @@ def get_registered_function[T](
 
     f_name = parameter_from_dict(data, FUNCTION_NAME_KEY, str)
     params = parameter_from_dict_optional(data, FUNCTION_PARAMETERS_KEY, dict)
-    func_ex:RegisteredFunctionExecutor[T]
+    func_ex: RegisteredFunctionExecutor[T]
     # Determine which registry to use based on the requested class.
     # guard request function from wrong class
-    if  BaseAction in getmro(requested_class):
-        func_ex =  _get_registered_executor(
-            FUNCTION_REGISTRY,
-            f_name,
-            params
-        )
+    if BaseAction in getmro(requested_class):
+        func_ex = _get_registered_executor(FUNCTION_REGISTRY, f_name, params)
     elif BaseGuard in getmro(requested_class):
-        func_ex =  _get_registered_executor(
-            VALIDATOR_REGISTRY,
-            f_name,
-            params
-        )
+        func_ex = _get_registered_executor(VALIDATOR_REGISTRY, f_name, params)
     else:
         raise FunctionConfigurationError(
             function_name=f_name,
             parameters=params,
-            message=f'Function {type(requested_class).__name__} is not allowed to use registered functions'
+            message=f"Function {type(requested_class).__name__} is not allowed to use registered functions",
         )
     if addition_parameters is not None:
         if params is None:
@@ -231,10 +221,17 @@ def get_registered_function[T](
         raise FunctionConfigurationError(
             function_name=f_name,
             parameters=params,
-            message=f"Function '{f_name}' return type is not compatible with expected type {executor_return.__name__}"
+            message=f"Function '{f_name}' return type is not compatible with expected type {executor_return.__name__}",
         )
 
     # check function parameters in configuration time
     func_ex.registered_function.check_args(params)
     return func_ex
 
+
+def get_registered_function_info() -> dict[str, str]:
+    return {key: ex.function.__doc__ or "N/A" for key, ex in FUNCTION_REGISTRY.items()}
+
+
+def get_registered_validator_info() -> dict[str, str]:
+    return {key: ex.function.__doc__ or "N/A" for key, ex in VALIDATOR_REGISTRY.items()}
