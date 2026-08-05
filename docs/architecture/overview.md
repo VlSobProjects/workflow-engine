@@ -75,8 +75,8 @@ Components are registered at import time by decorators and looked up by name fro
 | `VALIDATOR_REGISTRY` | Functions returning `bool`, used by guards | `@register_validator` |
 | `CODECS` and `CODEC_REGISTRY` | Codecs by Python type and by type name | `@register_type` |
 
-A module that registers something has to be imported by the code that needs it. There is no
-discovery mechanism yet.
+A module that registers something has to be imported by bootstrap before workflow execution.
+`ComponentLoader` loads built-in core modules first and then configured external modules.
 
 Guards and transitions are not registries: their classes are listed in their own modules.
 
@@ -102,5 +102,4 @@ is written on every turn.
 - The boundary between persistence and the working directory. See ADR 003.
 - How data passes between nodes, and who may read or write which part of the state. The state
   currently mixes a journal written by the engine with a bus written by actions.
-- How registered components are loaded, including from outside the project.
 - The error and retry policy beyond the allowance a transition declares.

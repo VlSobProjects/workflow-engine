@@ -1,10 +1,10 @@
 # ADR 005: Component loading and plugin registration model
 
 ## Status
-Draft
+Accepted
 
 ## Active branch
-None
+—
 
 ## Context
 

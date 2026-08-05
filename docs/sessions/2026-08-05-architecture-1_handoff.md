@@ -32,10 +32,9 @@ was aligned with implemented behavior (explicit core manifest + explicit `extern
 None yet.
 
 ## Next steps
-1. Merge `feature/adr-005-component-loading-and-registration` into `development`.
-2. Mark ADR 005 as Accepted and update ADR/session registries on `development`.
-3. Open a follow-up draft ADR for entry-point discovery policy.
+1. Open a follow-up draft ADR for entry-point discovery policy and conflict resolution rules.
 
 ## References
 - Branch: feature/adr-005-component-loading-and-registration
+- Merged into: development
 - ADR: docs/adr/adr-005-component-loading-and-registration.md

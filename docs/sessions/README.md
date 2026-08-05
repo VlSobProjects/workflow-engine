@@ -64,6 +64,7 @@ missing from the registry is effectively lost. Add the row when the branch is me
 | 2026-08-04 | architecture | Reviewed ADR 003 implementation, merged it to development, froze ADR 003 as Accepted, and opened ADR 004 for bootstrap/config snapshot follow-up | completed | development | [2026-08-04-architecture-2_handoff.md](2026-08-04-architecture-2_handoff.md) |
 | 2026-08-04 | architecture | Audited architecture backlog, mapped missing ADR topics for implemented behavior, and prioritized follow-up drafts after ADR 004 | completed | development | [2026-08-04-architecture-3_handoff.md](2026-08-04-architecture-3_handoff.md) |
 | 2026-08-04 | architecture | Drafted and refined ADR 005 in plugin-first scope (local manifest + external entry-point plugins) with concrete runtime loading architecture and implementation/testing criteria | completed | development | [2026-08-04-architecture-4_handoff.md](2026-08-04-architecture-4_handoff.md) |
+| 2026-08-05 | architecture | Reviewed ADR 005 implementation, resolved blocking architecture defects, aligned the ADR text with delivered bootstrap loading, and froze ADR 005 as Accepted | completed | development | [2026-08-05-architecture-1_handoff.md](2026-08-05-architecture-1_handoff.md) |
 
 `Summary` states what the session was about, in one line.
 `Status` is `completed` or `interrupted`.
