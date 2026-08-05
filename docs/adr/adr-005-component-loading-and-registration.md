@@ -84,7 +84,7 @@ Before implementing entry points, a separate ADR must define:
 
 ## Related ADRs
 
-- ADR 004 session bootstrap and configuration snapshot (Draft): defines bootstrap boundary where this loader belongs.
+- ADR 004 session bootstrap and configuration snapshot (Implementing): defines bootstrap boundary where this loader belongs.
 - ADR 003 persistence boundary and run workspace (Accepted): keeps persistence concerns separate from bootstrap concerns.
 - ADR 002 node composition (Accepted): relies on stable action/guard creation by name.
 

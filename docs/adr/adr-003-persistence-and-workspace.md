@@ -77,7 +77,7 @@ Chosen: **B**.
 
 - ADR 002 node composition.
 - ADR 001 exception architecture.
-- ADR 004 session bootstrap and configuration snapshot (Draft, follow-up).
+- ADR 004 session bootstrap and configuration snapshot (Implementing, follow-up).
 
 ## Implementation notes
 
