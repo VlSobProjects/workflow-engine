@@ -71,7 +71,7 @@ class CreateArtifactAction(BaseAutomaticAction):
                     artifacts.mkdir(parents=True, exist_ok=True)
                 artifact_file = artifacts / file_name
                 artifact_file.touch(exist_ok=True)
-                return ActionNodeOutput(str(artifact_file.absolute()))
+                return ActionNodeOutput(artifact_file.absolute().as_posix())
             except OSError as e:
                 return ActionNodeOutput(
                     output_text=f"Exception in create artifact: {file_name}",

@@ -92,36 +92,53 @@ Chosen: **D**.
 
 ## Implementation notes
 
-Planned sequence:
+Delivered in `feature/adr_004-session-bootstrap-and-config-snapshot`:
 
-1. Define the session metadata record and its serialized shape in the session directory.
-2. Extend `StorageFactory` with two entry points:
-   - build storage for a **new** session from global configuration;
-   - build storage for an **existing** session from its metadata record.
-3. Write the metadata record when the session directory is created, before the first state is saved.
-4. Make storage resolution lazy: `Bootstrap` no longer builds a single process wide `Storage` eagerly;
-   the engine resolves storage per session.
-5. Normalize failures to explicit configuration/runtime errors per ADR 001.
+1. `WorkflowSession` is the session metadata record. It is serialized as `session.json` inside the session
+   directory and holds `session_id`, `work_dir`, `flow_id`, `schema_version`, `timestamp` and the storage
+   settings of the session.
+2. `WorkflowSessionsFactory` writes the record when the session is created and loads it on resume.
+   Loading validates the record before any state is read: it must be readable, must sit in the directory it
+   describes, and must carry the requested `session_id`.
+3. `StorageFactory` was split into two responsibilities: producing the storage settings for a new session
+   from global configuration, and building a `Storage` from the settings of a given session.
+4. `Bootstrap` no longer builds a process wide `Storage`. It passes `StorageFactory` to the engine, which
+   resolves storage per session.
+5. `WorkflowEngine` builds storage from the record on resume and from configuration on a new session, and
+   rejects a session whose record and state disagree.
+6. Failures of session resolution are raised as `WorkflowRuntimeError`, including corrupted records and
+   filesystem failures, so nothing raw escapes the boundary. See ADR 001.
 
-Testing steps:
+Paths are serialized in POSIX form. Without it the same session directory is written differently depending
+on the shell the engine runs from, which makes the recorded paths compare unequal and forces conversion at
+every call site.
 
-1. Resume after global storage settings changed: the session still resolves to its original storage.
-2. Missing metadata record for a known `session_id`: explicit error.
-3. Corrupted or unreadable metadata record: explicit error naming the session.
-4. Metadata record whose `session_id` does not match the requested one: explicit error.
-5. New session writes the record exactly once and does not rewrite it on later saves.
-6. Existing end to end workflow start and resume still pass.
+Tests delivered in `tests/test_engine.py`:
 
-Success criteria:
+1. Resume under a changed global storage configuration keeps the storage of the session, and the storage
+   directory the current configuration points at is never created.
+2. The session record is written once and is byte identical after a later resume.
+3. A missing record fails and names the session.
+4. A corrupted record fails as an engine error, not as a raw decoding failure.
+5. A record carrying another `session_id` fails before the state is looked up, naming both identifiers.
+
+Success criteria, as verified:
 
 - Resume never reads storage settings from the current global configuration.
 - A storage settings change in configuration affects only newly created sessions.
 - Every unresolvable session fails explicitly, with the session identifier in the message.
 
-Open points:
+Resolved open points:
 
-- Whether the metadata record also stores an engine or schema compatibility marker.
-- Whether a legacy session without a record gets a migration path or stays unsupported.
+- The record carries no engine or schema compatibility marker beyond `schema_version`.
+- Sessions created before this decision are not supported and fail as unresolvable; there are no such
+  sessions outside development workspaces.
+
+Left open on purpose:
+
+- The storage settings are a plain mapping with no backend discriminator, because `JsonStorage` is still
+  the only implementation. Introducing a second backend requires deciding how the record identifies it.
+- Discovery across several `work_dir` roots.
 
 ## Change log
 
@@ -135,3 +152,6 @@ Open points:
 - `work_dir` as the single discovery root recorded as an accepted limitation, with a global session index
   deferred to a separate ADR.
 - Status changed to `Implementing`.
+- Implementation notes rewritten to describe the delivered result, including POSIX path serialization and
+  the validation rules of the session record.
+- Freeze gate passed after merge into `development`; status changed to `Accepted`.

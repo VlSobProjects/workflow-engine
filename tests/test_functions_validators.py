@@ -24,14 +24,19 @@ def test_action_param_file_exists_validator(tests_dir):
         print(f"FunctionRuntimeError: {e.value}")
 
     with pytest.raises(FunctionRuntimeError) as e:
-        _ = function_with_params(str(tests_dir / "test_functions_validators.py"), "value", 1, "value")
+        _ = function_with_params(
+            file_path=(tests_dir / "test_functions_validators.py").as_posix(),
+            other_param="value",
+            number=1,
+            another_param="value",
+        )
         print(f"FunctionRuntimeError: {e.value}")
     # assert test2.error_code == "file_not_found"
     test3 = function_with_params(
         number=1,
-        file_path=str(tests_dir / "test_functions_validators.py"),
-        other_param=str(tests_dir / "test_json_storage.py"),
-        another_param=str(tests_dir / "test_guards.py"),
+        file_path=(tests_dir / "test_functions_validators.py").as_posix(),
+        other_param=(tests_dir / "test_json_storage.py").as_posix(),
+        another_param=(tests_dir / "test_guards.py").as_posix(),
     )
     print(f"Test 3: {test3.output_text}, error_code: {test3.error_code}, error_message: {test3.error_message}")
     assert test3.output_text == "all good"

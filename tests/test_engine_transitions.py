@@ -31,13 +31,14 @@ COMPONENT_REPORT = False
 
 
 def create_engine(tmp_path: Path) -> WorkflowEngine:
-    bootstrap = Bootstrap(WorkflowEngineConfiguration(work_dir=str(tmp_path)))
+    bootstrap = Bootstrap(WorkflowEngineConfiguration(work_dir=tmp_path.as_posix()))
     engine = bootstrap.build_engine()
     global COMPONENT_REPORT
     if not COMPONENT_REPORT:
         print("\n" + engine.components_report())
         COMPONENT_REPORT = True
     return engine
+
 
 @pytest.fixture
 def load_engine(tmp_path):
@@ -61,7 +62,7 @@ def create_folder_node(node_id: str, work_dir: Path, folder_name: str) -> dict[s
         "action_type": "function",
         "action_parameters": {
             "function_name": "create_folder",
-            "function_parameters": {"path_target": str(work_dir), "folder_name": folder_name},
+            "function_parameters": {"path_target": work_dir.as_posix(), "folder_name": folder_name},
         },
     }
 
@@ -209,7 +210,6 @@ def test_the_retry_budget_does_not_depend_on_how_the_node_was_entered(load_engin
 
     started = EXECUTIONS.count("LOOP")
     EXECUTIONS.clear()
-
 
     engine_for(create_engine(tmp_path), tmp_path / "b", [entry, looping_node()])
     entered = EXECUTIONS.count("LOOP")

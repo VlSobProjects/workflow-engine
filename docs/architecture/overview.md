@@ -92,14 +92,44 @@ save and a load.
 ## Storage
 
 `Storage` is an abstract class over a state source and a workflow source. `JsonStorage` is its only
-implementation and keeps both in the working directory as `state.json` and `workflow.json`. The state
-is written on every turn.
+implementation and keeps both under `<storage_dir>/<session_id>/` as `state.json` and `workflow.json`.
+The state is written on every turn.
+
+Storage is built per session, not once per process, because a session decides which storage it uses.
+
+## Sessions
+
+A session owns a directory under `<work_dir>/sessions/<session_id>/`, which is the `work_dir` of the run.
+Next to the run files it holds `session.json`, the session record. See ADR 004.
+
+| Field | Meaning |
+| --- | --- |
+| `session_id` | Identifier of the session and the name of its directory |
+| `work_dir` | The session directory itself |
+| `flow_id`, `schema_version` | The workflow the session was started from |
+| `storage` | The storage settings the session was created with |
+| `timestamp` | When the session was created |
+
+The record is written once, when the session is created, and is never rewritten.
+
+Global configuration supplies storage settings only when a **new** session is created. A resumed session
+reads its record first and builds storage from it, so changing the global storage settings later does not
+affect sessions that already exist.
+
+Loading a session validates the record before the state is read: the record must be readable, must sit in
+the directory it describes, and must carry the requested `session_id`. Anything else fails as an engine
+error. The engine additionally checks that the record and the loaded state agree.
+
+`work_dir` is the discovery root. A session is found only while the configuration points at the `work_dir`
+it was created under; discovery across several `work_dir` roots is not part of the current architecture.
+
+Paths are serialized in POSIX form, so a record or a state written from one shell reads back identically
+from another.
 
 ## What is not settled yet
 
 - The exception architecture. Configuration errors escape the engine instead of becoming a response,
   and the engine still catches everything at its boundary. See ADR 001.
-- The boundary between persistence and the working directory. See ADR 003.
 - How data passes between nodes, and who may read or write which part of the state. The state
   currently mixes a journal written by the engine with a bus written by actions.
 - The error and retry policy beyond the allowance a transition declares.

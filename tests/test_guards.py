@@ -134,8 +134,8 @@ def test_ends_with_guard(state_base):
 
 def test_function_guard(state_base, tests_dir):
     guard = guard_factory(FUNCTION_GUARD_1)
-    assert guard.check(out(str(tests_dir / "test_guards.py")), state_base)
-    assert not guard.check(out(str(tests_dir / "does_not_exist.py")), state_base)
+    assert guard.check(out((tests_dir / "test_guards.py").as_posix()), state_base)
+    assert not guard.check(out((tests_dir / "does_not_exist.py").as_posix()), state_base)
     assert guard_factory(FUNCTION_GUARD_2).check(out("this is a string"), state_base)
 
 
@@ -170,7 +170,7 @@ def test_negated_guard_on_an_already_reversed_check(state_base, tests_dir):
     assert name == "not is_output_exist_file"
     assert guard.name() == "is_output_exist_file"
     # The post-condition "the output must not be a file" fails when the output is one.
-    assert guard.check(out(str(tests_dir / "test_guards.py")), state_base)
+    assert guard.check(out((tests_dir / "test_guards.py").as_posix()), state_base)
     assert not guard.check(out("no such file"), state_base)
 
 
@@ -231,7 +231,7 @@ def test_trace_records_only_what_was_evaluated(state_base):
 def test_guard_does_not_write_to_the_state(state_base, tests_dir):
     before = copy.deepcopy(state_base.__dict__)
     guard_factory(NESTED_GUARD).check(out("new_string2 is a new test"), state_base, [])
-    guard_factory(FUNCTION_GUARD_1).check(out(str(tests_dir / "test_guards.py")), state_base, [])
+    guard_factory(FUNCTION_GUARD_1).check(out((tests_dir / "test_guards.py").as_posix()), state_base, [])
     guard_factory(ERRORS_GUARD).check(out("", error_code="copy_failed"), state_base, [])
     assert state_base.__dict__ == before
 

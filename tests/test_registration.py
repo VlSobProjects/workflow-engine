@@ -14,7 +14,7 @@ COMPONENT_REPORT = False
 
 @pytest.fixture
 def load_engine(tmp_path):
-    bootstrap = Bootstrap(WorkflowEngineConfiguration(work_dir=str(tmp_path)))
+    bootstrap = Bootstrap(WorkflowEngineConfiguration(work_dir=tmp_path.as_posix()))
     engine = bootstrap.build_engine()
     global COMPONENT_REPORT
     if not COMPONENT_REPORT:
