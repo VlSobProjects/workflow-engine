@@ -1,10 +1,10 @@
 # ADR 004: Session bootstrap and configuration snapshot
 
 ## Status
-Implementing
+Accepted
 
 ## Active branch
-`feature/adr_004-session-bootstrap-and-config-snapshot`
+—
 
 ## Context
 
