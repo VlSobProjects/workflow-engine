@@ -55,7 +55,7 @@ class StringCodec(Codec):
 class PathCodec(Codec):
     @classmethod
     def value_to_dict_obj(cls, value: Path) -> object:
-        return str(value)
+        return value.as_posix()
 
     @classmethod
     def value_from_dict_obj(cls, value: object) -> Path:

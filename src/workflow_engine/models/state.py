@@ -122,6 +122,14 @@ class StateModel:
     flow_budget: int = field(default=0)  # engine-managed params: _flow_budget (int)
     nodes_visited: int = field(default=0)  # engine-managed params: _nodes_visited (int)
 
+    def session_view(self) -> dict[str, object]:
+        return {
+            "work_dir": self.work_dir.as_posix(),
+            "schema_version": self.schema_version,
+            "flow_id": self.flow_id,
+            "session_id": self.session_id,
+        }
+
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> StateModel:
         params: dict[str, object] = {}

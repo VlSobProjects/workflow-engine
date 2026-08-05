@@ -30,7 +30,7 @@ def state_encoder(obj):
         return obj.to_dict()
 
     if isinstance(obj, Path):
-        return str(obj)
+        return obj.as_posix()
 
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 

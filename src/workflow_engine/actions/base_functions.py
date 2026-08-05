@@ -36,9 +36,10 @@ def copy_file(path_source: str, path_target: str) -> ActionNodeOutput:
         return ActionNodeOutput(
             output_text="Can't copy file",
             error_code="copy_failed",
-            error_message=f"Failed to copy file from '{source.absolute()}' to '{target.absolute()}': {e!s}",
+            error_message=f"Failed to copy file from '{source.absolute().as_posix()}' "
+            f"to '{target.absolute().as_posix()}': {e!s}",
         )
-    return ActionNodeOutput(output_text=str(target))
+    return ActionNodeOutput(output_text=target.absolute().as_posix())
 
 
 @register_function(
@@ -52,9 +53,9 @@ def create_folder(path_target: str, folder_name: str) -> ActionNodeOutput:
         return ActionNodeOutput(
             output_text="Can't create folder",
             error_code="create_failed",
-            error_message=f"Failed to create folder '{folder.absolute()}': {e!s}",
+            error_message=f"Failed to create folder '{folder.absolute().as_posix()}': {e!s}",
         )
-    return ActionNodeOutput(output_text=str(folder.absolute()))
+    return ActionNodeOutput(output_text=folder.absolute().as_posix())
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
@@ -66,9 +67,9 @@ def file_delete(file_path: str) -> ActionNodeOutput:
         return ActionNodeOutput(
             output_text="Can't delete file",
             error_code="delete_failed",
-            error_message=f"Failed to delete file '{file.absolute()}': {e!s}",
+            error_message=f"Failed to delete file '{file.absolute().as_posix()}': {e!s}",
         )
-    return ActionNodeOutput(output_text=f"File '{file.absolute()}' deleted successfully")
+    return ActionNodeOutput(output_text=f"File '{file.absolute().as_posix()}' deleted successfully")
 
 
 @register_function(
@@ -76,7 +77,7 @@ def file_delete(file_path: str) -> ActionNodeOutput:
 )
 def save_paths_to_deque(folder_path: str, deque_param_name: str, state: StateModel) -> ActionNodeOutput:
     folder = Path(folder_path)
-    list_of_paths = [item.absolute() for item in folder.iterdir()]
+    list_of_paths = [item.absolute().as_posix() for item in folder.iterdir()]
     e_dq = state.get_param(deque_param_name, deque)
     if e_dq is None:
         state.add_parameter(deque_param_name, deque(list_of_paths))
@@ -84,5 +85,5 @@ def save_paths_to_deque(folder_path: str, deque_param_name: str, state: StateMod
         for item in list_of_paths:
             e_dq.append(item)
     return ActionNodeOutput(
-        output_text=str(folder),
+        output_text=folder.absolute().as_posix(),
     )

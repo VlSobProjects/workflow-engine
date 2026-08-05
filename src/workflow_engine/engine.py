@@ -7,10 +7,11 @@ from workflow_engine.actions.base_actions import (
     BaseAutomaticAction,
     BaseInteractiveAction,
 )
-from workflow_engine.bootstrap.session_factory import WorkflowSessionsFactory
+from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowSessionsFactory
+from workflow_engine.bootstrap.storage_fatcory import StorageFactory
 from workflow_engine.exceptions import WorkflowEngineError, WorkflowParameterError, WorkflowRuntimeError
 from workflow_engine.models.state import GuardRecord, StateModel
-from workflow_engine.models.workflow import WorkflowModel
+from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.storage.storage import Storage
 from workflow_engine.tools import dict_to_text_lv3
@@ -223,7 +224,9 @@ class WorkflowResult:
 
 
 class WorkflowEngine:
-    storage: Storage
+    storage_factory: StorageFactory
+    storage: Storage | None
+    session: WorkflowSession | None
     session_factory: WorkflowSessionsFactory
     components: dict[str, dict[str, dict[str, str]]]
     workflow_nodes: MappingProxyType[str, WorkflowNode]
@@ -231,19 +234,30 @@ class WorkflowEngine:
 
     def __init__(
         self,
-        workflow_storage: Storage,
+        storage_factory: StorageFactory,
         session_factory: WorkflowSessionsFactory,
         components: dict[str, dict[str, dict[str, str]]],
     ) -> None:
-        self.storage = workflow_storage
         self.session_factory = session_factory
+        self.storage_factory = storage_factory
         self.components = components
         self.workflow_nodes = MappingProxyType({})
+        self.storage = None
+        self.session = None
         self.result = None
 
     def _continue_session(self, session_id: str) -> tuple[WorkflowModel, StateModel]:
         """Continue workflow session"""
-        return self.storage.load_workflow(session_id), self.storage.load_state(session_id)
+        session = self.session_factory.load_session(session_id)
+        w_storage = self.storage_factory.build_storage(session.storage)
+        state = w_storage.load_state(session.session_id)
+        if not session.is_same(state):
+            raise WorkflowRuntimeError(
+                f"Session data mismatch: session {session.to_dict()} does not match state {state.session_view()}"
+            )
+        self.session = session
+        self.storage = w_storage
+        return w_storage.load_workflow(session_id), state
 
     def init_new_session(self, workflow_path: Path) -> str:
         if self.result is not None and self.result.state is not None:
@@ -300,10 +314,14 @@ class WorkflowEngine:
 
     def _start_new_session(self, workflow_path: Path) -> tuple[WorkflowModel, StateModel]:
         """Start a new workflow session."""
-        workflow = self.storage.upload_workflow_from_file(workflow_path)
-        state = self.session_factory.new_session(workflow)
-        self.storage.save_state(state)
-        self.storage.save_workflow(state.session_id, workflow)
+        workflow = WorkflowSource.upload_workflow_from_file(workflow_path)
+        session = self.session_factory.new_session(workflow, self.storage_factory.storage_config())
+        w_storage = self.storage_factory.build_storage(session.storage)
+        state = session.create_state(workflow)
+        w_storage.save_state(state)
+        w_storage.save_workflow(state.session_id, workflow)
+        self.storage = w_storage
+        self.session = session
         return workflow, state
 
     def components_report(self) -> str:
@@ -331,6 +349,8 @@ class WorkflowEngine:
                     raise WorkflowEngineError(
                         f"Session ID mismatch: provided {session_id}, but engine has {result.state.session_id}"
                     )
+                if self.storage is None:
+                    raise WorkflowEngineError("Unexpected Storage is not initialized in the engine.")
                 return _start_engine(self.workflow_nodes, self.storage, result.state, output), result.state
             else:
                 raise WorkflowEngineError(

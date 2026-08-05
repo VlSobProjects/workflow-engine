@@ -13,6 +13,6 @@ class Bootstrap:
 
     def build_engine(self) -> WorkflowEngine:
         result = ComponentLoader(self.config).load_all()
-        storage = StorageFactory(self.config).build_storage()
+        storage_factory = StorageFactory(self.config)
         s_factory = WorkflowSessionsFactory(self.config)
-        return WorkflowEngine(storage, s_factory, result)
+        return WorkflowEngine(storage_factory, s_factory, result)
