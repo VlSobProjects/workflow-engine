@@ -34,3 +34,7 @@ def create_action(action_type: str, data: dict[str, object]) -> BaseAction:
     inst.validate_action()
 
     return inst
+
+
+def get_registered_actions_info() -> dict[str, str]:
+    return {key: cls.__doc__ or "" for key, cls in ACTION_REGISTRY.items()}

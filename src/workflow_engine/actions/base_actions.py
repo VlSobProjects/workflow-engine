@@ -21,17 +21,18 @@ class ExecutionMode(Enum):
     AUTOMATIC = auto()
     INTERACTIVE = auto()
 
+
 # To pass in get_and_check_registered function as addition_params
 # To check action function in configuration stage
 # In case action function will have state:StateModel arg so will not accept None
-def _factory_sate_stub() ->StateModel:
+def _factory_sate_stub() -> StateModel:
     return StateModel(
         timestamp=datetime.now(tz=UTC),
         work_dir=Path("/"),
         schema_version="1",
         flow_id="default",
         current_node_id="start",
-        session_id="none"
+        session_id="none",
     )
 
 
@@ -53,17 +54,14 @@ class BaseAction(ABC):
 
     @classmethod
     def get_registered_action_function(
-            cls, data: dict[str, object], addition_params: dict[str, object] | None = None
+        cls, data: dict[str, object], addition_params: dict[str, object] | None = None
     ) -> RegisteredFunctionExecutor[ActionNodeOutput]:
         try:
             a_params = addition_params if addition_params else {}
             a_params.update({"output": "", "state": _factory_sate_stub()})
             return get_registered_function(cls, ActionNodeOutput, data, a_params)
         except WorkflowConfigurationError as e:
-            raise ActionConfigurationError(
-                cls.ACTION_TYPE,
-                "exception in get_registered_function"
-            ) from e
+            raise ActionConfigurationError(cls.ACTION_TYPE, "exception in get_registered_function") from e
 
 
 class BaseAutomaticAction(BaseAction, ABC):

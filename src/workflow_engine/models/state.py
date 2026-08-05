@@ -44,7 +44,11 @@ class GuardRecord:
 
 class StateSource(ABC):
     @abstractmethod
-    def load_state(self) -> StateModel:
+    def load_state(self, session_id: str) -> StateModel:
+        pass
+
+    @abstractmethod
+    def load_all_states(self) -> list[StateModel]:
         pass
 
     @abstractmethod
@@ -62,16 +66,14 @@ class ActionParameter:
     def __init__(self, source_node_id: str, name: str, value: object, codec: type[Codec]) -> None:
         if value is None:
             raise StateLoadParameterError(
-                current_node=source_node_id,
-                parameter_name=name,
-                message="Value can't be None"
+                current_node=source_node_id, parameter_name=name, message="Value can't be None"
             )
 
         if not codec.can_decode(value):
             raise StateLoadParameterError(
                 current_node=source_node_id,
                 parameter_name=name,
-                message=f"Value type {type(value).__name__} does not match codec {codec.python_type().__name__}"
+                message=f"Value type {type(value).__name__} does not match codec {codec.python_type().__name__}",
             )
         self.source_node_id = source_node_id
         self.name = name
@@ -122,40 +124,38 @@ class StateModel:
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> StateModel:
-        params:dict[str, object] = {}
+        params: dict[str, object] = {}
         try:
             params["timestamp"] = datetime.fromisoformat(parameter_from_dict(data, "timestamp", str))
             work_dir = Path(parameter_from_dict(data, "work_dir", str))
             if work_dir.is_dir():
                 params["work_dir"] = work_dir.absolute()
             else:
-                raise StateLoadError(parameter_name="work_dir",message=f"Invalid work_dir path: '{work_dir}'")
+                raise StateLoadError(parameter_name="work_dir", message=f"Invalid work_dir path: '{work_dir}'")
 
             params["schema_version"] = parameter_from_dict(data, "schema_version", str)
             params["session_id"] = parameter_from_dict(data, "session_id", str)
             params["flow_id"] = parameter_from_dict(data, "flow_id", str)
             params["current_node_id"] = parameter_from_dict(data, "current_node_id", str)
-            params["error_code"] = parameter_from_dict_optional(data,"error_code", str)
-            params["error_msg"] = parameter_from_dict_optional(data,"error_msg", str)
-            params["attempt_counters"] = parameter_from_dict_default(data,"attempt_counters", dict,{})
-            params["visit_counters"] = parameter_from_dict_default(data,"visit_counters", dict,{})
-            params["outputs"] = parameter_from_dict_default(data,"outputs", dict,{})
-            params["errors"] = parameter_from_dict_default(data,"errors", dict,{})
+            params["error_code"] = parameter_from_dict_optional(data, "error_code", str)
+            params["error_msg"] = parameter_from_dict_optional(data, "error_msg", str)
+            params["attempt_counters"] = parameter_from_dict_default(data, "attempt_counters", dict, {})
+            params["visit_counters"] = parameter_from_dict_default(data, "visit_counters", dict, {})
+            params["outputs"] = parameter_from_dict_default(data, "outputs", dict, {})
+            params["errors"] = parameter_from_dict_default(data, "errors", dict, {})
             params["params"] = {
                 k: ActionParameter.from_dict(v)
-                for k, v in parameter_from_dict_default(data,"params", dict,{}).items()
+                for k, v in parameter_from_dict_default(data, "params", dict, {}).items()
             }
-            guard_results = parameter_from_dict_default(data,"guard_results", dict,{})
+            guard_results = parameter_from_dict_default(data, "guard_results", dict, {})
             params["guard_results"] = {
-                k: GuardRecord.from_list(parameter_from_dict(guard_results,str(k),list))
-                for k in guard_results
+                k: GuardRecord.from_list(parameter_from_dict(guard_results, str(k), list)) for k in guard_results
             }
-            params["artifacts"] = parameter_from_dict_default(data,"artifacts", dict,{})
-            params["flow_budget"] = parameter_from_dict_default(data,"flow_budget", int,0)
-            params["nodes_visited"] = parameter_from_dict_default(data,"nodes_visited", int,0)
-        except (ValueError,WorkflowParameterError) as e:
+            params["artifacts"] = parameter_from_dict_default(data, "artifacts", dict, {})
+            params["flow_budget"] = parameter_from_dict_default(data, "flow_budget", int, 0)
+            params["nodes_visited"] = parameter_from_dict_default(data, "nodes_visited", int, 0)
+        except (ValueError, WorkflowParameterError) as e:
             raise StateLoadError(parameter_name="state", message=e.__repr__()) from e
-
 
         return cls(**params)
 

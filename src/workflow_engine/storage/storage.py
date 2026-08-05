@@ -7,8 +7,8 @@ from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
 class Storage(StateSource, WorkflowSource, ABC):
     """Storage class for states and workflows."""
 
-    def __init__(self, session_id: str):
-        self.session_id = session_id
+    def load_by_session(self, session_id: str) -> tuple[StateModel, WorkflowModel]:
+        return self.load_state(session_id), self.load_workflow(session_id)
 
-    def continue_workflow(self) -> tuple[StateModel, WorkflowModel]:
-        return self.load_state(), self.load_workflow()
+    def load_all_workflows(self) -> list[tuple[StateModel, WorkflowModel]]:
+        return [(state, self.load_workflow(state.session_id)) for state in self.load_all_states()]

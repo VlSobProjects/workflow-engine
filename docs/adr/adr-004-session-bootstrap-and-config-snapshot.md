@@ -11,7 +11,7 @@ None
 ADR 003 separates run bootstrapping from persistence and keeps `work_dir` in `StateModel`.
 After implementation, two unresolved concerns remain:
 
-- `WorkflowSession` still creates `JsonStorage` directly, so backend selection is coupled to engine code.
+- `WorkflowSessions` still creates `JsonStorage` directly, so backend selection is coupled to engine code.
 - Resume currently derives session paths from current process configuration instead of immutable session metadata.
 
 The system must support backend changes over time without breaking existing sessions. A session started with one
@@ -30,7 +30,7 @@ Introduce an explicit session bootstrap layer with immutable per-session snapsho
 
 ## Alternatives considered
 
-### A. Keep backend construction inside `WorkflowSession`
+### A. Keep backend construction inside `WorkflowSessions`
 Pros: lowest short-term complexity.
 Cons: hard coupling to one backend and no safe resume when global config changes.
 
@@ -64,7 +64,7 @@ Planned sequence:
 
 1. Define `SessionRegistry` contract and record shape.
 2. Define `StorageFactory` contract and profile resolution rules.
-3. Refactor `WorkflowSession` to depend on factory + registry rather than `JsonStorage`.
+3. Refactor `WorkflowSessions` to depend on factory + registry rather than `JsonStorage`.
 4. Add tests for:
    - resume after global storage profile change;
    - failure modes when registry entry is missing or inconsistent;

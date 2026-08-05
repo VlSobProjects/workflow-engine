@@ -1,7 +1,7 @@
-import importlib
-
 import pytest
 
+from workflow_engine.bootstrap.bootstrap import Bootstrap
+from workflow_engine.bootstrap.config_loader import WorkflowEngineConfiguration
 from workflow_engine.registry.action_registry import ACTION_REGISTRY
 from workflow_engine.registry.function_registry import (
     FUNCTION_REGISTRY,
@@ -9,16 +9,21 @@ from workflow_engine.registry.function_registry import (
 )
 from workflow_engine.registry.type_registry import CODEC_REGISTRY
 
+COMPONENT_REPORT = False
+
 
 @pytest.fixture
-def load_modules():
-    importlib.import_module("workflow_engine.codecs.base_codecs")
-    importlib.import_module("workflow_engine.validators.output_function_validators")
-    importlib.import_module("workflow_engine.actions.base_functions")
-    importlib.import_module("workflow_engine.actions.action_nodes")
+def load_engine(tmp_path):
+    bootstrap = Bootstrap(WorkflowEngineConfiguration(work_dir=str(tmp_path)))
+    engine = bootstrap.build_engine()
+    global COMPONENT_REPORT
+    if not COMPONENT_REPORT:
+        print("\n" + engine.components_report())
+        COMPONENT_REPORT = True
+    return engine
 
 
-def test_action_registration(load_modules):
+def test_action_registration(load_engine):
     assert len(VALIDATOR_REGISTRY) > 0
     assert len(FUNCTION_REGISTRY) > 0
     assert len(ACTION_REGISTRY) > 0

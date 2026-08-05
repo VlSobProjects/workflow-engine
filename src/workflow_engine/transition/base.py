@@ -20,6 +20,7 @@ ATTEMPTS_KEY = "attempts"
 STOP_KEY = "stop"
 FAIL_KEY = "fail"
 
+
 @dataclass(frozen=True)
 class Target:
     """Where a node goes when a transition is taken."""
@@ -41,7 +42,7 @@ class NodeTarget(Target):
 
     def check_error(self, workflow_nodes: set[str]) -> None:
         if self.node_id not in workflow_nodes:
-            raise WorkflowParameterError(NEXT_KEY,str,str,f"Next node '{self.node_id}' not found in workflow nodes")
+            raise WorkflowParameterError(NEXT_KEY, str, str, f"Next node '{self.node_id}' not found in workflow nodes")
 
 
 @dataclass(frozen=True)

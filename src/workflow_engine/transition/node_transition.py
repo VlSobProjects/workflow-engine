@@ -53,15 +53,15 @@ def _guard_from(data: dict[str, object]) -> BaseGuard | None:
 
 
 def _target_from(data: dict[str, object]) -> Target:
-    node_id:str | None = parameter_from_dict_optional(data, NEXT_KEY, str)
+    node_id: str | None = parameter_from_dict_optional(data, NEXT_KEY, str)
     if node_id is not None:
         return NodeTarget(node_id=node_id)
 
-    code:str | None = parameter_from_dict_optional(data, FAIL_KEY, str)
+    code: str | None = parameter_from_dict_optional(data, FAIL_KEY, str)
     if code or ERRORS_KEY in data:
         return FailTarget(code=code)
 
-    stop:bool | None = parameter_from_dict_optional(data, STOP_KEY, bool)
+    stop: bool | None = parameter_from_dict_optional(data, STOP_KEY, bool)
     if stop:
         return EndTarget()
 
@@ -79,12 +79,8 @@ def transition_factory(data: dict[str, object], origin: str = "transition") -> T
             raise TransitionConfigurationError(
                 name=origin,
                 parameters=data,
-                message=f"'{ATTEMPTS_KEY}' needs a target that is a node, there is nothing to retry"
+                message=f"'{ATTEMPTS_KEY}' needs a target that is a node, there is nothing to retry",
             )
         return Transition(target=target, guard=_guard_from(data), attempts=attempts, origin=origin)
-    except (WorkflowParameterError , WorkflowParameterConfigurationError) as e:
-        raise TransitionConfigurationError(
-            name=origin,
-            parameters=data,
-            message=f"Error: {e}"
-        ) from e
+    except (WorkflowParameterError, WorkflowParameterConfigurationError) as e:
+        raise TransitionConfigurationError(name=origin, parameters=data, message=f"Error: {e}") from e
