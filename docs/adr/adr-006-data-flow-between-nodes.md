@@ -158,6 +158,32 @@ class ParamWrite:
     allow_overwrite: bool = False
 ```
 
+How this looks in `WorkflowNodeModel` configuration:
+
+- `action_parameters` define only action inputs and static behavior settings.
+- `param_writes` is not configured as a node-level mapping block.
+- Action code computes writes at runtime and returns them in `ActionNodeOutput.param_writes`.
+
+Example node configuration:
+
+```json
+{
+  "id": "collect_file_info",
+  "action_type": "function",
+  "action_parameters": {
+    "function_name": "collect_file_info",
+    "function_parameters": {
+      "file_path": "param.path_from_queue"
+    }
+  },
+  "save_as": "last_result"
+}
+```
+
+In this example, `save_as` may still persist `output_text` for diagnostics/history, while typed workflow
+state updates (for example appending a row into `table_rows`) are returned by the action itself through
+`ActionNodeOutput.param_writes` and applied by the engine.
+
 ## Change log
 
 - Initial draft created to open the data flow discussion with the folder scan scenario.
