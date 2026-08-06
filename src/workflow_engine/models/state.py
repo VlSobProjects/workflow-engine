@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from types import MappingProxyType
 
-from workflow_engine.exceptions import StateLoadError, StateLoadParameterError, WorkflowParameterError
-from workflow_engine.output import ActionNodeOutput
+from workflow_engine.exceptions import (
+    StateLoadError,
+    StateLoadParameterError,
+    WorkflowEngineError,
+    WorkflowParameterError,
+)
+from workflow_engine.output import ActionNodeOutput, ParamWrite
 from workflow_engine.registry.type_registry import (
     Codec,
     convert_from_dict,
@@ -19,6 +26,55 @@ from workflow_engine.tools import (
     parameter_from_dict_default,
     parameter_from_dict_optional,
 )
+
+
+@dataclass(frozen=True)
+class CollectionHandler[T]:
+    collection_type: type[T]
+    copy_fn: Callable[[T], T]
+    append_fn: Callable[[T, object], None]
+
+    def update(self, param: ActionParameter, update: object) -> ActionParameter:
+        if isinstance(param.value, self.collection_type):
+            copy_v = self.copy_fn(param.value)
+            self.append_fn(copy_v, update)
+            return ActionParameter.create(param.source_node_id, param.name, copy_v)
+        else:
+            raise WorkflowEngineError(
+                f"Expected a {self.collection_type.__name__} for append/dict_update, "
+                f"got {type(update).__name__} Check code, ActionParameter value type check "
+                f"for append/dict_update mast be implemented"
+            )
+
+
+COLLECTION_HANDLERS: MappingProxyType[type[object], CollectionHandler[object]]
+
+_COLLECTION_HANDLERS_MUT: dict[type[object], CollectionHandler[object]] = {}
+
+
+def _update_dict(data: dict, updates: object) -> None:
+    """Update a dictionary with another dictionary"""
+    if isinstance(updates, dict):
+        data.update(updates)
+    else:
+        raise WorkflowEngineError(
+            f"Expected a dictionary for dict_update, "
+            f"got {type(updates).__name__} Check code, ParamWrite value check for dict_update mast be implemented"
+        )
+
+
+def _register_collection[T](c_type: type[T], copy_fn: Callable[[T], T], append_fn: Callable[[T, object], None]) -> None:
+    _COLLECTION_HANDLERS_MUT[c_type] = CollectionHandler[T](
+        collection_type=c_type, copy_fn=copy_fn, append_fn=append_fn
+    )
+
+
+_register_collection(list, copy_fn=lambda x: list(x), append_fn=lambda x, v: x.append(v))
+_register_collection(deque, copy_fn=lambda x: deque(x), append_fn=lambda x, v: x.append(v))
+_register_collection(set, copy_fn=lambda x: set(x), append_fn=lambda x, v: x.add(v))
+_register_collection(dict, copy_fn=lambda x: dict(x), append_fn=_update_dict)
+
+COLLECTION_HANDLERS = MappingProxyType(_COLLECTION_HANDLERS_MUT)
 
 
 @dataclass(frozen=True, slots=True)
@@ -216,9 +272,9 @@ class StateModel:
             if output.output_text:
                 self.outputs[curr_node_id] = output.output_text
             if output.error_code:
-                self.errors[curr_node_id] = f"[{datetime.now(tz=UTC)}]({output.error_code}) {output.error_message}"
+                self.errors[curr_node_id] = f"[{datetime.now(tz=UTC)}]({output.error_code}) {output.error_msg}"
                 self.error_code = output.error_code
-                self.error_msg = output.error_message
+                self.error_msg = output.error_msg
             else:
                 self.outputs[curr_node_id] = output.output_text
                 if save_as:
@@ -291,6 +347,63 @@ class StateModel:
     def update(self, curr_node_id: str, save_as: str | None, output: ActionNodeOutput | None, next_node_id: str | None):
         self._update_cur_node(curr_node_id, output, save_as)
         self._update_stats(next_node_id, curr_node_id)
+        if output is not None and len(output.param_writes) > 0:
+            for param_name, param_write in output.param_writes.items():
+                error = self._process_param_write(param_name, param_write)
+                if error is not None:
+                    self.error_code, self.error_msg = error
+                    output.error_code, output.error_msg = error
+                    self.errors[curr_node_id] = f"[{self.error_code}] {self.error_msg}"
+                    break
 
     def add_parameter(self, param_name: str, param_value: object):
         self.params[param_name] = ActionParameter.create(self.current_node_id, param_name, param_value)
+
+    def _param_write_mode_check(self, param_name: str, param_write: ParamWrite) -> tuple[str, str] | None:
+        match param_write.mode:
+            case "replace", "dict_update", "append":
+                if param_name not in self.params:
+                    return (
+                        f"param_not_found_for_{param_write.mode}",
+                        f"Parameter {param_name} not found for {param_write.mode}",
+                    )
+            case "set":
+                if not param_write.allow_overwrite and param_name in self.params:
+                    return (
+                        "param_overwrite_forbidden",
+                        f"Parameter {param_name} exist in state params for ParamWrite "
+                        f"and set allow_overwrite forbidden = True (default value)",
+                    )
+            case "append,dict_update":
+                if type(self.params[param_name].value) not in COLLECTION_HANDLERS:
+                    return (
+                        "param_type_mismatch",
+                        f"ActionParameter {param_name} type mismatch for append: "
+                        f"expected({', '.join([t.__name__ for t in COLLECTION_HANDLERS])}) "
+                        f"found: {self.params[param_name].codec.type_name()}",
+                    )
+            case "dict_update":
+                if not isinstance(self.params[param_name].value, dict) or not isinstance(param_write.value, dict):
+                    return "param_type_mismatch", (
+                        f"ParamWrite {param_name} type mismatch for dict_update: "
+                        f"expected (dict) found : {type(param_write.value).__name__}"
+                    )
+
+        return None
+
+    def _process_param_write(self, param_name: str, param_write: ParamWrite) -> tuple[str, str] | None:
+        error = self._param_write_mode_check(param_name, param_write)
+        if error is not None:
+            return error
+        match param_write.mode:
+            case "replace,set":
+                self.params[param_name] = ActionParameter.create(self.current_node_id, param_name, param_write.value)
+            case "append,dict_update":
+                handler = COLLECTION_HANDLERS[type(self.params[param_name].value)]
+                self.params[param_name] = handler.update(self.params[param_name], param_write.value)
+            case _:
+                raise WorkflowEngineError(
+                    f"Unknown ParamWrite mode: {param_write.mode}. "
+                    f"Check code, ParamWrite mode check mast be implemented"
+                )
+        return None

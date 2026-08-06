@@ -93,10 +93,10 @@ def _fail(cur_node: WorkflowNode, output: ActionNodeOutput, code: str | None) ->
     # wrote is kept whenever it still explains that code. See ADR 002.
     if code is not None and code != output.error_code:
         output.error_code = code
-        output.error_message = f"Node {cur_node.id} failed: {code}"
-    elif output.error_message is None:
-        output.error_message = f"Node {cur_node.id} failed: {output.error_code}"
-    message = output.error_message or output.error_code or "unknown failure"
+        output.error_msg = f"Node {cur_node.id} failed: {code}"
+    elif output.error_msg is None:
+        output.error_msg = f"Node {cur_node.id} failed: {output.error_code}"
+    message = output.error_msg or output.error_code or "unknown failure"
     return Step(failure=f"{cur_node.id}: {message}")
 
 

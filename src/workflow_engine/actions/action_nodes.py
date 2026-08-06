@@ -76,13 +76,13 @@ class CreateArtifactAction(BaseAutomaticAction):
                 return ActionNodeOutput(
                     output_text=f"Exception in create artifact: {file_name}",
                     error_code="create_artifact_error",
-                    error_message=f"Error creating artifact file: {e}",
+                    error_msg=f"Error creating artifact file: {e}",
                 )
         else:
             return ActionNodeOutput(
                 output_text=f"Invalid artifact file name: {file_name}",
                 error_code="invalid_artifact_file_name",
-                error_message=f"Artifact file name is invalid or empty: {file_name}",
+                error_msg=f"Artifact file name is invalid or empty: {file_name}",
             )
 
 
@@ -105,18 +105,17 @@ class CreateArtifactActionWithContent(CreateArtifactAction, ActionWithFunction):
                         return ActionNodeOutput(
                             output_text=f"Exception in writing to file: {output.output_text}",
                             error_code="write_artifact_error",
-                            error_message=f"Error writing to artifact file: {e}",
+                            error_msg=f"Error writing to artifact file: {e}",
                         )
 
                     return ActionNodeOutput(output_text=output.output_text)
                 else:
                     return ActionNodeOutput(
                         output_text=(
-                            f"Error in registered function execution: "
-                            f"{f_output.error_message if f_output else 'No output'}"
+                            f"Error in registered function execution: {f_output.error_msg if f_output else 'No output'}"
                         ),
                         error_code="registered_function_error",
-                        error_message=(
+                        error_msg=(
                             f"Error executing registered function :{self.registered_function} "
                             f"for CreateArtifactActionWithContent"
                         ),
@@ -142,8 +141,8 @@ class ForEachOutputParameterNode(BaseAutomaticAction):
         error_massage = ""
         if self.iterator is None:
             if prev_output is not None:
-                if self.output_param_name in prev_output.parameters:
-                    iterable = prev_output.parameters[self.output_param_name]
+                if self.output_param_name in prev_output.param_writes:
+                    iterable = prev_output.param_writes[self.output_param_name]
                     if isinstance(iterable, Iterable):
                         self.iterator = iter(iterable)
                     else:
@@ -162,7 +161,7 @@ class ForEachOutputParameterNode(BaseAutomaticAction):
                 self.iterating = False
 
         if next_value == "iterator_error":
-            return ActionNodeOutput(output_text="", error_code="iterator_error", error_message=error_massage)
+            return ActionNodeOutput(output_text="", error_code="iterator_error", error_msg=error_massage)
 
         return ActionNodeOutput(output_text=next_value)
 
@@ -188,7 +187,7 @@ class PopFromQueue(BaseAutomaticAction):
             return ActionNodeOutput(
                 output_text="",
                 error_code="queue_not_found",
-                error_message=f"Queue '{self.parameter_queue_name}' not found or is not a deque object",
+                error_msg=f"Queue '{self.parameter_queue_name}' not found or is not a deque object",
             )
 
 

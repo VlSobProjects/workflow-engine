@@ -56,7 +56,8 @@ survive a resume, and be debuggable.
 
 - `state.params` stays flat (keyed by parameter name).
 - Default behavior is no implicit overwrite.
-- Overwrite is allowed only when a write explicitly sets `allow_overwrite=true`.
+- `set` supports explicit upsert only with `allow_overwrite=true`.
+- `replace` is strict and targets existing keys; `allow_overwrite` is ignored for `replace`.
 - If a key exists and overwrite is not allowed, the node fails with a contract error
   (`param_overwrite_forbidden`).
 
@@ -142,9 +143,12 @@ Write contract details agreed after status move:
 - `param_writes` entries are declarative operations, not callables.
 - Minimal operation set in ADR 006 implementation:
   - `set`: create a new parameter; fail if key already exists.
-  - `replace`: replace an existing value; requires `allow_overwrite=true`.
-  - `append`: append item(s) to a collection parameter; fail on type mismatch.
-- For collection parameters, both `append` and explicit `replace` are allowed.
+  - `set` with `allow_overwrite=true`: explicit upsert.
+  - `replace`: replace an existing value; fail if key does not exist.
+    `allow_overwrite` is ignored for this mode.
+  - `append`: append item(s) to `list` or `deque`; fail on type mismatch.
+  - `dict_update`: shallow update for `dict`; fail on type mismatch.
+- For collection parameters, explicit `replace` is allowed in addition to collection-specific modes.
 - Engine-level apply failures use explicit contract errors (`param_overwrite_forbidden`,
   `param_type_mismatch`, `invalid_write_mode`).
 
@@ -153,7 +157,7 @@ Recommended payload shape for implementation:
 ```python
 @dataclass(frozen=True)
 class ParamWrite:
-    mode: Literal["set", "replace", "append"]
+    mode: Literal["set", "replace", "append", "dict_update"]
     value: object
     allow_overwrite: bool = False
 ```

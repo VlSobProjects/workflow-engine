@@ -25,7 +25,7 @@ def copy_file(path_source: str, path_target: str) -> ActionNodeOutput:
         return ActionNodeOutput(
             output_text="Can't copy file",
             error_code="file_not_found",
-            error_message=f"Source file '{source.absolute()}' is not a file or does not exist.",
+            error_msg=f"Source file '{source.absolute()}' is not a file or does not exist.",
         )
     target = Path(path_target)
     if not target.parent.exists():
@@ -36,7 +36,7 @@ def copy_file(path_source: str, path_target: str) -> ActionNodeOutput:
         return ActionNodeOutput(
             output_text="Can't copy file",
             error_code="copy_failed",
-            error_message=f"Failed to copy file from '{source.absolute().as_posix()}' "
+            error_msg=f"Failed to copy file from '{source.absolute().as_posix()}' "
             f"to '{target.absolute().as_posix()}': {e!s}",
         )
     return ActionNodeOutput(output_text=target.absolute().as_posix())
@@ -53,7 +53,7 @@ def create_folder(path_target: str, folder_name: str) -> ActionNodeOutput:
         return ActionNodeOutput(
             output_text="Can't create folder",
             error_code="create_failed",
-            error_message=f"Failed to create folder '{folder.absolute().as_posix()}': {e!s}",
+            error_msg=f"Failed to create folder '{folder.absolute().as_posix()}': {e!s}",
         )
     return ActionNodeOutput(output_text=folder.absolute().as_posix())
 
@@ -67,7 +67,7 @@ def file_delete(file_path: str) -> ActionNodeOutput:
         return ActionNodeOutput(
             output_text="Can't delete file",
             error_code="delete_failed",
-            error_message=f"Failed to delete file '{file.absolute().as_posix()}': {e!s}",
+            error_msg=f"Failed to delete file '{file.absolute().as_posix()}': {e!s}",
         )
     return ActionNodeOutput(output_text=f"File '{file.absolute().as_posix()}' deleted successfully")
 
