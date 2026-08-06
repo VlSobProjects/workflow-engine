@@ -23,6 +23,10 @@ ADR 006 was moved to Implementing. The data flow contract is now explicit: `stat
 typed persisted bus, actions publish typed parameter write sets, only the engine applies writes, and state
 is persisted on every node turn.
 
+Post-session clarifications were added without changing the decision direction: parameter writes are
+runtime action output (not workflow mapping DSL), apply semantics are declarative (`set`, `replace`,
+`append`), and engine-side contract errors are explicit.
+
 ## Decisions
 - Keep a flat parameter namespace and make overwrite explicit through `allow_overwrite=true`.
 - Separate channels in node output: `output_text` for diagnostics, typed workflow data in `param_writes`.
@@ -32,9 +36,13 @@ is persisted on every node turn.
 - Include only minimal loop guardrail in ADR 006 and defer full loop policy to a separate ADR.
 - Reshape `FunctionsAction`, `PopFromQueue`, and `CreateArtifactActionWithContent` under the new contract.
 - Exclude `ForEachOutputParameterNode` from ADR 006 scope; treat it as a separate topic.
+- Keep `param_writes` as part of `ActionNodeOutput`, produced by action code at runtime, not declared in
+  `WorkflowNodeModel` as a second mapping layer.
+- Keep write instructions declarative data (no lambda/callable contract at engine boundary).
+- Use minimal update modes in the first implementation: `set`, `replace`, `append`.
 
 ## Open questions
-- Exact shape of the `param_writes` payload in `ActionNodeOutput` (final field names and validation path).
+- Final serialization and validation path of `ParamWrite` in persisted state and tests.
 - Whether `output.*` references in guards stay for compatibility or are reduced later.
 - Which follow-up ADR will own `ForEachOutputParameterNode` semantics.
 

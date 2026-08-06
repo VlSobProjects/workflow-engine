@@ -134,6 +134,30 @@ Acceptance scenario, delivered as an example workflow and an end to end test:
 4. When queue is empty, sort rows by file type and write a table artifact.
 5. Resume mid loop and produce the same final artifact and parameters as a straight run.
 
+Write contract details agreed after status move:
+
+- `param_writes` is produced by action runtime code and returned in `ActionNodeOutput`; it is not
+  declared as a workflow mapping DSL in `WorkflowNodeModel`.
+- Engine is the only writer to `state.params`; it applies `param_writes` and persists state on every turn.
+- `param_writes` entries are declarative operations, not callables.
+- Minimal operation set in ADR 006 implementation:
+  - `set`: create a new parameter; fail if key already exists.
+  - `replace`: replace an existing value; requires `allow_overwrite=true`.
+  - `append`: append item(s) to a collection parameter; fail on type mismatch.
+- For collection parameters, both `append` and explicit `replace` are allowed.
+- Engine-level apply failures use explicit contract errors (`param_overwrite_forbidden`,
+  `param_type_mismatch`, `invalid_write_mode`).
+
+Recommended payload shape for implementation:
+
+```python
+@dataclass(frozen=True)
+class ParamWrite:
+    mode: Literal["set", "replace", "append"]
+    value: object
+    allow_overwrite: bool = False
+```
+
 ## Change log
 
 - Initial draft created to open the data flow discussion with the folder scan scenario.
