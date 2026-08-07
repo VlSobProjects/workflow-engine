@@ -255,7 +255,7 @@ class StateReadOnlyView:
                 artifacts_root=artifacts_root.as_posix(),
                 message="Artifact path must resolve inside work_dir/artifacts",
             ) from ex
-        if relative_path == Path("."):
+        if relative_path == Path():
             raise ArtifactPathError(
                 path=target.as_posix(),
                 artifacts_root=artifacts_root.as_posix(),
@@ -514,7 +514,8 @@ class StateModel:
         else:
             return (
                 INVALID_WRITE_MODE,
-                f"Cannot modify '{param_name}' parameter mode: {param_write.mode} as it does not exist in workflow params' ",
+                f"Cannot modify '{param_name}' parameter mode: {param_write.mode} "
+                "as it does not exist in workflow params' ",
             )
 
         return None

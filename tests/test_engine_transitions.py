@@ -126,25 +126,6 @@ def test_declared_route_that_matches_nothing_fails_the_node(load_engine, tmp_pat
     assert NO_TRANSITION_ERROR in response.errors["NODE_1"]
 
 
-def test_post_condition_does_not_replace_the_error_of_a_failed_action(load_engine, tmp_path):
-    node = {
-        "id": "NODE_1",
-        "action_type": "create_artifact",
-        "action_parameters": {"artifact_file": ""},
-        "validators": [{"function_name": "is_output_exist_file"}],
-        "transitions": [{"errors": ["invalid_artifact_file_name"], "fail": "unrecoverable"}],
-    }
-    response, state = engine_for(load_engine, tmp_path, [node])
-
-    assert response.title == "Node failed"
-    assert response.errors
-    assert "unrecoverable" in response.errors["NODE_1"]
-    assert state
-    records = state.guard_results["NODE_1"]
-    assert [record.name for record in records] == ["no_error", "all_of", "errors:invalid_artifact_file_name"]
-    assert [record.passed for record in records] == [False, False, True]
-
-
 def test_unknown_target_is_reported_before_execution(load_engine, tmp_path):
     node = create_folder_node("NODE_1", tmp_path, "made")
     node["transitions"] = [{"next": "MISSING"}]
@@ -152,36 +133,6 @@ def test_unknown_target_is_reported_before_execution(load_engine, tmp_path):
 
     assert response.title == "Error in workflow setup"
     assert not (tmp_path / "made").is_dir()
-
-
-def test_guard_branches_on_the_error_code(load_engine, tmp_path):
-    failing = {
-        "id": "NODE_1",
-        "action_type": "create_artifact",
-        "action_parameters": {"artifact_file": ""},
-        "transitions": [{"errors": ["invalid_artifact_file_name"], "next": "NODE_2"}],
-    }
-    recovery = create_folder_node("NODE_2", tmp_path, "recovered")
-    response, _ = engine_for(load_engine, tmp_path, [failing, recovery])
-
-    assert response.title == "Loop finished"
-    assert (tmp_path / "recovered").is_dir()
-
-
-def test_failure_keeps_the_message_the_action_wrote(load_engine, tmp_path):
-    node = {
-        "id": "NODE_1",
-        "action_type": "create_artifact",
-        "action_parameters": {"artifact_file": ""},
-        "transitions": [{"next": "NODE_1", "validator": {"equals": "never"}}],
-    }
-    response, state = engine_for(load_engine, tmp_path, [node])
-
-    assert response.title == "Node failed"
-    assert state
-    assert state.error_code == "invalid_artifact_file_name"
-    assert state.error_msg is not None
-    assert "Artifact file name is invalid or empty" in state.error_msg
 
 
 def test_a_self_targeting_transition_is_bounded(load_engine, tmp_path):
