@@ -29,6 +29,8 @@ def test_update_list():
     target = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
     result = modify_param_object(target, "test", WriteParamMode.APPEND, 1)
     chek_result(list, None, lambda x: 1 in x, target, result)
+    result = modify_param_object(target, "test", WriteParamMode.EXTEND, [10, 11])
+    chek_result(list, None, lambda x: 10 in x and 11 in x, target, result)
     result = modify_param_object(target, "test", WriteParamMode.REMOVE, "3")
     chek_result(list, None, lambda x: "3" not in x, target, result)
     result = modify_param_object(target, "test", WriteParamMode.POP_LEFT, None)

@@ -3,6 +3,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
 from types import MappingProxyType
+from typing import Iterable
 
 PARAM_TYPE_MISMATCH = "param_type_mismatch"
 INVALID_MODIFY_MODE = "invalid_modify_mode"
@@ -19,8 +20,10 @@ class WriteParamMode(Enum):
     SET = auto()
     REPLACE = auto()
     APPEND = auto()
-    DICT_UPDATE = auto()
+    EXTEND = auto()
+    DICT = auto()
     POP_LEFT = auto()
+    DICT_UPDATE = auto()
     POP_RIGHT = auto()
     POP_INDEX = auto()
     REMOVE = auto()
@@ -28,6 +31,7 @@ class WriteParamMode(Enum):
 
 MODIFY_GROUP = (
     WriteParamMode.APPEND,
+    WriteParamMode.EXTEND,
     WriteParamMode.DICT_UPDATE,
     WriteParamMode.POP_LEFT,
     WriteParamMode.POP_RIGHT,
@@ -71,7 +75,7 @@ class ModifyHandler[T]:
                 if result is not None:
                     return ModifyResult(*result, m_object)
         c_col = self.copy_fn(m_object)
-        if mode in [WriteParamMode.APPEND, WriteParamMode.DICT_UPDATE]:
+        if mode in [WriteParamMode.APPEND, WriteParamMode.DICT_UPDATE, WriteParamMode.EXTEND]:
             self.append_fn[mode](c_col, value)
         else:
             self.remove_fn[mode](c_col, value)
@@ -106,6 +110,7 @@ _register_collection(
     copy_fn=lambda x: list(x),
     append_fn={
         WriteParamMode.APPEND: lambda p_list, v: p_list.append(v),
+        WriteParamMode.EXTEND: lambda p_list, v: p_list.extend(v) if isinstance(v, Iterable) else None,
     },
     remove_fn={
         WriteParamMode.POP_INDEX: lambda p_list, v: p_list.pop(v) if isinstance(v, int) else None,
@@ -134,13 +139,23 @@ _register_collection(
                 (INVALID_REMOVE_PARAM, f"value {v.__repr__()} not found in list") if v not in p_list else None
             )
         ],
+        WriteParamMode.EXTEND: [
+            lambda p_list, v: (
+                (PARAM_TYPE_MISMATCH, f"Expected a Iterable for extend operation, got {type(v).__name__}")
+                if not isinstance(v, Iterable)
+                else None
+            )
+        ]
     },
-    allow_mode=(WriteParamMode.APPEND, WriteParamMode.POP_INDEX, WriteParamMode.REMOVE),
+    allow_mode=(WriteParamMode.APPEND,WriteParamMode.EXTEND,WriteParamMode.POP_INDEX, WriteParamMode.REMOVE),
 )
 _register_collection(
     deque,
     copy_fn=lambda p_deque: deque(p_deque),
-    append_fn={WriteParamMode.APPEND: lambda p_deque, v: p_deque.append(v)},
+    append_fn={
+        WriteParamMode.APPEND: lambda p_deque, v: p_deque.append(v),
+        WriteParamMode.EXTEND: lambda p_deque, v: p_deque.extend(v) if isinstance(v, Iterable) else None,
+    },
     remove_fn={
         WriteParamMode.POP_LEFT: lambda p_deque, v: p_deque.popleft(),
         WriteParamMode.POP_RIGHT: lambda p_deque, v: p_deque.pop(),
@@ -162,13 +177,23 @@ _register_collection(
                 (INVALID_REMOVE_PARAM, f"value {v.__repr__()} not found in deque") if v not in p_deque else None
             )
         ],
+        WriteParamMode.EXTEND: [
+            lambda p_deque, v: (
+                (PARAM_TYPE_MISMATCH, f"Expected a Iterable for extend operation, got {type(v).__name__}")
+                if not isinstance(v, Iterable)
+                else None
+            )
+        ]
     },
-    allow_mode=(WriteParamMode.APPEND, WriteParamMode.POP_LEFT, WriteParamMode.POP_RIGHT, WriteParamMode.REMOVE),
+    allow_mode=(WriteParamMode.APPEND,WriteParamMode.EXTEND, WriteParamMode.POP_LEFT, WriteParamMode.POP_RIGHT, WriteParamMode.REMOVE),
 )
 _register_collection(
     set,
     copy_fn=lambda p_set: set(p_set),
-    append_fn={WriteParamMode.APPEND: lambda p_set, v: p_set.add(v)},
+    append_fn={
+        WriteParamMode.APPEND: lambda p_set, v: p_set.add(v),
+        WriteParamMode.EXTEND: lambda p_set, v: type(p_set.update(v)) if isinstance(v, Iterable) else None,
+    },
     remove_fn={WriteParamMode.REMOVE: lambda p_set, v: p_set.remove(v)},
     check_fn={
         WriteParamMode.REMOVE: [
@@ -178,9 +203,16 @@ _register_collection(
             lambda p_set, v: (
                 (INVALID_REMOVE_PARAM, f"Element {v.__repr__()} not found in set") if v not in p_set else None
             ),
+        ],
+        WriteParamMode.EXTEND: [
+            lambda p_set, v: (
+                (PARAM_TYPE_MISMATCH, f"Expected a Iterable for extend operation, got {type(v).__name__}")
+                if not isinstance(v, Iterable)
+                else None
+            )
         ]
     },
-    allow_mode=(WriteParamMode.APPEND, WriteParamMode.REMOVE),
+    allow_mode=(WriteParamMode.APPEND,WriteParamMode.EXTEND, WriteParamMode.REMOVE),
 )
 _register_collection(
     dict,

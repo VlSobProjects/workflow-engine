@@ -4,6 +4,7 @@ from collections import deque
 from collections.abc import Iterable, Iterator
 
 from workflow_engine.actions.base_actions import ActionWithFunction, BaseAutomaticAction
+from workflow_engine.collection_param_handlers import WriteParamMode
 from workflow_engine.models.state import StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput, ParamWrite
 from workflow_engine.registry.action_registry import register_action
@@ -46,11 +47,11 @@ class FunctionsAction(BaseAutomaticAction):
         if len(result) > 0:
             return ActionNodeOutput(
                 output_text="Functions executed successfully",
-                param_writes={self.save_to_list: ParamWrite(mode="append", value=result)},
+                param_writes={self.save_to_list: ParamWrite(mode=WriteParamMode.APPEND, value=result)},
             )
         return ActionNodeOutput(
             output_text="Functions executed successfully",
-            param_writes={self.save_to_list: ParamWrite(mode="append", value=result)},
+            param_writes={self.save_to_list: ParamWrite(mode=WriteParamMode.APPEND, value=result)},
         )
 
 
@@ -95,7 +96,7 @@ class ForEachOutputParameterNode(BaseAutomaticAction):
         return ActionNodeOutput(output_text=next_value)
 
 
-@register_action()
+
 class PopFromQueue(BaseAutomaticAction):
     ACTION_TYPE = "pop_from_queue"
     parameter_queue_name: str
