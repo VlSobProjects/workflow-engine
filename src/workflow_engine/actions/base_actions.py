@@ -9,7 +9,7 @@ from typing import cast
 
 from workflow_engine.actions.action_present import PresentResponse
 from workflow_engine.exceptions import ActionConfigurationError, WorkflowConfigurationError
-from workflow_engine.models.state import StateModel
+from workflow_engine.models.state import StateModel, StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
     RegisteredFunctionExecutor,
@@ -69,11 +69,11 @@ class BaseAutomaticAction(BaseAction, ABC):
         super().__init__(data)
 
     @abstractmethod
-    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
+    def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         pass
 
-    def execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
-        return self._execute(state, prev_output).update_parameters(prev_output)
+    def execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
+        pass
 
     @classmethod
     def execution_mode(cls) -> ExecutionMode:
@@ -85,7 +85,7 @@ class BaseInteractiveAction(BaseAction, ABC):
         super().__init__(data)
 
     @abstractmethod
-    def present(self, state: StateModel) -> PresentResponse:
+    def present(self, state: StateReadOnlyView) -> PresentResponse:
         pass
 
     @classmethod
@@ -100,7 +100,7 @@ class ActionWithFunction(BaseAutomaticAction, ABC):
         super().__init__(data)
         self.registered_function = self.get_registered_action_function(data)
 
-    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
+    def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         return self.registered_function.execute(
             parameters_modified=state.set_parameters_with_updater({"output": prev_output, "state": state})
         )

@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Iterable, Iterator
-from pathlib import Path
-from typing import cast
 
 from workflow_engine.actions.base_actions import ActionWithFunction, BaseAutomaticAction
-from workflow_engine.models.state import StateModel
-from workflow_engine.output import ActionNodeOutput
+from workflow_engine.models.state import StateReadOnlyView
+from workflow_engine.output import ActionNodeOutput, ParamWrite
 from workflow_engine.registry.action_registry import register_action
 from workflow_engine.registry.function_registry import (
     FUNCTION_NAME_KEY,
@@ -37,7 +35,7 @@ class FunctionsAction(BaseAutomaticAction):
             k: FunctionAction(v) for k, v in f_config_dict.items() if isinstance(v, dict) and isinstance(k, str)
         }
 
-    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
+    def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         result: dict[str, str] = {}
         for param_name, function_action in self.function_action_list.items():
             output = function_action.execute(state, prev_output)
@@ -45,86 +43,17 @@ class FunctionsAction(BaseAutomaticAction):
                 result[param_name] = output.error_code
             else:
                 result[param_name] = output.output_text
-        results = state.get_param(self.save_to_list, list)
-        if results is None:
-            results = []
-            state.add_parameter(self.save_to_list, results)
-        results.append(result)
-        return ActionNodeOutput(output_text="Functions executed successfully")
-
-
-@register_action()
-class CreateArtifactAction(BaseAutomaticAction):
-    ACTION_TYPE = "create_artifact"
-    artifact_file: str
-
-    def __init__(self, data: dict[str, object]):
-        super().__init__(data)
-        self.artifact_file = parameter_from_dict(data, "artifact_file", str)
-
-    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
-        file_name = cast(str, state.set_parameters({"artifact_file": self.artifact_file})["artifact_file"])
-        if file_name is not None and len(file_name) > 0:
-            artifacts = Path(state.work_dir) / "artifacts"
-            try:
-                if not artifacts.is_dir():
-                    artifacts.mkdir(parents=True, exist_ok=True)
-                artifact_file = artifacts / file_name
-                artifact_file.touch(exist_ok=True)
-                return ActionNodeOutput(artifact_file.absolute().as_posix())
-            except OSError as e:
-                return ActionNodeOutput(
-                    output_text=f"Exception in create artifact: {file_name}",
-                    error_code="create_artifact_error",
-                    error_msg=f"Error creating artifact file: {e}",
-                )
-        else:
+        if len(result) > 0:
             return ActionNodeOutput(
-                output_text=f"Invalid artifact file name: {file_name}",
-                error_code="invalid_artifact_file_name",
-                error_msg=f"Artifact file name is invalid or empty: {file_name}",
+                output_text="Functions executed successfully",
+                param_writes={self.save_to_list: ParamWrite(mode="append", value=result)},
             )
+        return ActionNodeOutput(
+            output_text="Functions executed successfully",
+            param_writes={self.save_to_list: ParamWrite(mode="append", value=result)},
+        )
 
 
-class CreateArtifactActionWithContent(CreateArtifactAction, ActionWithFunction):
-    def __init__(self, data: dict[str, object]):
-        super().__init__(data)
-
-    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
-        output = super().execute(state, prev_output)
-        if output.error_code is None:
-            if self.registered_function is not None:
-                f_output = self.registered_function.execute(
-                    parameters_modified=state.set_parameters_with_updater({"output": output, "state": state})
-                )
-                if f_output is not None and f_output.error_code is None and len(f_output.output_text) > 0:
-                    try:
-                        with Path(output.output_text).open("w") as f:
-                            f.write(f_output.output_text)
-                    except OSError as e:
-                        return ActionNodeOutput(
-                            output_text=f"Exception in writing to file: {output.output_text}",
-                            error_code="write_artifact_error",
-                            error_msg=f"Error writing to artifact file: {e}",
-                        )
-
-                    return ActionNodeOutput(output_text=output.output_text)
-                else:
-                    return ActionNodeOutput(
-                        output_text=(
-                            f"Error in registered function execution: {f_output.error_msg if f_output else 'No output'}"
-                        ),
-                        error_code="registered_function_error",
-                        error_msg=(
-                            f"Error executing registered function :{self.registered_function} "
-                            f"for CreateArtifactActionWithContent"
-                        ),
-                    )
-        else:
-            return output
-
-
-@register_action()
 class ForEachOutputParameterNode(BaseAutomaticAction):
     ACTION_TYPE = "for_each_node"
     output_param_name: str
@@ -136,7 +65,7 @@ class ForEachOutputParameterNode(BaseAutomaticAction):
         self.output_param_name = parameter_from_dict(data, "output_param_name", str)
         self.iterator = None
 
-    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
+    def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         next_value = "iterator_error"
         error_massage = ""
         if self.iterator is None:
@@ -166,6 +95,7 @@ class ForEachOutputParameterNode(BaseAutomaticAction):
         return ActionNodeOutput(output_text=next_value)
 
 
+@register_action()
 class PopFromQueue(BaseAutomaticAction):
     ACTION_TYPE = "pop_from_queue"
     parameter_queue_name: str
@@ -175,7 +105,7 @@ class PopFromQueue(BaseAutomaticAction):
         super().__init__(data)
         self.parameter_queue_name = parameter_from_dict(data, "queue_name", str)
 
-    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
+    def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         deque_obj = state.get_param(self.parameter_queue_name)
         if isinstance(deque_obj, deque):
             if len(deque_obj) > 0:
@@ -200,10 +130,10 @@ class StopAction(BaseAutomaticAction):
         super().__init__(data)
         self.registered_function = self.get_registered_action_function(data) if FUNCTION_NAME_KEY in data else None
 
-    def _execute(self, state: StateModel, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
+    def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         if self.registered_function is not None:
             return self.registered_function.execute(
-                parameters_modified=state.set_parameters_with_updater({"output": prev_output, "state": state})
+                parameters_modified=lambda d: d.update({"output": prev_output, "state": state})
             )
         return ActionNodeOutput(output_text=prev_output.output_text if prev_output else "")
 
