@@ -14,7 +14,7 @@ from workflow_engine.exceptions import (
     StateLoadParameterError,
     WorkflowParameterError,
 )
-from workflow_engine.output import ActionNodeOutput, ParamWrite, WriteParamMode
+from workflow_engine.output import ActionNodeOutput, ParamWrite, WorkflowArtifact, WriteParamMode
 from workflow_engine.registry.type_registry import (
     Codec,
     convert_from_dict,
@@ -26,6 +26,71 @@ from workflow_engine.tools import (
     parameter_from_dict_default,
     parameter_from_dict_optional,
 )
+
+PARAM_OVERWRITE_FORBIDDEN = "param_overwrite_forbidden"
+ARTIFACT_OVERWRITE = "artifact_overwritten"
+ARTIFACT_PATH_CONFLICT = "artifact_path_conflict"
+INVALID_WRITE_MODE = "invalid_write_mode"
+PARAM_TYPE_MISMATCH = "param_type_mismatch"
+
+
+@dataclass(frozen=True)
+class ArtifactEvent:
+    code: str  # "artifact_overwritten"
+    node_id: str
+    logical_name: str
+    relative_path: Path
+    timestamp: datetime
+    message: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> ArtifactEvent:
+        return cls(
+            code=parameter_from_dict(data, "code", str),
+            node_id=parameter_from_dict(data, "node_id", str),
+            logical_name=parameter_from_dict(data, "logical_name", str),
+            relative_path=Path(parameter_from_dict(data, "relative_path", str)),
+            timestamp=datetime.fromisoformat(parameter_from_dict(data, "timestamp", str)),
+            message=parameter_from_dict_optional(data, "message", str),
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "code": self.code,
+            "node_id": self.node_id,
+            "logical_name": self.logical_name,
+            "relative_path": self.relative_path.as_posix(),
+            "timestamp": self.timestamp.isoformat(),
+            "message": self.message,
+        }
+
+    @classmethod
+    def overwritten(cls, node_id, name: str, old: WorkflowArtifact, new: WorkflowArtifact) -> ArtifactEvent:
+        return cls(
+            code=ARTIFACT_OVERWRITE,
+            node_id=node_id,
+            logical_name=name,
+            relative_path=new.relative_path,
+            timestamp=new.created_at,
+            message=f"Artifact '{name}' overwritten. "
+            f"Old: {old.description if old.description else 'N/A'}, "
+            f"New: {new.description if new.description else 'N/A'}",
+        )
+
+    @classmethod
+    def path_conflict(
+        cls, node_id, new_name: str, old_name: str, old: WorkflowArtifact, new: WorkflowArtifact
+    ) -> ArtifactEvent:
+        return cls(
+            code=ARTIFACT_PATH_CONFLICT,
+            node_id=node_id,
+            logical_name=new_name,
+            relative_path=new.relative_path,
+            timestamp=new.created_at,
+            message=f"Artifact 'path conflict with. "
+            f"Old - '{old_name}': {old.description if old.description else 'N/A'}, "
+            f"New - '{new_name}': {new.description if new.description else 'N/A'}",
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +179,8 @@ class StateReadOnlyView:
     _get_output_fn: Final[Callable[[str], str | None]]
     _outputs_fn: Final[Callable[[], MappingProxyType[str, str]]]
     _set_parameters: Final[Callable[[dict[str, object], dict[str, object] | None], dict[str, object]]]
+    _is_artifact_exist_by_name: Final[Callable[[str], bool]]
+    _is_artifact_exist_by_path: Final[Callable[[Path], bool]]
     work_dir: Path
 
     @classmethod
@@ -133,7 +200,21 @@ class StateReadOnlyView:
         def set_parameters(params: dict[str, object], options: dict[str, object] | None = None) -> dict[str, object]:
             return state.set_parameters(params, options)
 
-        return cls(get_param, get_output, outputs, set_parameters, work_dir=state.work_dir)
+        def is_artifact_exist_by_name(name: str) -> bool:
+            return name in state.artifacts
+
+        def is_artifact_exist_by_path(relative_path: Path) -> bool:
+            return any(artifact.relative_path == relative_path for artifact in state.artifacts.values())
+
+        return cls(
+            get_param,
+            get_output,
+            outputs,
+            set_parameters,
+            is_artifact_exist_by_name,
+            is_artifact_exist_by_path,
+            work_dir=state.work_dir,
+        )
 
     def get_param(self, name: str, default: object = None) -> object | None:
         return self._get_param_fn(name, default)
@@ -155,6 +236,18 @@ class StateReadOnlyView:
     def get_work_dir(self) -> Path:
         return self.work_dir
 
+    def is_artifact_exist_by_name(self, name: str) -> bool:
+        return self._is_artifact_exist_by_name(name)
+
+    def is_artifact_exist_by_path(self, relative_path: Path) -> bool:
+        return self._is_artifact_exist_by_path(relative_path)
+
+    def get_artifact_absolute_path(self, relative_path: Path) -> Path:
+        return (self.work_dir / "artifacts" / relative_path).absolute()
+
+    def get_artifact_relative_path(self, path: str) -> Path:
+        return Path(path).relative_to(self.work_dir / "artifacts")
+
 
 @dataclass
 class StateModel:
@@ -174,7 +267,8 @@ class StateModel:
     errors: dict[str, str] = field(default_factory=dict)  # error messages
     params: dict[str, ActionParameter] = field(default_factory=dict)  # save_as results
     guard_results: dict[str, list[GuardRecord]] = field(default_factory=dict)  # latest attempt per node
-    artifacts: dict[str, str] = field(default_factory=dict)  # folder in workdir with files
+    artifacts: dict[str, WorkflowArtifact] = field(default_factory=dict)
+    artifact_events: list[ArtifactEvent] = field(default_factory=list)  # folder in workdir with files
     flow_budget: int = field(default=0)  # engine-managed params: _flow_budget (int)
     nodes_visited: int = field(default=0)  # engine-managed params: _nodes_visited (int)
 
@@ -211,11 +305,17 @@ class StateModel:
                 k: ActionParameter.from_dict(v)
                 for k, v in parameter_from_dict_default(data, "params", dict, {}).items()
             }
+            params["artifact_events"] = [
+                ArtifactEvent.from_dict(v) for v in parameter_from_dict_default(data, "artifact_events", list, [])
+            ]
             guard_results = parameter_from_dict_default(data, "guard_results", dict, {})
             params["guard_results"] = {
                 k: GuardRecord.from_list(parameter_from_dict(guard_results, str(k), list)) for k in guard_results
             }
-            params["artifacts"] = parameter_from_dict_default(data, "artifacts", dict, {})
+            params["artifacts"] = {
+                k: WorkflowArtifact.from_dict(v)
+                for k, v in parameter_from_dict_default(data, "artifacts", dict, {}).items()
+            }
             params["flow_budget"] = parameter_from_dict_default(data, "flow_budget", int, 0)
             params["nodes_visited"] = parameter_from_dict_default(data, "nodes_visited", int, 0)
         except (ValueError, WorkflowParameterError) as e:
@@ -356,6 +456,8 @@ class StateModel:
                     self.errors[curr_node_id] = f"[{self.error_code}] {self.error_msg}"
                     break
 
+        self._set_artifacts(output)
+
     def add_parameter(self, param_name: str, param_value: object):
         self.params[param_name] = ActionParameter.create(self.current_node_id, param_name, param_value)
 
@@ -363,7 +465,7 @@ class StateModel:
         from workflow_engine.collection_param_handlers import MODIFY_GROUP, modify_param_object
 
         if param_name in self.params:
-            if param_write.mode.value in MODIFY_GROUP:
+            if param_write.mode in MODIFY_GROUP:
                 result = modify_param_object(
                     self.params[param_name].value, param_name, param_write.mode, param_write.value
                 )
@@ -375,11 +477,46 @@ class StateModel:
                 self.params[param_name].value = param_write.value
             else:
                 return (
-                    "invalid_modify_mode",
+                    PARAM_OVERWRITE_FORBIDDEN,
                     f"Cannot set parameter '{param_name}' with mode '{param_write.mode}' "
                     f"allow_overwrite={param_write.allow_overwrite}",
                 )
         elif param_write.mode == WriteParamMode.SET:
             self.params[param_name] = ActionParameter.create(self.current_node_id, param_name, param_write.value)
+        elif param_write.mode == WriteParamMode.REPLACE:
+            return (
+                INVALID_WRITE_MODE,
+                f"Cannot replace parameter '{param_name}' parameter is not exist in workflow params' ",
+            )
 
         return None
+
+    def _get_artifact_by_path(self, relative_path: Path) -> tuple[str, WorkflowArtifact] | None:
+        for artifact_name, artifact in self.artifacts.items():
+            if artifact.relative_path.absolute() == relative_path.absolute():
+                return artifact_name, artifact
+        return None
+
+    def _set_artifacts(self, output: ActionNodeOutput | None):
+        if output is not None and len(output.artifacts) > 0:
+            for artifact_name, artifact in output.artifacts.items():
+                if artifact_name in self.artifacts:
+                    old_artifact = self.artifacts[artifact_name]
+                    self.artifact_events.append(
+                        ArtifactEvent.overwritten(self.current_node_id, artifact_name, old_artifact, artifact)
+                    )
+
+                path_conflict_artifact = self._get_artifact_by_path(artifact.relative_path)
+
+                if path_conflict_artifact is not None:
+                    self.artifacts.pop(path_conflict_artifact[0])
+                    self.artifact_events.append(
+                        ArtifactEvent.path_conflict(
+                            self.current_node_id,
+                            artifact_name,
+                            path_conflict_artifact[0],
+                            path_conflict_artifact[1],
+                            artifact,
+                        )
+                    )
+                self.artifacts[artifact_name] = artifact

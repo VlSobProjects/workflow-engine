@@ -96,7 +96,6 @@ class ForEachOutputParameterNode(BaseAutomaticAction):
         return ActionNodeOutput(output_text=next_value)
 
 
-
 class PopFromQueue(BaseAutomaticAction):
     ACTION_TYPE = "pop_from_queue"
     parameter_queue_name: str

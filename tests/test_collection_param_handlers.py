@@ -3,8 +3,8 @@ from collections.abc import Callable
 
 from workflow_engine.collection_param_handlers import (
     INVALID_COLLECTION_STATE,
-    INVALID_MODIFY_MODE,
     INVALID_REMOVE_PARAM,
+    INVALID_WRITE_MODE,
     PARAM_TYPE_MISMATCH,
     ModifyResult,
     WriteParamMode,
@@ -34,9 +34,9 @@ def test_update_list():
     result = modify_param_object(target, "test", WriteParamMode.REMOVE, "3")
     chek_result(list, None, lambda x: "3" not in x, target, result)
     result = modify_param_object(target, "test", WriteParamMode.POP_LEFT, None)
-    chek_result(list, INVALID_MODIFY_MODE, None, target, result)
+    chek_result(list, INVALID_WRITE_MODE, None, target, result)
     result = modify_param_object(target, "test", WriteParamMode.POP_RIGHT, None)
-    chek_result(list, INVALID_MODIFY_MODE, None, target, result)
+    chek_result(list, INVALID_WRITE_MODE, None, target, result)
     result = modify_param_object(target, "test", WriteParamMode.POP_INDEX, 1)
     chek_result(list, None, lambda x: "2" not in x, target, result)
     result = modify_param_object(target, "test", WriteParamMode.POP_INDEX, 20)
@@ -58,11 +58,11 @@ def test_update_deque():
     result = modify_param_object(target, "test", WriteParamMode.POP_RIGHT, None)
     chek_result(deque, None, lambda x: 10 not in x, target, result)
     result = modify_param_object(target, "test", WriteParamMode.POP_INDEX, 1)
-    chek_result(deque, INVALID_MODIFY_MODE, None, target, result)
+    chek_result(deque, INVALID_WRITE_MODE, None, target, result)
     d: deque[int] = deque()
     result = modify_param_object(d, "test", WriteParamMode.POP_RIGHT, 20)
     chek_result(deque, INVALID_COLLECTION_STATE, None, d, result)
     result = modify_param_object(target, "test", WriteParamMode.POP_INDEX, 4)
-    chek_result(deque, INVALID_MODIFY_MODE, None, target, result)
+    chek_result(deque, INVALID_WRITE_MODE, None, target, result)
     result = modify_param_object(target, "test", WriteParamMode.REMOVE, "bksdbdjk")
     chek_result(deque, INVALID_REMOVE_PARAM, None, target, result)

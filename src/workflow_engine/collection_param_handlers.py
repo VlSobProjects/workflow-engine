@@ -1,12 +1,11 @@
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import Enum, auto
 from types import MappingProxyType
-from typing import Iterable
 
 PARAM_TYPE_MISMATCH = "param_type_mismatch"
-INVALID_MODIFY_MODE = "invalid_modify_mode"
+INVALID_WRITE_MODE = "invalid_write_mode"
 INVALID_REMOVE_PARAM = "invalid_remove_param"
 INVALID_COLLECTION_STATE = "invalid_collection_state"
 
@@ -65,7 +64,7 @@ class ModifyHandler[T]:
             )
         if mode not in self.allow_mode:
             return ModifyResult(
-                INVALID_MODIFY_MODE,
+                INVALID_WRITE_MODE,
                 f"Invalid collection mode {mode} for collection type {self.object_type.__name__}",
                 m_object,
             )
@@ -145,9 +144,9 @@ _register_collection(
                 if not isinstance(v, Iterable)
                 else None
             )
-        ]
+        ],
     },
-    allow_mode=(WriteParamMode.APPEND,WriteParamMode.EXTEND,WriteParamMode.POP_INDEX, WriteParamMode.REMOVE),
+    allow_mode=(WriteParamMode.APPEND, WriteParamMode.EXTEND, WriteParamMode.POP_INDEX, WriteParamMode.REMOVE),
 )
 _register_collection(
     deque,
@@ -183,9 +182,15 @@ _register_collection(
                 if not isinstance(v, Iterable)
                 else None
             )
-        ]
+        ],
     },
-    allow_mode=(WriteParamMode.APPEND,WriteParamMode.EXTEND, WriteParamMode.POP_LEFT, WriteParamMode.POP_RIGHT, WriteParamMode.REMOVE),
+    allow_mode=(
+        WriteParamMode.APPEND,
+        WriteParamMode.EXTEND,
+        WriteParamMode.POP_LEFT,
+        WriteParamMode.POP_RIGHT,
+        WriteParamMode.REMOVE,
+    ),
 )
 _register_collection(
     set,
@@ -210,9 +215,9 @@ _register_collection(
                 if not isinstance(v, Iterable)
                 else None
             )
-        ]
+        ],
     },
-    allow_mode=(WriteParamMode.APPEND,WriteParamMode.EXTEND, WriteParamMode.REMOVE),
+    allow_mode=(WriteParamMode.APPEND, WriteParamMode.EXTEND, WriteParamMode.REMOVE),
 )
 _register_collection(
     dict,

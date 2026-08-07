@@ -69,8 +69,21 @@ survive a resume, and be debuggable.
 ### 6. Artifacts
 
 - An artifact is a file under `work_dir/artifacts`.
-- Artifact-producing actions must register artifacts in `state.artifacts`
-  (logical name -> relative path).
+- Artifact-producing actions must register artifacts in `state.artifacts`.
+- `state.artifacts` stores structured metadata:
+  - `logical_name -> WorkflowArtifact`
+  - `WorkflowArtifact.relative_path` (path relative to `work_dir`)
+  - `WorkflowArtifact.created_at` (timestamp)
+  - `WorkflowArtifact.description` (`str | None`, static or resolved dynamically from action/function settings)
+- Artifact creation is owned by a dedicated action surface (`CreateArtifactActionWithContent`) with
+  implementation delegated to functions; the engine remains the enforcer of artifact registration contract.
+- Artifact registration follows a **state reflects reality** rule: when a function has already written files,
+  the engine updates `state.artifacts` to the latest observed artifact metadata.
+- Artifact overwrites are tracked as artifact-specific events, not as generic state warnings and not as
+  default node-fatal errors.
+- The engine checks two independent conflict cases during registration:
+  - same `logical_name` already exists;
+  - same `relative_path` is already bound to a different `logical_name`.
 
 ### 7. Guards
 
@@ -84,7 +97,9 @@ survive a resume, and be debuggable.
 
 ### 9. Surface included in ADR 006 implementation
 
-- `FunctionsAction`, `PopFromQueue`, and `CreateArtifactActionWithContent` are reshaped to the new contract.
+- `FunctionsAction` and `CreateArtifactActionWithContent` are reshaped to the new contract.
+- `PopFromQueue` is excluded from ADR 006 action surface and moved to specialized function-level behavior
+  that returns declarative `param_writes`.
 - `ForEachOutputParameterNode` is excluded from ADR 006 and may become a separate ADR topic.
 
 ## Alternatives considered
@@ -116,8 +131,10 @@ The implementation must:
 3. Apply parameter writes only in engine code and persist after each node turn.
 4. Enforce overwrite policy with explicit opt-in.
 5. Rework collection-oriented actions to explicit write semantics.
-6. Register artifact outputs in `state.artifacts`.
-7. Update the folder scan example and add an end to end resume scenario.
+6. Register artifact outputs in `state.artifacts` as `WorkflowArtifact` entries (not plain string paths).
+7. Add `WorkflowArtifact` serialization in state persistence (`to_dict`/`from_dict`).
+8. Add artifact conflict event tracking in state persistence.
+9. Update the folder scan example and add an end to end resume scenario.
 
 ## Related ADRs
 
@@ -151,6 +168,39 @@ Write contract details agreed after status move:
 - For collection parameters, explicit `replace` is allowed in addition to collection-specific modes.
 - Engine-level apply failures use explicit contract errors (`param_overwrite_forbidden`,
   `param_type_mismatch`, `invalid_write_mode`).
+- Queue-consumption behavior is implemented through functions that return `param_writes`, not through a
+  dedicated `PopFromQueue` action.
+
+Recommended artifact state shape for implementation:
+
+```python
+@dataclass(frozen=True)
+class WorkflowArtifact:
+    relative_path: str
+    created_at: str
+    description: str | None = None
+```
+
+Recommended artifact event shape for implementation:
+
+```python
+@dataclass(frozen=True)
+class ArtifactEvent:
+    code: str  # "artifact_overwritten" | "artifact_path_conflict"
+    node_id: str
+    logical_name: str
+    relative_path: str
+    timestamp: str
+    message: str | None = None
+```
+
+- Keep events in an artifact-specific state field (`state.artifact_events`), not in a generic
+  `state.warnings`.
+- Default behavior: on conflict, update `state.artifacts` to factual latest metadata and append an event:
+  - `artifact_overwritten` for same-name re-registration;
+  - `artifact_path_conflict` for same-path registration under a different logical name.
+- Do not fail the node by default.
+- Strict failure-on-overwrite, if ever needed, is an optional policy switch and outside ADR 006 default.
 
 Recommended payload shape for implementation:
 
@@ -195,3 +245,9 @@ state updates (for example appending a row into `table_rows`) are returned by th
 - Decision settled: engine-only parameter writes via typed write sets, immediate persistence, flat namespace
   with explicit overwrite opt-in, explicit artifact registration, and `ForEachOutputParameterNode` excluded
   from scope.
+- Artifacts contract clarified: keep dedicated `CreateArtifactActionWithContent` surface (function-backed),
+  persist structured metadata in `StateModel.artifacts` via `WorkflowArtifact`, and exclude `PopFromQueue`
+  from ADR 006 action surface in favor of function-level queue operations.
+- Artifact conflict policy clarified: state tracks factual latest artifact metadata and records
+  registration conflicts in `state.artifact_events` (`artifact_overwritten`, `artifact_path_conflict`)
+  as audit signals, non-fatal by default.
