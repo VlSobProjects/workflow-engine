@@ -10,7 +10,7 @@ from workflow_engine.actions.base_actions import (
 from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowSessionsFactory
 from workflow_engine.bootstrap.storage_fatcory import StorageFactory
 from workflow_engine.exceptions import WorkflowEngineError, WorkflowParameterError, WorkflowRuntimeError
-from workflow_engine.models.state import GuardRecord, StateModel
+from workflow_engine.models.state import GuardRecord, StateModel, StateReadOnlyView
 from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.storage.storage import Storage
@@ -30,19 +30,12 @@ class Step:
     failure: str | None = None
 
 
-def get_workflow_node(workflow_nodes: MappingProxyType[str, WorkflowNode], node_id: str) -> WorkflowNode | None:
+def _get_workflow_node(workflow_nodes: MappingProxyType[str, WorkflowNode], node_id: str) -> WorkflowNode | None:
     return workflow_nodes.get(node_id)
 
 
-def is_workflow_node(workflow_nodes: MappingProxyType[str, WorkflowNode], node_id: str) -> bool:
+def _is_workflow_node(workflow_nodes: MappingProxyType[str, WorkflowNode], node_id: str) -> bool:
     return node_id in workflow_nodes
-
-
-def add_dynamic_workflow_node(workflow_nodes: dict[str, WorkflowNode], node: WorkflowNode) -> str:
-    node_id = _get_unique_id_for_node(workflow_nodes, node)
-    node.id = node_id
-    workflow_nodes[node_id] = node
-    return node_id
 
 
 def _get_unique_id_for_node(workflow_nodes: dict[str, WorkflowNode], node: WorkflowNode) -> str:
@@ -77,11 +70,13 @@ def _workflow_nodes_errors(workflow: MappingProxyType[str, WorkflowNode]) -> dic
     return errors
 
 
-def _select_transition(cur_node: WorkflowNode, output: ActionNodeOutput, state: StateModel) -> Transition | None:
+def _select_transition(
+    cur_node: WorkflowNode, output: ActionNodeOutput, state_read_only: StateReadOnlyView, state: StateModel
+) -> Transition | None:
     trace: list[GuardRecord] = []
     selected = None
     for transition in cur_node.transitions:
-        if transition.matches(output, state, trace):
+        if transition.matches(output, state_read_only, trace):
             selected = transition
             break
     state.record_guards(cur_node.id, trace)
@@ -129,8 +124,9 @@ def _proceed_with_output(
     output: ActionNodeOutput,
     cur_node: WorkflowNode,
     state: StateModel,
+    state_read_only: StateReadOnlyView,
 ) -> Step:
-    transition = _select_transition(cur_node, output, state)
+    transition = _select_transition(cur_node, output, state_read_only, state)
     if transition is not None:
         return _take(workflow_nodes, transition, cur_node, output, state)
 
@@ -166,17 +162,18 @@ def _start_engine(
     state: StateModel,
     output: ActionNodeOutput | None,
 ) -> PresentResponse:
-    cur_node = get_workflow_node(workflow_nodes, state.current_node_id)
+    cur_node = _get_workflow_node(workflow_nodes, state.current_node_id)
     try:
         while cur_node is not None:
             _set_parameters(state, cur_node.set_parameters, cur_node.override_parameters)
-
+            state_read_only = StateReadOnlyView.from_state(state)
             # The action of the node the engine resumes at has not run yet. Running it is not an
             # attempt, so the state is not updated for it.
             if output is not None:
-                step = _proceed_with_output(workflow_nodes, output, cur_node, state)
+                step = _proceed_with_output(workflow_nodes, output, cur_node, state, state_read_only)
                 next_node = step.next_node
                 state.update(cur_node.id, cur_node.config.save_as, output, next_node.id if next_node else None)
+                state_read_only = StateReadOnlyView.from_state(state)
                 storage.save_state(state)
 
                 if step.failure is not None:
@@ -192,9 +189,9 @@ def _start_engine(
                 cur_node = next_node
 
             if cur_node and isinstance(cur_node.action, BaseAutomaticAction):
-                output = cur_node.action.execute(state, output)
+                output = cur_node.action.execute(state_read_only, output)
             elif cur_node and isinstance(cur_node.action, BaseInteractiveAction):
-                return cur_node.action.present(state)
+                return cur_node.action.present(state_read_only)
 
     except WorkflowRuntimeError as e:
         print(f"Engine stop: Exception occurred during workflow execution: {e}")
@@ -282,7 +279,7 @@ class WorkflowEngine:
                 hints=_state_hints(state),
                 errors=errors,
             )
-        cur_node = get_workflow_node(MappingProxyType(nodes), state.current_node_id)
+        cur_node = _get_workflow_node(MappingProxyType(nodes), state.current_node_id)
         if cur_node is None:
             print(f"Engine stop: Node with id {state.current_node_id} not found in workflow")
             return PresentResponse(

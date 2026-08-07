@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from workflow_engine.exceptions import WorkflowParameterError
-from workflow_engine.models.state import StateModel
+from workflow_engine.models.state import StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.transition.guards import BaseGuard, GuardRecord
 
@@ -70,7 +70,9 @@ class Transition:
     def check_error(self, workflow_nodes: set[str]) -> None:
         self.target.check_error(workflow_nodes)
 
-    def matches(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None = None) -> bool:
+    def matches(
+        self, output: ActionNodeOutput, state: StateReadOnlyView, trace: list[GuardRecord] | None = None
+    ) -> bool:
         if self.guard is None:
             return True
         return self.guard.check(output, state, trace)

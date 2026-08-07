@@ -361,6 +361,7 @@ class StateModel:
 
     def _param_write(self, param_name: str, param_write: ParamWrite) -> tuple[str, str] | None:
         from workflow_engine.collection_param_handlers import MODIFY_GROUP, modify_param_object
+
         if param_name in self.params:
             if param_write.mode.value in MODIFY_GROUP:
                 result = modify_param_object(

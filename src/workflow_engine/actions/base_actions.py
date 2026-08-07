@@ -73,7 +73,7 @@ class BaseAutomaticAction(BaseAction, ABC):
         pass
 
     def execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
-        pass
+        return self._execute(state, prev_output)
 
     @classmethod
     def execution_mode(cls) -> ExecutionMode:

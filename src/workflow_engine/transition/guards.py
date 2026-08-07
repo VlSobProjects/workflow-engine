@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from workflow_engine.exceptions import WorkflowParameterConfigurationError, WorkflowParameterError
-from workflow_engine.models.state import GuardRecord, StateModel
+from workflow_engine.models.state import GuardRecord, StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
     FUNCTION_NAME_KEY,
@@ -35,7 +35,7 @@ class BaseGuard(ABC):
         self.negated = parameter_from_dict_default(data, REVERSED_KEY, bool, False)
 
     @abstractmethod
-    def _check(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None) -> bool:
+    def _check(self, output: ActionNodeOutput, state: StateReadOnlyView, trace: list[GuardRecord] | None) -> bool:
         """Answer without applying negation and without recording."""
 
     @abstractmethod
@@ -45,7 +45,7 @@ class BaseGuard(ABC):
     def name(self) -> str:
         return f"not {self._name()}" if self.negated else self._name()
 
-    def check(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None = None) -> bool:
+    def check(self, output: ActionNodeOutput, state: StateReadOnlyView, trace: list[GuardRecord] | None = None) -> bool:
         result = self._check(output, state, trace)
         if self.negated:
             result = not result
@@ -80,14 +80,14 @@ class ValueGuard(BaseGuard, ABC):
     def _name(self) -> str:
         return f"{self.data_keys()[0]}:{self.value}"
 
-    def converted_value(self, state: StateModel) -> str:
+    def converted_value(self, state: StateReadOnlyView) -> str:
         return state.set_parameters({"value": self.value})["value"].__str__()
 
     @abstractmethod
     def _compare(self, output_text: str, value: str) -> bool:
         """Compare the output text with the resolved value."""
 
-    def _check(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None) -> bool:
+    def _check(self, output: ActionNodeOutput, state: StateReadOnlyView, trace: list[GuardRecord] | None) -> bool:
         return self._compare(output.output_text, self.converted_value(state))
 
 
@@ -145,7 +145,7 @@ class FunctionGuard(BaseGuard):
     def _name(self) -> str:
         return self.function_name
 
-    def _check(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None) -> bool:
+    def _check(self, output: ActionNodeOutput, state: StateReadOnlyView, trace: list[GuardRecord] | None) -> bool:
         # The state is deliberately not handed to the function. A guard reads the state only through
         # the parameter references the engine resolves for it, so it cannot write to it. See ADR 002.
         return self.registered_validator.execute(
@@ -177,7 +177,7 @@ class ErrorCodeGuard(BaseGuard):
     def _name(self) -> str:
         return f"{ERRORS_KEY}:{','.join(self.error_codes)}"
 
-    def _check(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None) -> bool:
+    def _check(self, output: ActionNodeOutput, state: StateReadOnlyView, trace: list[GuardRecord] | None) -> bool:
         return output.error_code is not None and output.error_code in self.error_codes
 
 
@@ -194,7 +194,7 @@ class NoErrorGuard(BaseGuard):
     def _name(self) -> str:
         return NO_ERROR_NAME
 
-    def _check(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None) -> bool:
+    def _check(self, output: ActionNodeOutput, state: StateReadOnlyView, trace: list[GuardRecord] | None) -> bool:
         return output.error_code is None
 
 
@@ -240,7 +240,7 @@ class AllOfGuard(GroupGuard):
     def data_keys(cls) -> list[str]:
         return [ALL_OF_KEY]
 
-    def _check(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None) -> bool:
+    def _check(self, output: ActionNodeOutput, state: StateReadOnlyView, trace: list[GuardRecord] | None) -> bool:
         return all(guard.check(output, state, trace) for guard in self.guards)
 
 
@@ -249,7 +249,7 @@ class AnyOfGuard(GroupGuard):
     def data_keys(cls) -> list[str]:
         return [ANY_OF_KEY]
 
-    def _check(self, output: ActionNodeOutput, state: StateModel, trace: list[GuardRecord] | None) -> bool:
+    def _check(self, output: ActionNodeOutput, state: StateReadOnlyView, trace: list[GuardRecord] | None) -> bool:
         return any(guard.check(output, state, trace) for guard in self.guards)
 
 
