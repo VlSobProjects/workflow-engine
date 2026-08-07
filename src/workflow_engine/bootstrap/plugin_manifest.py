@@ -5,6 +5,11 @@ CORE_MODULES = [
     "workflow_engine.actions.action_nodes",
     "workflow_engine.codecs.base_codecs",
     "workflow_engine.validators.output_function_validators",
+    "workflow_engine.actions.file_info_functions",
+    "workflow_engine.actions.create_artifact_functions",
+    "workflow_engine.actions.modify_param_functions"
+
+
 ]
 
 

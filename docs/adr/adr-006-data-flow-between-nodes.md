@@ -77,6 +77,11 @@ survive a resume, and be debuggable.
   - `WorkflowArtifact.description` (`str | None`, static or resolved dynamically from action/function settings)
 - Artifact creation is owned by a dedicated action surface (`CreateArtifactActionWithContent`) with
   implementation delegated to functions; the engine remains the enforcer of artifact registration contract.
+- Responsibility split is explicit:
+  - function level (including external functions): may apply stricter pre-write checks and may fail early
+    before overwrite/path-collision as a best-practice safety behavior;
+  - engine level (mandatory contract): once artifact metadata is returned in `ActionNodeOutput.artifacts`,
+    the engine registers factual latest state and records conflicts in `state.artifact_events`.
 - Artifact registration follows a **state reflects reality** rule: when a function has already written files,
   the engine updates `state.artifacts` to the latest observed artifact metadata.
 - Artifact overwrites are tracked as artifact-specific events, not as generic state warnings and not as
@@ -200,6 +205,8 @@ class ArtifactEvent:
   - `artifact_overwritten` for same-name re-registration;
   - `artifact_path_conflict` for same-path registration under a different logical name.
 - Do not fail the node by default.
+- Function-level pre-check failures (before artifact registration) are allowed and can stop the node;
+  this does not change the mandatory engine-side registration/event contract for artifacts that are returned.
 - Strict failure-on-overwrite, if ever needed, is an optional policy switch and outside ADR 006 default.
 
 Recommended payload shape for implementation:

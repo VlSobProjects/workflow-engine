@@ -10,6 +10,7 @@ from types import MappingProxyType
 from typing import Final, final
 
 from workflow_engine.exceptions import (
+    ArtifactPathError,
     StateLoadError,
     StateLoadParameterError,
     WorkflowParameterError,
@@ -242,11 +243,33 @@ class StateReadOnlyView:
     def is_artifact_exist_by_path(self, relative_path: Path) -> bool:
         return self._is_artifact_exist_by_path(relative_path)
 
-    def get_artifact_absolute_path(self, relative_path: Path) -> Path:
-        return (self.work_dir / "artifacts" / relative_path).absolute()
+    def _resolve_artifact_path(self, path: str | Path) -> tuple[Path, Path]:
+        artifacts_root = (self.work_dir / "artifacts").resolve()
+        target = Path(path)
+        absolute_path = target.resolve() if target.is_absolute() else (artifacts_root / target).resolve()
+        try:
+            relative_path = absolute_path.relative_to(artifacts_root)
+        except ValueError as ex:
+            raise ArtifactPathError(
+                path=target.as_posix(),
+                artifacts_root=artifacts_root.as_posix(),
+                message="Artifact path must resolve inside work_dir/artifacts",
+            ) from ex
+        if relative_path == Path("."):
+            raise ArtifactPathError(
+                path=target.as_posix(),
+                artifacts_root=artifacts_root.as_posix(),
+                message="Artifact path points to artifacts root; file path expected",
+            )
+        return absolute_path, relative_path
 
-    def get_artifact_relative_path(self, path: str) -> Path:
-        return Path(path).relative_to(self.work_dir / "artifacts")
+    def get_artifact_absolute_path(self, path: str | Path) -> Path:
+        absolute_path, _ = self._resolve_artifact_path(path)
+        return absolute_path
+
+    def get_artifact_relative_path(self, path: str | Path) -> Path:
+        _, relative_path = self._resolve_artifact_path(path)
+        return relative_path
 
 
 @dataclass
@@ -488,6 +511,11 @@ class StateModel:
                 INVALID_WRITE_MODE,
                 f"Cannot replace parameter '{param_name}' parameter is not exist in workflow params' ",
             )
+        else:
+            return (
+                INVALID_WRITE_MODE,
+                f"Cannot modify '{param_name}' parameter mode: {param_write.mode} as it does not exist in workflow params' ",
+            )
 
         return None
 
@@ -505,18 +533,18 @@ class StateModel:
                     self.artifact_events.append(
                         ArtifactEvent.overwritten(self.current_node_id, artifact_name, old_artifact, artifact)
                     )
+                else:
+                    path_conflict_artifact = self._get_artifact_by_path(artifact.relative_path)
 
-                path_conflict_artifact = self._get_artifact_by_path(artifact.relative_path)
-
-                if path_conflict_artifact is not None:
-                    self.artifacts.pop(path_conflict_artifact[0])
-                    self.artifact_events.append(
-                        ArtifactEvent.path_conflict(
-                            self.current_node_id,
-                            artifact_name,
-                            path_conflict_artifact[0],
-                            path_conflict_artifact[1],
-                            artifact,
+                    if path_conflict_artifact is not None:
+                        self.artifacts.pop(path_conflict_artifact[0])
+                        self.artifact_events.append(
+                            ArtifactEvent.path_conflict(
+                                self.current_node_id,
+                                artifact_name,
+                                path_conflict_artifact[0],
+                                path_conflict_artifact[1],
+                                artifact,
+                            )
                         )
-                    )
                 self.artifacts[artifact_name] = artifact

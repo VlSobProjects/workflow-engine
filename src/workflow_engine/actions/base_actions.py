@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import cast
 
 from workflow_engine.actions.action_present import PresentResponse
-from workflow_engine.exceptions import ActionConfigurationError, WorkflowConfigurationError
+from workflow_engine.exceptions import ActionConfigurationError, WorkflowConfigurationError, ArtifactPathError
 from workflow_engine.models.state import StateModel, StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
@@ -73,7 +73,11 @@ class BaseAutomaticAction(BaseAction, ABC):
         pass
 
     def execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
-        return self._execute(state, prev_output)
+        try:
+            return self._execute(state, prev_output)
+        except ArtifactPathError as e:
+            return ActionNodeOutput(output_text="", error_code=e.error_code, error_msg=str(e))
+
 
     @classmethod
     def execution_mode(cls) -> ExecutionMode:
