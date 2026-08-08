@@ -10,7 +10,7 @@ from workflow_engine.actions.base_actions import (
 from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowSessionsFactory
 from workflow_engine.bootstrap.storage_fatcory import StorageFactory
 from workflow_engine.exceptions import WorkflowEngineError, WorkflowParameterError, WorkflowRuntimeError
-from workflow_engine.models.state import GuardRecord, StateModel, StateReadOnlyView
+from workflow_engine.models.state import GuardRecord, StateModel, StateReadOnlyView, SessionEvent, SessionEventCode
 from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.storage.storage import Storage
@@ -165,6 +165,20 @@ def _start_engine(
     cur_node = _get_workflow_node(workflow_nodes, state.current_node_id)
     try:
         while cur_node is not None:
+            if state.is_max_node_exceeded():
+                state.session_events.append(
+                    SessionEvent.engine_event(
+                        SessionEventCode.WORKFLOW_PAUSED_LIMIT,
+                        f"Max node exceeded: {state.nodes_visited}/{state.max_nodes_visited} nodes visited",
+                    )
+                )
+                return PresentResponse(
+                    title="Workflow budget exceeded",
+                    description=f"The workflow has exceeded the maximum number of nodes visited: {state.nodes_visited}/{state.max_nodes_visited}",
+                    instruction="You can change max node exceeded Workflow engine call set_session_limits",
+                    hints=_state_hints(state),
+                    errors={cur_node.id: "Workflow max node exceeded"},
+                )
             _set_parameters(state, cur_node.set_parameters, cur_node.override_parameters)
             state_read_only = StateReadOnlyView.from_state(state)
             # The action of the node the engine resumes at has not run yet. Running it is not an
@@ -178,6 +192,12 @@ def _start_engine(
 
                 if step.failure is not None:
                     print(f"Engine stop: {step.failure}")
+                    state.session_events.append(
+                        SessionEvent.engine_event(
+                            SessionEventCode.WORKFLOW_FAILED,
+                            f"Node {cur_node.id} failed with error: {step.failure}"
+                        )
+                    )
                     return PresentResponse(
                         title="Node failed",
                         description="A node did not pass its guards and the workflow cannot continue.",
@@ -254,6 +274,7 @@ class WorkflowEngine:
             )
         self.session = session
         self.storage = w_storage
+        state.session_events.append(SessionEvent.operator_event(SessionEventCode.WORKFLOW_RESUMED,f"session: {session_id} resumed, current node: {state.current_node_id}"))
         return w_storage.load_workflow(session_id), state
 
     def init_new_session(self, workflow_path: Path) -> str:
@@ -266,6 +287,7 @@ class WorkflowEngine:
         self.result = WorkflowResult(
             workflow=workflow, state=state, error=self._set_and_validate_workflow_nodes(workflow, state)
         )
+        state.session_events.append(SessionEvent.operator_event(SessionEventCode.SESSION_CREATED,f"New session created with workflow: {workflow.flow_id}"))
         return state.session_id
 
     def _set_and_validate_workflow_nodes(self, workflow: WorkflowModel, state: StateModel) -> PresentResponse | None:
@@ -353,3 +375,24 @@ class WorkflowEngine:
                 raise WorkflowEngineError(
                     f"Unexpected error in workflow execution: result exist: {result} but state is None"
                 )
+
+    def set_session_limits(self, session_id: str, max_nodes_visited: int) -> None:
+        workflow, state = self._continue_session(session_id)
+        limit_before = state.max_nodes_visited
+        if max_nodes_visited == 0:
+            state.max_nodes_visited = 0
+        elif max_nodes_visited < state.max_nodes_visited:
+            raise WorkflowEngineError(
+                f"Cannot set max_nodes_visited to {max_nodes_visited} because it is less than the current max_nodes_visited {state.max_nodes_visited}"
+            )
+        else:
+            state.max_nodes_visited = max_nodes_visited
+        if self.storage is None:
+            raise WorkflowEngineError("Unexpected Storage is not initialized in the engine.")
+        state.session_events.append(
+            SessionEvent.operator_event(
+                SessionEventCode.OPERATOR_LIMIT_UPDATED
+                ,f"Nodes visited: {state.nodes_visited}, limit before: {limit_before}, limit after: {max_nodes_visited}"
+            )
+        )
+        self.storage.save_workflow(session_id, workflow)

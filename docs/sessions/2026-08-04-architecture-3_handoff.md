@@ -23,7 +23,7 @@ Backlog cleanup identified the following missing ADR topics for behavior that al
 1. **Action delivery semantics and replay safety** (highest priority after ADR 004 implementation start): policy for side-effecting actions under retries/resume and failure recovery.
 2. **Component loading and registration boundary**: how actions/functions/validators/codecs are discovered and loaded beyond import-time side effects.
 3. **State ownership and data flow contract**: strict boundary between engine journal (`outputs`, `errors`, counters, guards) and action-owned state (`params`, `artifacts`), including read/write rules.
-4. **Flow control and termination policy**: authoritative semantics for `flow_budget`, `nodes_visited`, visit/attempt counters, and loop/stop guarantees.
+4. **Flow control and termination policy**: authoritative semantics for `max_nodes_visited`, `nodes_visited`, visit/attempt counters, and loop/stop guarantees.
 
 ADR 004 remains the active architectural dependency for bootstrap and immutable session metadata; no new POC/Implementing ADR was started.
 

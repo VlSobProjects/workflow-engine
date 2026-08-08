@@ -5,7 +5,7 @@ from pathlib import Path
 
 from workflow_engine.exceptions import StateLoadError, WorkflowEngineError, WorkflowParameterError
 from workflow_engine.models.node import WorkflowNodeModel
-from workflow_engine.models.state import ActionParameter, ArtifactEvent, GuardRecord, StateModel
+from workflow_engine.models.state import ActionParameter, ArtifactEvent, GuardRecord, StateModel, SessionEvent
 from workflow_engine.models.workflow import WorkflowModel
 from workflow_engine.output import WorkflowArtifact
 from workflow_engine.storage.storage import Storage
@@ -25,6 +25,9 @@ def state_encoder(obj):
         return obj.isoformat()
 
     if isinstance(obj, WorkflowArtifact):
+        return obj.to_dict()
+
+    if isinstance(obj, SessionEvent):
         return obj.to_dict()
 
     if isinstance(obj, ArtifactEvent):

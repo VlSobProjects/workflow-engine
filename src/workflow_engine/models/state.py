@@ -1,19 +1,22 @@
 from __future__ import annotations
 
+import uuid
+
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from enum import auto, Enum
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final, final
+from typing import Final, final, Literal
 
 from workflow_engine.exceptions import (
     ArtifactPathError,
     StateLoadError,
     StateLoadParameterError,
-    WorkflowParameterError,
+    WorkflowParameterError, WorkflowRuntimeError,
 )
 from workflow_engine.output import ActionNodeOutput, ParamWrite, WorkflowArtifact, WriteParamMode
 from workflow_engine.registry.type_registry import (
@@ -33,6 +36,97 @@ ARTIFACT_OVERWRITE = "artifact_overwritten"
 ARTIFACT_PATH_CONFLICT = "artifact_path_conflict"
 INVALID_WRITE_MODE = "invalid_write_mode"
 PARAM_TYPE_MISMATCH = "param_type_mismatch"
+
+class SessionEventCode(Enum):
+    SESSION_CREATED = "session_created"
+    WORKFLOW_STARTED = "workflow_started"
+    OPERATOR_LIMIT_UPDATED = "operator_limit_updated"
+    WORKFLOW_RESUMED = "workflow_resumed"
+    WORKFLOW_PAUSED_LIMIT = "workflow_paused_limit"
+    WORKFLOW_COMPLETED = "workflow_completed"
+    WORKFLOW_FAILED = "workflow_failed"
+
+
+OPERATOR_CODES = (
+    SessionEventCode.SESSION_CREATED,
+    SessionEventCode.OPERATOR_LIMIT_UPDATED,
+    SessionEventCode.WORKFLOW_RESUMED,
+    SessionEventCode.WORKFLOW_STARTED
+)
+
+ENGINE_CODES = (
+    SessionEventCode.WORKFLOW_PAUSED_LIMIT,
+    SessionEventCode.WORKFLOW_COMPLETED,
+    SessionEventCode.WORKFLOW_FAILED
+)
+
+
+
+@dataclass(frozen=True, slots=True)
+class SessionEvent:
+    timestamp: datetime
+    code: str
+    actor: Literal["engine", "operator"]
+    event_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    details:str | None = field(default=None)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> SessionEvent:
+        event_id = parameter_from_dict(data, "event_id", str)
+        actor = "engine" if parameter_from_dict(data, "actor", str) == "engine" else None
+        if actor is None:
+            actor = "operator" if parameter_from_dict(data, "actor", str) == "operator" else None
+        if actor is None:
+            raise StateLoadParameterError(
+                current_node="ANY",
+                parameter_name="SessionEvent.actor",
+                message=f"Session Event: {event_id} Invalid actor value: {parameter_from_dict(data, 'actor', str)}, "
+                        f"allowed values: ('engine', 'operator')"
+            )
+        return cls(
+            timestamp=datetime.fromisoformat(parameter_from_dict(data, "timestamp", str)),
+            code=parameter_from_dict(data, "code", str),
+            actor=actor,
+            event_id=event_id,
+            details=parameter_from_dict_optional(data, "details", str),
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        d = {
+            "timestamp": self.timestamp.isoformat(),
+            "code": self.code,
+            "actor": self.actor,
+            "event_id": self.event_id,
+        }
+        if self.details is not None:
+            d["details"] = self.details
+        return d
+
+    @classmethod
+    def operator_event(cls, code: SessionEventCode, details: str | None = None) -> SessionEvent:
+        if code not in OPERATOR_CODES:
+            raise WorkflowRuntimeError(
+                f"{code} is not a valid session event code for operator. valid codes: {OPERATOR_CODES} "
+            )
+        return cls(
+            timestamp=datetime.now(tz=UTC),
+            code=code.value,
+            actor="operator",
+            details=details
+        )
+
+    @classmethod
+    def engine_event(cls, code: SessionEventCode, details: str | None = None) -> SessionEvent:
+        if code not in ENGINE_CODES:
+            raise WorkflowRuntimeError(
+                f"{code} is not a valid session event code for engine. valid codes: {ENGINE_CODES} "
+            )
+        return cls(
+            timestamp=datetime.now(tz=UTC),
+            code=code.value,
+            actor="engine",
+            details=details
+        )
 
 
 @dataclass(frozen=True)
@@ -292,7 +386,8 @@ class StateModel:
     guard_results: dict[str, list[GuardRecord]] = field(default_factory=dict)  # latest attempt per node
     artifacts: dict[str, WorkflowArtifact] = field(default_factory=dict)
     artifact_events: list[ArtifactEvent] = field(default_factory=list)  # folder in workdir with files
-    flow_budget: int = field(default=0)  # engine-managed params: _flow_budget (int)
+    session_events: list[SessionEvent] = field(default_factory=list)
+    max_nodes_visited: int = field(default=0)  # engine-managed params: _flow_budget (int)
     nodes_visited: int = field(default=0)  # engine-managed params: _nodes_visited (int)
 
     def session_view(self) -> dict[str, object]:
@@ -331,15 +426,18 @@ class StateModel:
             params["artifact_events"] = [
                 ArtifactEvent.from_dict(v) for v in parameter_from_dict_default(data, "artifact_events", list, [])
             ]
+            params["session_events"] = [
+                SessionEvent.from_dict(v) for v in parameter_from_dict_default(data, "session_events", list, [])
+            ]
             guard_results = parameter_from_dict_default(data, "guard_results", dict, {})
             params["guard_results"] = {
-                k: GuardRecord.from_list(parameter_from_dict(guard_results, str(k), list)) for k in guard_results
+                k: GuardRecord.from_list(parameter_from_dict_default(guard_results, str(k), list, [])) for k in guard_results
             }
             params["artifacts"] = {
                 k: WorkflowArtifact.from_dict(v)
                 for k, v in parameter_from_dict_default(data, "artifacts", dict, {}).items()
             }
-            params["flow_budget"] = parameter_from_dict_default(data, "flow_budget", int, 0)
+            params["max_nodes_visited"] = parameter_from_dict_default(data, "max_nodes_visited", int, 0)
             params["nodes_visited"] = parameter_from_dict_default(data, "nodes_visited", int, 0)
         except (ValueError, WorkflowParameterError) as e:
             raise StateLoadError(parameter_name="state", message=e.__repr__()) from e
@@ -377,6 +475,9 @@ class StateModel:
 
         new_params.update(updater or {})
         return new_params
+
+    def is_max_node_exceeded(self) -> bool:
+        return self.max_nodes_visited != 0 and self.nodes_visited >= self.max_nodes_visited
 
     def set_parameters_with_updater(
         self, updater: dict[str, object]
@@ -419,7 +520,7 @@ class StateModel:
 
     def info(self) -> list[str]:
         info = [
-            f"last node id: {self.current_node_id}, total visits: {self.nodes_visited}, flow_budget: {self.flow_budget}"
+            f"last node id: {self.current_node_id}, total visits: {self.nodes_visited}, flow_budget: {self.max_nodes_visited}"
         ]
         info += [
             f"Stat: Total errors: {len(self.errors)}, "
