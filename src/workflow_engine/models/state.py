@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import uuid
-
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import auto, Enum
+from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final, final, Literal
+from typing import Final, Literal, final
 
 from workflow_engine.exceptions import (
     ArtifactPathError,
     StateLoadError,
     StateLoadParameterError,
-    WorkflowParameterError, WorkflowRuntimeError,
+    WorkflowParameterError,
+    WorkflowRuntimeError,
 )
 from workflow_engine.output import ActionNodeOutput, ParamWrite, WorkflowArtifact, WriteParamMode
 from workflow_engine.registry.type_registry import (
@@ -37,6 +37,7 @@ ARTIFACT_PATH_CONFLICT = "artifact_path_conflict"
 INVALID_WRITE_MODE = "invalid_write_mode"
 PARAM_TYPE_MISMATCH = "param_type_mismatch"
 
+
 class SessionEventCode(Enum):
     SESSION_CREATED = "session_created"
     WORKFLOW_STARTED = "workflow_started"
@@ -51,15 +52,14 @@ OPERATOR_CODES = (
     SessionEventCode.SESSION_CREATED,
     SessionEventCode.OPERATOR_LIMIT_UPDATED,
     SessionEventCode.WORKFLOW_RESUMED,
-    SessionEventCode.WORKFLOW_STARTED
+    SessionEventCode.WORKFLOW_STARTED,
 )
 
 ENGINE_CODES = (
     SessionEventCode.WORKFLOW_PAUSED_LIMIT,
     SessionEventCode.WORKFLOW_COMPLETED,
-    SessionEventCode.WORKFLOW_FAILED
+    SessionEventCode.WORKFLOW_FAILED,
 )
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +68,7 @@ class SessionEvent:
     code: str
     actor: Literal["engine", "operator"]
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex)
-    details:str | None = field(default=None)
+    details: str | None = field(default=None)
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> SessionEvent:
@@ -81,7 +81,7 @@ class SessionEvent:
                 current_node="ANY",
                 parameter_name="SessionEvent.actor",
                 message=f"Session Event: {event_id} Invalid actor value: {parameter_from_dict(data, 'actor', str)}, "
-                        f"allowed values: ('engine', 'operator')"
+                f"allowed values: ('engine', 'operator')",
             )
         return cls(
             timestamp=datetime.fromisoformat(parameter_from_dict(data, "timestamp", str)),
@@ -108,12 +108,7 @@ class SessionEvent:
             raise WorkflowRuntimeError(
                 f"{code} is not a valid session event code for operator. valid codes: {OPERATOR_CODES} "
             )
-        return cls(
-            timestamp=datetime.now(tz=UTC),
-            code=code.value,
-            actor="operator",
-            details=details
-        )
+        return cls(timestamp=datetime.now(tz=UTC), code=code.value, actor="operator", details=details)
 
     @classmethod
     def engine_event(cls, code: SessionEventCode, details: str | None = None) -> SessionEvent:
@@ -121,12 +116,7 @@ class SessionEvent:
             raise WorkflowRuntimeError(
                 f"{code} is not a valid session event code for engine. valid codes: {ENGINE_CODES} "
             )
-        return cls(
-            timestamp=datetime.now(tz=UTC),
-            code=code.value,
-            actor="engine",
-            details=details
-        )
+        return cls(timestamp=datetime.now(tz=UTC), code=code.value, actor="engine", details=details)
 
 
 @dataclass(frozen=True)
@@ -431,7 +421,8 @@ class StateModel:
             ]
             guard_results = parameter_from_dict_default(data, "guard_results", dict, {})
             params["guard_results"] = {
-                k: GuardRecord.from_list(parameter_from_dict_default(guard_results, str(k), list, [])) for k in guard_results
+                k: GuardRecord.from_list(parameter_from_dict_default(guard_results, str(k), list, []))
+                for k in guard_results
             }
             params["artifacts"] = {
                 k: WorkflowArtifact.from_dict(v)
@@ -520,7 +511,8 @@ class StateModel:
 
     def info(self) -> list[str]:
         info = [
-            f"last node id: {self.current_node_id}, total visits: {self.nodes_visited}, flow_budget: {self.max_nodes_visited}"
+            f"last node id: {self.current_node_id}, total visits: {self.nodes_visited}, "
+            f"flow_budget: {self.max_nodes_visited}"
         ]
         info += [
             f"Stat: Total errors: {len(self.errors)}, "
