@@ -23,6 +23,7 @@ class FunctionAction(ActionWithFunction):
         super().__init__(data)
 
 
+@register_action()
 class FunctionsAction(BaseAutomaticAction):
     ACTION_TYPE = "functions"
     function_action_list: dict[str, ActionWithFunction]
