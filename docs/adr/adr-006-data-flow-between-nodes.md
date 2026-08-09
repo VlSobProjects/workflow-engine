@@ -1,10 +1,10 @@
 # ADR 006: Data flow between nodes
 
 ## Status
-Implementing
+Accepted
 
 ## Active branch
-feature/adr_006-data-flow-between-nodes
+—
 
 ## Context
 
