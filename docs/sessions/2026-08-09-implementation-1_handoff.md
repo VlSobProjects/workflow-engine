@@ -18,6 +18,10 @@ Stabilize ADR 006 session-event and max-nodes control implementation after initi
 ## Status
 interrupted
 
+Picked up and closed by `2026-08-09-implementation-2_handoff.md`, which delivered the run entry, resume
+and terminal event work. Next steps 4 and 5 below were deliberately left out of that session and are
+carried over there.
+
 ## Result
 The latest implementation pass fixed critical persistence gaps in engine flow-control handling:
 - `set_session_limits` now saves state (`save_state`) instead of workflow payload.

@@ -470,6 +470,12 @@ class StateModel:
     def is_max_node_exceeded(self) -> bool:
         return self.max_nodes_visited != 0 and self.nodes_visited >= self.max_nodes_visited
 
+    def has_session_event(self, code: SessionEventCode) -> bool:
+        return any(event.code == code.value for event in self.session_events)
+
+    def record_session_event(self, event: SessionEvent) -> None:
+        self.session_events.append(event)
+
     def set_parameters_with_updater(
         self, updater: dict[str, object]
     ) -> Callable[[dict[str, object]], dict[str, object]]:

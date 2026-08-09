@@ -166,12 +166,13 @@ def _start_engine(
     try:
         while cur_node is not None:
             if state.is_max_node_exceeded():
-                state.session_events.append(
+                state.record_session_event(
                     SessionEvent.engine_event(
                         SessionEventCode.WORKFLOW_PAUSED_LIMIT,
                         f"Max node exceeded: {state.nodes_visited}/{state.max_nodes_visited} nodes visited",
                     )
                 )
+                storage.save_state(state)
                 return PresentResponse(
                     title="Workflow budget exceeded",
                     description=f"The workflow has exceeded the maximum number of nodes "
@@ -193,7 +194,7 @@ def _start_engine(
 
                 if step.failure is not None:
                     print(f"Engine stop: {step.failure}")
-                    state.session_events.append(
+                    state.record_session_event(
                         SessionEvent.engine_event(
                             SessionEventCode.WORKFLOW_FAILED, f"Node {cur_node.id} failed with error: {step.failure}"
                         )
@@ -216,6 +217,13 @@ def _start_engine(
 
     except WorkflowRuntimeError as e:
         print(f"Engine stop: Exception occurred during workflow execution: {e}")
+        state.record_session_event(
+            SessionEvent.engine_event(
+                SessionEventCode.WORKFLOW_FAILED,
+                f"Workflow execution raised {type(e).__name__}: {e}",
+            )
+        )
+        storage.save_state(state)
         return PresentResponse(
             title="Error in workflow execution",
             description="An exception occurred during workflow execution.",
@@ -224,6 +232,12 @@ def _start_engine(
             errors={f"Exception: {type(e).__name__}": str(e)},
         )
 
+    state.record_session_event(
+        SessionEvent.engine_event(
+            SessionEventCode.WORKFLOW_COMPLETED,
+            f"Workflow completed at node {state.current_node_id} after {state.nodes_visited} visited nodes",
+        )
+    )
     storage.save_state(state)
 
     return PresentResponse(
@@ -234,21 +248,98 @@ def _start_engine(
     )
 
 
-@dataclass
-class WorkflowResult:
-    error: PresentResponse | None = None
-    state: StateModel | None = None
-    workflow: WorkflowModel | None = None
+@dataclass(frozen=True, slots=True)
+class SessionRuntime:
+    """Everything one session needs to run: loaded once, cached by the engine, never partially filled.
+
+    `setup_error` is the deferred answer for a session whose workflow does not validate: the runtime
+    exists and its state can be reported, but it must not be executed.
+    """
+
+    session: WorkflowSession
+    storage: Storage
+    state: StateModel
+    workflow: WorkflowModel
+    nodes: MappingProxyType[str, WorkflowNode]
+    setup_error: PresentResponse | None = None
+
+
+def _build_workflow_nodes(
+    workflow: WorkflowModel, state: StateModel
+) -> tuple[MappingProxyType[str, WorkflowNode], PresentResponse | None]:
+    empty: MappingProxyType[str, WorkflowNode] = MappingProxyType({})
+    nodes: dict[str, WorkflowNode] = {}
+    errors = _load_workflow_nodes(nodes, workflow)
+    if len(errors) > 0:
+        return empty, PresentResponse(
+            title="Errors in workflow configuration",
+            description="Validation of workflow nodes failed",
+            instruction="Please check errors in workflow configuration, and try to start a new session",
+            hints=_state_hints(state),
+            errors=errors,
+        )
+
+    if _get_workflow_node(MappingProxyType(nodes), state.current_node_id) is None:
+        print(f"Engine stop: Node with id {state.current_node_id} not found in workflow")
+        return empty, PresentResponse(
+            title="Error in workflow setup",
+            description="Current node not found in workflow by id",
+            instruction=(
+                "Probably workflow session is corrupted. Please check workflow configuration, and try start new session"
+            ),
+            hints=_state_hints(state),
+            errors={f"Current node id: {state.current_node_id}": "not found in workflow"},
+        )
+
+    errors = _workflow_nodes_errors(MappingProxyType(nodes))
+    if len(errors) > 0:
+        return empty, PresentResponse(
+            title="Error in workflow setup",
+            description="Workflow nodes is not pass validation.",
+            instruction="Please check workflow configuration. In errors - all configuration errors",
+            hints=_state_hints(state),
+            errors=errors,
+            goal=(
+                "Fix workflow configuration using information from Errors. "
+                "Re run workflow or start new with fixed version of workflow configuration."
+            ),
+        )
+    return MappingProxyType(nodes), None
+
+
+def _build_runtime(
+    session: WorkflowSession, storage: Storage, state: StateModel, workflow: WorkflowModel
+) -> SessionRuntime:
+    nodes, setup_error = _build_workflow_nodes(workflow, state)
+    return SessionRuntime(
+        session=session, storage=storage, state=state, workflow=workflow, nodes=nodes, setup_error=setup_error
+    )
+
+
+def _run_entry_event(state: StateModel) -> SessionEvent:
+    """A session is started once and resumed every time after that.
+
+    The distinction is read from the persisted journal, so it holds across engine instances and process
+    restarts. Node counters cannot answer it: a run that stops at an interactive first node leaves them
+    untouched. See ADR 006.
+    """
+
+    if state.has_session_event(SessionEventCode.WORKFLOW_STARTED):
+        return SessionEvent.operator_event(
+            SessionEventCode.WORKFLOW_RESUMED,
+            f"session: {state.session_id} resumed, current node: {state.current_node_id}",
+        )
+    return SessionEvent.operator_event(
+        SessionEventCode.WORKFLOW_STARTED,
+        f"session: {state.session_id} started, current node: {state.current_node_id}",
+    )
 
 
 class WorkflowEngine:
     storage_factory: StorageFactory
-    storage: Storage | None
-    session: WorkflowSession | None
     session_factory: WorkflowSessionsFactory
     components: dict[str, dict[str, dict[str, str]]]
-    workflow_nodes: MappingProxyType[str, WorkflowNode]
-    result: WorkflowResult | None = None
+    runtime: SessionRuntime | None
 
     def __init__(
         self,
@@ -259,141 +350,90 @@ class WorkflowEngine:
         self.session_factory = session_factory
         self.storage_factory = storage_factory
         self.components = components
-        self.workflow_nodes = MappingProxyType({})
-        self.storage = None
-        self.session = None
-        self.result = None
+        self.runtime = None
 
-    def _continue_session(self, session_id: str) -> tuple[WorkflowModel, StateModel]:
-        """Continue workflow session"""
+    @property
+    def session(self) -> WorkflowSession | None:
+        return self.runtime.session if self.runtime is not None else None
+
+    @property
+    def storage(self) -> Storage | None:
+        return self.runtime.storage if self.runtime is not None else None
+
+    @property
+    def workflow_nodes(self) -> MappingProxyType[str, WorkflowNode]:
+        return self.runtime.nodes if self.runtime is not None else MappingProxyType({})
+
+    def _load(self, session_id: str) -> SessionRuntime:
+        """Load a session with the storage recorded in the session, not the current configuration.
+
+        Loading has no side effect on the journal: what an external call means is decided by the caller.
+        """
+
         session = self.session_factory.load_session(session_id)
-        w_storage = self.storage_factory.build_storage(session.storage)
-        state = w_storage.load_state(session.session_id)
+        storage = self.storage_factory.build_storage(session.storage)
+        state = storage.load_state(session.session_id)
         if not session.is_same(state):
             raise WorkflowRuntimeError(
                 f"Session data mismatch: session {session.to_dict()} does not match state {state.session_view()}"
             )
-        self.session = session
-        self.storage = w_storage
-        state.session_events.append(
-            SessionEvent.operator_event(
-                SessionEventCode.WORKFLOW_RESUMED,
-                f"session: {session_id} resumed, current node: {state.current_node_id}",
-            )
-        )
-        return w_storage.load_workflow(session_id), state
+        return _build_runtime(session, storage, state, storage.load_workflow(session_id))
+
+    def _acquire(self, session_id: str) -> SessionRuntime:
+        """The cached runtime is a cache and nothing else: another session id always means a fresh load."""
+
+        runtime = self.runtime
+        if runtime is not None and runtime.state.session_id == session_id:
+            return runtime
+        runtime = self._load(session_id)
+        self.runtime = runtime
+        return runtime
+
+    @staticmethod
+    def _commit(runtime: SessionRuntime) -> None:
+        runtime.storage.save_state(runtime.state)
 
     def init_new_session(self, workflow_path: Path) -> str:
-        if self.result is not None and self.result.state is not None:
+        if self.runtime is not None:
             raise WorkflowEngineError(
                 f"Cannot start a new session while another session is active. "
-                f"Current session ID: {self.result.state.session_id}"
+                f"Current session ID: {self.runtime.state.session_id}"
             )
-        workflow, state = self._start_new_session(workflow_path)
-        self.result = WorkflowResult(
-            workflow=workflow, state=state, error=self._set_and_validate_workflow_nodes(workflow, state)
-        )
-        state.session_events.append(
+        workflow = WorkflowSource.upload_workflow_from_file(workflow_path)
+        session = self.session_factory.new_session(workflow, self.storage_factory.storage_config())
+        storage = self.storage_factory.build_storage(session.storage)
+        state = session.create_state(workflow)
+        storage.save_workflow(state.session_id, workflow)
+        runtime = _build_runtime(session, storage, state, workflow)
+        self.runtime = runtime
+        state.record_session_event(
             SessionEvent.operator_event(
                 SessionEventCode.SESSION_CREATED, f"New session created with workflow: {workflow.flow_id}"
             )
         )
-        if self.storage is not None:
-            self.storage.save_state(state)
-        else:
-            raise WorkflowEngineError("Unexpected Storage is not initialized in the engine.")
+        self._commit(runtime)
         return state.session_id
-
-    def _set_and_validate_workflow_nodes(self, workflow: WorkflowModel, state: StateModel) -> PresentResponse | None:
-        nodes: dict[str, WorkflowNode] = {}
-        errors = _load_workflow_nodes(nodes, workflow)
-        if len(errors) > 0:
-            return PresentResponse(
-                title="Errors in workflow configuration",
-                description="Validation of workflow nodes failed",
-                instruction="Please check errors in workflow configuration, and try to start a new session",
-                hints=_state_hints(state),
-                errors=errors,
-            )
-        cur_node = _get_workflow_node(MappingProxyType(nodes), state.current_node_id)
-        if cur_node is None:
-            print(f"Engine stop: Node with id {state.current_node_id} not found in workflow")
-            return PresentResponse(
-                title="Error in workflow setup",
-                description="Current node not found in workflow by id",
-                instruction=(
-                    "Probably workflow session is corrupted. Please check workflow configuration, "
-                    "and try start new session"
-                ),
-                hints=_state_hints(state),
-                errors={f"Current node id: {state.current_node_id}": "not found in workflow"},
-            )
-
-        errors = _workflow_nodes_errors(MappingProxyType(nodes))
-        if len(errors) > 0:
-            return PresentResponse(
-                title="Error in workflow setup",
-                description="Workflow nodes is not pass validation.",
-                instruction="Please check workflow configuration. In errors - all configuration errors",
-                hints=_state_hints(state),
-                errors=errors,
-                goal=(
-                    "Fix workflow configuration using information from Errors. "
-                    "Re run workflow or start new with fixed version of workflow configuration."
-                ),
-            )
-        self.workflow_nodes = MappingProxyType(nodes)
-        return None
-
-    def _start_new_session(self, workflow_path: Path) -> tuple[WorkflowModel, StateModel]:
-        """Start a new workflow session."""
-        workflow = WorkflowSource.upload_workflow_from_file(workflow_path)
-        session = self.session_factory.new_session(workflow, self.storage_factory.storage_config())
-        w_storage = self.storage_factory.build_storage(session.storage)
-        state = session.create_state(workflow)
-        w_storage.save_state(state)
-        w_storage.save_workflow(state.session_id, workflow)
-        self.storage = w_storage
-        self.session = session
-        return workflow, state
 
     def components_report(self) -> str:
         return dict_to_text_lv3("Workflow Engine Components", self.components, 0, 4)
 
     def start_workflow(
         self, session_id: str, output: ActionNodeOutput | None = None
-    ) -> tuple[PresentResponse, StateModel | None]:
+    ) -> tuple[PresentResponse, StateModel]:
         """Start or continue a workflow session."""
-        result: WorkflowResult
-        if self.result is None:
-            workflow, state = self._continue_session(session_id)
-            result = WorkflowResult(
-                workflow=workflow, state=state, error=self._set_and_validate_workflow_nodes(workflow, state)
-            )
-            self.result = result
-        else:
-            result = self.result
+        runtime = self._acquire(session_id)
+        if runtime.setup_error is not None:
+            return runtime.setup_error, runtime.state
 
-        if result.error is not None:
-            return result.error, result.state
-        else:
-            if result.state is not None:
-                if session_id != result.state.session_id:
-                    raise WorkflowEngineError(
-                        f"Session ID mismatch: provided {session_id}, but engine has {result.state.session_id}"
-                    )
-                if self.storage is None:
-                    raise WorkflowEngineError("Unexpected Storage is not initialized in the engine.")
-                r = _start_engine(self.workflow_nodes, self.storage, result.state, output)
-                self.storage.save_state(result.state)
-                return r, result.state
-            else:
-                raise WorkflowEngineError(
-                    f"Unexpected error in workflow execution: result exist: {result} but state is None"
-                )
+        runtime.state.record_session_event(_run_entry_event(runtime.state))
+        self._commit(runtime)
+        response = _start_engine(runtime.nodes, runtime.storage, runtime.state, output)
+        self._commit(runtime)
+        return response, runtime.state
 
     def set_session_limits(self, session_id: str, max_nodes_visited: int) -> None:
-        workflow, state = self._continue_session(session_id)
+        runtime = self._acquire(session_id)
+        state = runtime.state
         limit_before = state.max_nodes_visited
         if max_nodes_visited == 0:
             state.max_nodes_visited = 0
@@ -404,12 +444,10 @@ class WorkflowEngine:
             )
         else:
             state.max_nodes_visited = max_nodes_visited
-        if self.storage is None:
-            raise WorkflowEngineError("Unexpected Storage is not initialized in the engine.")
-        state.session_events.append(
+        state.record_session_event(
             SessionEvent.operator_event(
                 SessionEventCode.OPERATOR_LIMIT_UPDATED,
                 f"Nodes visited: {state.nodes_visited}, limit before: {limit_before}, limit after: {max_nodes_visited}",
             )
         )
-        self.storage.save_state(state)
+        self._commit(runtime)
