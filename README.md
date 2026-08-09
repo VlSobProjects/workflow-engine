@@ -21,15 +21,11 @@ Python 3.13 or newer. Dependencies are declared in `pyproject.toml`.
 
 ## Running the tests
 
-The package lives under `src/`, which must be on the import path. The tests currently expect to be
-run from the `tests` directory:
+Run tests from the repository root:
 
 ```
-cd tests
-python -m pytest
+pytest
 ```
-
-Making the test suite runnable from the repository root is a known open task.
 
 ## Working on this project
 
