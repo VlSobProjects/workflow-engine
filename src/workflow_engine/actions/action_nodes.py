@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from collections import deque
-from collections.abc import Iterable, Iterator
-
 from workflow_engine.actions.base_actions import ActionWithFunction, BaseAutomaticAction
 from workflow_engine.collection_param_handlers import WriteParamMode
 from workflow_engine.models.state import StateReadOnlyView
@@ -54,72 +51,6 @@ class FunctionsAction(BaseAutomaticAction):
             output_text="Functions executed successfully",
             param_writes={self.save_to_list: ParamWrite(mode=WriteParamMode.APPEND, value=result)},
         )
-
-
-class ForEachOutputParameterNode(BaseAutomaticAction):
-    ACTION_TYPE = "for_each_node"
-    output_param_name: str
-    iterator: Iterator[object] | None
-    iterating: bool = False
-
-    def __init__(self, data: dict[str, object]):
-        super().__init__(data)
-        self.output_param_name = parameter_from_dict(data, "output_param_name", str)
-        self.iterator = None
-
-    def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
-        next_value = "iterator_error"
-        error_massage = ""
-        if self.iterator is None:
-            if prev_output is not None:
-                if self.output_param_name in prev_output.param_writes:
-                    iterable = prev_output.param_writes[self.output_param_name]
-                    if isinstance(iterable, Iterable):
-                        self.iterator = iter(iterable)
-                    else:
-                        error_massage = (
-                            f"Output parameter '{self.output_param_name}' is not iterable. - {type(iterable).__name__}"
-                        )
-                else:
-                    error_massage = f"Output parameter '{self.output_param_name}' not found in previous output"
-            else:
-                error_massage = "Previous output is None, cannot iterate over output parameter"
-
-        if self.iterator:
-            next_value = next(self.iterator, "iterator_done").__str__()
-            if next_value == "iterator_done":
-                self.iterator = None
-                self.iterating = False
-
-        if next_value == "iterator_error":
-            return ActionNodeOutput(output_text="", error_code="iterator_error", error_msg=error_massage)
-
-        return ActionNodeOutput(output_text=next_value)
-
-
-class PopFromQueue(BaseAutomaticAction):
-    ACTION_TYPE = "pop_from_queue"
-    parameter_queue_name: str
-    output_queue: deque | None
-
-    def __init__(self, data: dict[str, object]):
-        super().__init__(data)
-        self.parameter_queue_name = parameter_from_dict(data, "queue_name", str)
-
-    def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
-        deque_obj = state.get_param(self.parameter_queue_name)
-        if isinstance(deque_obj, deque):
-            if len(deque_obj) > 0:
-                next_value = deque_obj.popleft()
-                return ActionNodeOutput(output_text=str(next_value))
-            else:
-                return ActionNodeOutput(output_text="queue_empty")
-        else:
-            return ActionNodeOutput(
-                output_text="",
-                error_code="queue_not_found",
-                error_msg=f"Queue '{self.parameter_queue_name}' not found or is not a deque object",
-            )
 
 
 @register_action()

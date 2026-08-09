@@ -142,9 +142,11 @@ def test_updating_the_limit_is_not_a_resume(tmp_path, workflow_file):
     session_id = engine.init_new_session(workflow_file)
     engine.set_session_limits(session_id, 5)
 
-    stored = codes(persisted_state(tmp_path, session_id))
+    state = persisted_state(tmp_path, session_id)
 
-    assert stored == [SessionEventCode.SESSION_CREATED.value, SessionEventCode.OPERATOR_LIMIT_UPDATED.value]
+    assert codes(state) == [SessionEventCode.SESSION_CREATED.value, SessionEventCode.OPERATOR_LIMIT_UPDATED.value]
+    # The old and the new limit are structured fields, so an operator tool does not have to parse prose.
+    assert state.session_events[1].details == {"nodes_visited": 0, "limit_before": 0, "limit_after": 5}
 
 
 def test_updating_the_limit_from_another_engine_is_not_a_resume(tmp_path, workflow_file):

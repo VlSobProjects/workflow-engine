@@ -75,8 +75,9 @@ survive a resume, and be debuggable.
   - `WorkflowArtifact.relative_path` (path relative to `work_dir`)
   - `WorkflowArtifact.created_at` (timestamp)
   - `WorkflowArtifact.description` (`str | None`, static or resolved dynamically from action/function settings)
-- Artifact creation is owned by a dedicated action surface (`CreateArtifactActionWithContent`) with
-  implementation delegated to functions; the engine remains the enforcer of artifact registration contract.
+- Artifact creation is owned by functions: a function writes the file and returns artifact metadata in
+  `ActionNodeOutput.artifacts`. There is no dedicated artifact action type; the artifact-producing node is
+  an ordinary function node. The engine remains the enforcer of the artifact registration contract.
 - Responsibility split is explicit:
   - function level (including external functions): may apply stricter pre-write checks and may fail early
     before overwrite/path-collision as a best-practice safety behavior;
@@ -102,10 +103,12 @@ survive a resume, and be debuggable.
 
 ### 9. Surface included in ADR 006 implementation
 
-- `FunctionsAction` and `CreateArtifactActionWithContent` are reshaped to the new contract.
+- `FunctionAction` and `FunctionsAction` are reshaped to the new contract, and artifact creation is served
+  by functions through them instead of a dedicated artifact action.
 - `PopFromQueue` is excluded from ADR 006 action surface and moved to specialized function-level behavior
-  that returns declarative `param_writes`.
-- `ForEachOutputParameterNode` is excluded from ADR 006 and may become a separate ADR topic.
+  that returns declarative `param_writes`. The action is removed from the code base.
+- `ForEachOutputParameterNode` is excluded from ADR 006 and may become a separate ADR topic. The action is
+  removed from the code base; a future decision reintroduces it under the write set contract.
 
 ### 10. Session control event journal
 
@@ -121,6 +124,12 @@ survive a resume, and be debuggable.
 - Minimum event coverage in ADR 006 scope:
   - `operator`: `session_created`, `workflow_started`, `operator_limit_updated`, `workflow_resumed`
   - `engine`: `workflow_paused_limit`, `workflow_completed`, `workflow_failed`
+- `workflow_started` is emitted on the first run entry of a session and `workflow_resumed` on every later
+  one. The distinction is derived from the persisted journal, so it holds across engine instances and
+  process restarts; the in-memory engine cache is not a valid source for it.
+- The event list above is a minimum, not a closed set. A stop that waits for an operator (an interactive
+  node) has no code in ADR 006, because no such node exists yet. When one is implemented, it brings its own
+  event codes with it.
 - Extended audit concerns (for example cross-service request correlation and idempotency policy) are
   deferred to a separate ADR.
 
@@ -156,7 +165,7 @@ The implementation must:
 6. Register artifact outputs in `state.artifacts` as `WorkflowArtifact` entries (not plain string paths).
 7. Add `WorkflowArtifact` serialization in state persistence (`to_dict`/`from_dict`).
 8. Add artifact conflict event tracking in state persistence.
-9. Update the folder scan example and add an end to end resume scenario.
+9. Deliver the folder scan acceptance scenario as an end to end test, including a resume run.
 10. Add a persisted `session_events` journal in `StateModel`.
 11. Record all external engine calls into `state.session_events` using the normalized event shape.
 12. Add test coverage for stop on limit, operator limit update, and resume to equivalent final results.
@@ -169,7 +178,8 @@ The implementation must:
 
 ## Implementation notes
 
-Acceptance scenario, delivered as an example workflow and an end to end test:
+Acceptance scenario, delivered as an end to end test that builds its workflow from a temporary folder tree
+rather than from a checked-in example file:
 
 1. Scan a folder and push entries into a queue parameter.
 2. Loop: pop one entry, branch on file versus folder, and push folder contents back to queue.
@@ -193,6 +203,11 @@ Write contract details agreed after status move:
 - For collection parameters, explicit `replace` is allowed in addition to collection-specific modes.
 - Engine-level apply failures use explicit contract errors (`param_overwrite_forbidden`,
   `param_type_mismatch`, `invalid_write_mode`).
+- Artifact creation is served by functions that write the file and return metadata in
+  `ActionNodeOutput.artifacts`; there is no dedicated artifact action type.
+- `PopFromQueue` and `ForEachOutputParameterNode` are removed from the code base rather than left
+  unregistered, because `PopFromQueue` mutated a queue in `state.params` in place, which this decision
+  forbids.
 - Queue-consumption behavior is implemented through functions that return `param_writes`, not through a
   dedicated `PopFromQueue` action.
 
@@ -235,6 +250,8 @@ Session event contract details agreed after status move:
 - Events are appended by engine/session entrypoints that handle external calls.
 - Read-only informational calls may use dedicated codes and must still be auditable.
 - Limit change events include old/new values in `details`.
+- `details` values are restricted to JSON-serializable scalars, because the journal is persisted with the
+  state.
 - Each event carries `event_id` generated by the application as a UUID.
 - On Python 3.13, this is implemented with stdlib UUID generation (for example `uuid4`).
 - On migration to Python 3.14, prefer stdlib UUIDv7 for new event identifiers.
@@ -298,3 +315,13 @@ state updates (for example appending a row into `table_rows`) are returned by th
 - Session control event contract simplified: use application-generated UUID `event_id`;
   Python 3.14 migration should switch new IDs to stdlib UUIDv7.
   extended audit policy is deferred to a separate ADR.
+- Session control event contract clarified during implementation: `workflow_started` and
+  `workflow_resumed` are decided from the persisted journal, the event list is a minimum rather than a
+  closed set, and a stop that waits for an operator is left without a code until an interactive node
+  exists.
+- Artifact surface aligned with the delivered implementation: artifact creation is function-backed through
+  ordinary function nodes, and the dedicated `CreateArtifactActionWithContent` action surface is dropped.
+- Excluded actions resolved: `PopFromQueue` and `ForEachOutputParameterNode` are removed from the code base
+  instead of being kept unregistered.
+- Acceptance scenario restated as an end to end test rather than a checked-in example workflow; the stale
+  `examples/colect_file_info_workflow.json` is deleted.

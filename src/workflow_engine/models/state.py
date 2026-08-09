@@ -68,7 +68,7 @@ class SessionEvent:
     code: str
     actor: Literal["engine", "operator"]
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex)
-    details: str | None = field(default=None)
+    details: dict[str, object] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> SessionEvent:
@@ -88,7 +88,7 @@ class SessionEvent:
             code=parameter_from_dict(data, "code", str),
             actor=actor,
             event_id=event_id,
-            details=parameter_from_dict_optional(data, "details", str),
+            details=parameter_from_dict_optional(data, "details", dict) or {},
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -98,25 +98,25 @@ class SessionEvent:
             "actor": self.actor,
             "event_id": self.event_id,
         }
-        if self.details is not None:
+        if len(self.details) > 0:
             d["details"] = self.details
         return d
 
     @classmethod
-    def operator_event(cls, code: SessionEventCode, details: str | None = None) -> SessionEvent:
+    def operator_event(cls, code: SessionEventCode, details: dict[str, object] | None = None) -> SessionEvent:
         if code not in OPERATOR_CODES:
             raise WorkflowRuntimeError(
                 f"{code} is not a valid session event code for operator. valid codes: {OPERATOR_CODES} "
             )
-        return cls(timestamp=datetime.now(tz=UTC), code=code.value, actor="operator", details=details)
+        return cls(timestamp=datetime.now(tz=UTC), code=code.value, actor="operator", details=details or {})
 
     @classmethod
-    def engine_event(cls, code: SessionEventCode, details: str | None = None) -> SessionEvent:
+    def engine_event(cls, code: SessionEventCode, details: dict[str, object] | None = None) -> SessionEvent:
         if code not in ENGINE_CODES:
             raise WorkflowRuntimeError(
                 f"{code} is not a valid session event code for engine. valid codes: {ENGINE_CODES} "
             )
-        return cls(timestamp=datetime.now(tz=UTC), code=code.value, actor="engine", details=details)
+        return cls(timestamp=datetime.now(tz=UTC), code=code.value, actor="engine", details=details or {})
 
 
 @dataclass(frozen=True)

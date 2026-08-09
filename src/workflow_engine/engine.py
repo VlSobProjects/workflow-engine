@@ -169,7 +169,11 @@ def _start_engine(
                 state.record_session_event(
                     SessionEvent.engine_event(
                         SessionEventCode.WORKFLOW_PAUSED_LIMIT,
-                        f"Max node exceeded: {state.nodes_visited}/{state.max_nodes_visited} nodes visited",
+                        {
+                            "node_id": cur_node.id,
+                            "nodes_visited": state.nodes_visited,
+                            "max_nodes_visited": state.max_nodes_visited,
+                        },
                     )
                 )
                 storage.save_state(state)
@@ -196,7 +200,7 @@ def _start_engine(
                     print(f"Engine stop: {step.failure}")
                     state.record_session_event(
                         SessionEvent.engine_event(
-                            SessionEventCode.WORKFLOW_FAILED, f"Node {cur_node.id} failed with error: {step.failure}"
+                            SessionEventCode.WORKFLOW_FAILED, {"node_id": cur_node.id, "failure": step.failure}
                         )
                     )
                     storage.save_state(state)
@@ -220,7 +224,7 @@ def _start_engine(
         state.record_session_event(
             SessionEvent.engine_event(
                 SessionEventCode.WORKFLOW_FAILED,
-                f"Workflow execution raised {type(e).__name__}: {e}",
+                {"node_id": state.current_node_id, "exception": type(e).__name__, "message": str(e)},
             )
         )
         storage.save_state(state)
@@ -235,7 +239,7 @@ def _start_engine(
     state.record_session_event(
         SessionEvent.engine_event(
             SessionEventCode.WORKFLOW_COMPLETED,
-            f"Workflow completed at node {state.current_node_id} after {state.nodes_visited} visited nodes",
+            {"node_id": state.current_node_id, "nodes_visited": state.nodes_visited},
         )
     )
     storage.save_state(state)
@@ -327,11 +331,11 @@ def _run_entry_event(state: StateModel) -> SessionEvent:
     if state.has_session_event(SessionEventCode.WORKFLOW_STARTED):
         return SessionEvent.operator_event(
             SessionEventCode.WORKFLOW_RESUMED,
-            f"session: {state.session_id} resumed, current node: {state.current_node_id}",
+            {"session_id": state.session_id, "node_id": state.current_node_id},
         )
     return SessionEvent.operator_event(
         SessionEventCode.WORKFLOW_STARTED,
-        f"session: {state.session_id} started, current node: {state.current_node_id}",
+        {"session_id": state.session_id, "node_id": state.current_node_id},
     )
 
 
@@ -408,7 +412,8 @@ class WorkflowEngine:
         self.runtime = runtime
         state.record_session_event(
             SessionEvent.operator_event(
-                SessionEventCode.SESSION_CREATED, f"New session created with workflow: {workflow.flow_id}"
+                SessionEventCode.SESSION_CREATED,
+                {"session_id": state.session_id, "flow_id": workflow.flow_id, "node_id": state.current_node_id},
             )
         )
         self._commit(runtime)
@@ -447,7 +452,11 @@ class WorkflowEngine:
         state.record_session_event(
             SessionEvent.operator_event(
                 SessionEventCode.OPERATOR_LIMIT_UPDATED,
-                f"Nodes visited: {state.nodes_visited}, limit before: {limit_before}, limit after: {max_nodes_visited}",
+                {
+                    "nodes_visited": state.nodes_visited,
+                    "limit_before": limit_before,
+                    "limit_after": state.max_nodes_visited,
+                },
             )
         )
         self._commit(runtime)
