@@ -126,6 +126,20 @@ def test_a_failed_node_records_failure(tmp_path):
     assert codes(persisted_state(tmp_path, session_id))[-1] == SessionEventCode.WORKFLOW_FAILED.value
 
 
+def test_a_setup_failure_is_recorded(tmp_path):
+    node = create_folder_node("NODE_1", tmp_path, "made")
+    node["transitions"] = [{"next": "MISSING_NODE"}]
+    engine = create_engine(tmp_path)
+    session_id = engine.init_new_session(write_workflow(tmp_path, [node]))
+    response, state = engine.start_workflow(session_id=session_id)
+
+    assert response.title == "Error in workflow setup"
+    assert codes(state)[-1] == SessionEventCode.WORKFLOW_SETUP_FAILED.value
+    assert codes(persisted_state(tmp_path, session_id))[-1] == SessionEventCode.WORKFLOW_SETUP_FAILED.value
+    assert state.session_events[-1].details["node_id"] == "NODE_1"
+    assert state.session_events[-1].details["title"] == "Error in workflow setup"
+
+
 def test_a_run_stopped_by_the_budget_records_the_pause(tmp_path, workflow_file):
     engine = create_engine(tmp_path)
     session_id = engine.init_new_session(workflow_file)

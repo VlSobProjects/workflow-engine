@@ -43,6 +43,7 @@ class SessionEventCode(Enum):
     WORKFLOW_STARTED = "workflow_started"
     OPERATOR_LIMIT_UPDATED = "operator_limit_updated"
     WORKFLOW_RESUMED = "workflow_resumed"
+    WORKFLOW_SETUP_FAILED = "workflow_setup_failed"
     WORKFLOW_PAUSED_LIMIT = "workflow_paused_limit"
     WORKFLOW_COMPLETED = "workflow_completed"
     WORKFLOW_FAILED = "workflow_failed"
@@ -56,6 +57,7 @@ OPERATOR_CODES = (
 )
 
 ENGINE_CODES = (
+    SessionEventCode.WORKFLOW_SETUP_FAILED,
     SessionEventCode.WORKFLOW_PAUSED_LIMIT,
     SessionEventCode.WORKFLOW_COMPLETED,
     SessionEventCode.WORKFLOW_FAILED,

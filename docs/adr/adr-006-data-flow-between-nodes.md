@@ -123,10 +123,12 @@ survive a resume, and be debuggable.
   - `details` (dictionary with event-specific fields such as old/new limit values)
 - Minimum event coverage in ADR 006 scope:
   - `operator`: `session_created`, `workflow_started`, `operator_limit_updated`, `workflow_resumed`
-  - `engine`: `workflow_paused_limit`, `workflow_completed`, `workflow_failed`
+  - `engine`: `workflow_setup_failed`, `workflow_paused_limit`, `workflow_completed`, `workflow_failed`
 - `workflow_started` is emitted on the first run entry of a session and `workflow_resumed` on every later
   one. The distinction is derived from the persisted journal, so it holds across engine instances and
   process restarts; the in-memory engine cache is not a valid source for it.
+- A call rejected before execution starts (workflow build/validation setup error) is still an external engine
+  call and is recorded as `workflow_setup_failed`.
 - The event list above is a minimum, not a closed set. A stop that waits for an operator (an interactive
   node) has no code in ADR 006, because no such node exists yet. When one is implemented, it brings its own
   event codes with it.
@@ -168,7 +170,8 @@ The implementation must:
 9. Deliver the folder scan acceptance scenario as an end to end test, including a resume run.
 10. Add a persisted `session_events` journal in `StateModel`.
 11. Record all external engine calls into `state.session_events` using the normalized event shape.
-12. Add test coverage for stop on limit, operator limit update, and resume to equivalent final results.
+12. Record setup-time workflow validation/build failures as `workflow_setup_failed`.
+13. Add test coverage for stop on limit, operator limit update, and resume to equivalent final results.
 
 ## Related ADRs
 
@@ -319,6 +322,8 @@ state updates (for example appending a row into `table_rows`) are returned by th
   `workflow_resumed` are decided from the persisted journal, the event list is a minimum rather than a
   closed set, and a stop that waits for an operator is left without a code until an interactive node
   exists.
+- Setup-error call semantics finalized: workflow setup/build failures are recorded as
+  `workflow_setup_failed` so every external engine call stays auditable.
 - Artifact surface aligned with the delivered implementation: artifact creation is function-backed through
   ordinary function nodes, and the dedicated `CreateArtifactActionWithContent` action surface is dropped.
 - Excluded actions resolved: `PopFromQueue` and `ForEachOutputParameterNode` are removed from the code base

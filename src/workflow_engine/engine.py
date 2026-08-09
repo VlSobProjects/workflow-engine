@@ -428,6 +428,17 @@ class WorkflowEngine:
         """Start or continue a workflow session."""
         runtime = self._acquire(session_id)
         if runtime.setup_error is not None:
+            runtime.state.record_session_event(
+                SessionEvent.engine_event(
+                    SessionEventCode.WORKFLOW_SETUP_FAILED,
+                    {
+                        "node_id": runtime.state.current_node_id,
+                        "title": runtime.setup_error.title,
+                        "error_count": len(runtime.setup_error.errors or {}),
+                    },
+                )
+            )
+            self._commit(runtime)
             return runtime.setup_error, runtime.state
 
         runtime.state.record_session_event(_run_entry_event(runtime.state))
