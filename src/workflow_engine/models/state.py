@@ -94,15 +94,13 @@ class SessionEvent:
         )
 
     def to_dict(self) -> dict[str, object]:
-        d = {
+        return {
             "timestamp": self.timestamp.isoformat(),
             "code": self.code,
             "actor": self.actor,
             "event_id": self.event_id,
+            "details": self.details
         }
-        if len(self.details) > 0:
-            d["details"] = self.details
-        return d
 
     @classmethod
     def operator_event(cls, code: SessionEventCode, details: dict[str, object] | None = None) -> SessionEvent:
