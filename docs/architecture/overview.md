@@ -89,6 +89,10 @@ the parameters saved through `save_as`, and the working directory.
 Values in parameters are serialized through codecs, so a parameter keeps its Python type across a
 save and a load.
 
+`state.params` is an engine-managed flat bus: actions return typed `param_writes`, and the engine
+applies and persists them on each turn. Session-level control outcomes are stored in
+`state.session_events` as a persisted append-only journal.
+
 ## Storage
 
 `Storage` is an abstract class over a state source and a workflow source. `JsonStorage` is its only
@@ -130,6 +134,4 @@ from another.
 
 - The exception architecture. Configuration errors escape the engine instead of becoming a response,
   and the engine still catches everything at its boundary. See ADR 001.
-- How data passes between nodes, and who may read or write which part of the state. The state
-  currently mixes a journal written by the engine with a bus written by actions.
 - The error and retry policy beyond the allowance a transition declares.

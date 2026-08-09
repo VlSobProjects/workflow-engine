@@ -38,5 +38,5 @@ def test_action_param_file_exists_validator(tests_dir):
         other_param=(tests_dir / "test_json_storage.py").as_posix(),
         another_param=(tests_dir / "test_guards.py").as_posix(),
     )
-    print(f"Test 3: {test3.output_text}, error_code: {test3.error_code}, error_message: {test3.error_message}")
+    print(f"Test 3: {test3.output_text}, error_code: {test3.error_code}, error_message: {test3.error_msg}")
     assert test3.output_text == "all good"

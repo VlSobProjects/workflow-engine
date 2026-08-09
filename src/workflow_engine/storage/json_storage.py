@@ -5,8 +5,9 @@ from pathlib import Path
 
 from workflow_engine.exceptions import StateLoadError, WorkflowEngineError, WorkflowParameterError
 from workflow_engine.models.node import WorkflowNodeModel
-from workflow_engine.models.state import ActionParameter, GuardRecord, StateModel
+from workflow_engine.models.state import ActionParameter, ArtifactEvent, GuardRecord, SessionEvent, StateModel
 from workflow_engine.models.workflow import WorkflowModel
+from workflow_engine.output import WorkflowArtifact
 from workflow_engine.storage.storage import Storage
 
 STATE_FILE = "state.json"
@@ -22,6 +23,15 @@ def workflow_encoder(obj):
 def state_encoder(obj):
     if isinstance(obj, datetime):
         return obj.isoformat()
+
+    if isinstance(obj, WorkflowArtifact):
+        return obj.to_dict()
+
+    if isinstance(obj, SessionEvent):
+        return obj.to_dict()
+
+    if isinstance(obj, ArtifactEvent):
+        return obj.to_dict()
 
     if isinstance(obj, ActionParameter):
         return obj.to_dict()

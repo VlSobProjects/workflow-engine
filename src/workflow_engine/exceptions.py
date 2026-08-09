@@ -114,6 +114,19 @@ class StateLoadParameterError(WorkflowRuntimeError):
         )
 
 
+class ArtifactPathError(WorkflowRuntimeError):
+    error_code: str = "invalid_artifact_path"
+
+    def __init__(self, path: str, artifacts_root: str, message: str | None = None) -> None:
+        self.path = path
+        self.artifacts_root = artifacts_root
+        self.message = message
+        super().__init__(
+            f"Artifact path error for '{path}' under '{artifacts_root}': "
+            f"{message if message is not None else 'No message'}"
+        )
+
+
 # class StateError(Exception):
 #     """Exception raised for errors in state."""
 #
