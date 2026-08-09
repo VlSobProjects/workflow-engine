@@ -21,7 +21,7 @@ caller -> engine -> node: action -> transitions -> node ...
                    state <----------------+
 ```
 
-`sart_engine` is the entry point. It loads the state and the definition from a storage, builds every
+`WorkflowEngine.start_workflow` is the entry point. It loads the state and the definition from a storage, builds every
 node from the definition, checks that every transition target exists, and then runs until the
 workflow ends, a node fails, or a node needs an exchange with the caller.
 
@@ -132,6 +132,4 @@ from another.
 
 ## What is not settled yet
 
-- The exception architecture. Configuration errors escape the engine instead of becoming a response,
-  and the engine still catches everything at its boundary. See ADR 001.
 - The error and retry policy beyond the allowance a transition declares.
