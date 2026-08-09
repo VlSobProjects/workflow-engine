@@ -1,10 +1,10 @@
 # ADR 007: CLI contract and session lifecycle for v1
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+feature/adr_007-cli-contract-and-session-lifecycle-for-v1
 
 ## Context
 
