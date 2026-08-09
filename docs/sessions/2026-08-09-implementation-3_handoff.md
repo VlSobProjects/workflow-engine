@@ -53,7 +53,14 @@ Verified from the command line: `pytest` 86 passed, `ruff check .` and `ruff for
   given a `workflow_failed` meaning it does not have.
 
 ## Open questions
-- Whether the setup-error return path of `start_workflow` needs its own event code.
+- Does the setup-error return path of `start_workflow` need an event? It is reached when the workflow of a
+  session does not validate: a node fails to build, `current_node_id` is absent from the workflow, or a
+  transition targets an unknown node. The call returns a `PresentResponse` and writes nothing to the
+  journal, which contradicts the ADR 006 clause "every external engine call is recorded, including
+  successful and failed outcomes". Three options: reuse `workflow_failed`, which would blur execution
+  failure with configuration failure; add a distinct code such as `workflow_setup_failed`; or state in the
+  ADR that a call rejected before execution starts is out of journal scope. Not decided here, because it
+  changes the closed part of the event contract.
 
 ## Next steps
 1. Run the ADR 006 acceptance session: merge the feature branch into `development`, check the freeze gate,
