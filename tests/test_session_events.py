@@ -50,7 +50,7 @@ def two_node_workflow(tmp_path: Path) -> Path:
 
 
 def codes(state: StateModel) -> list[str]:
-    return [event.code for event in state.session_events]
+    return [event.code.value for event in state.session_events]
 
 
 def persisted_state(tmp_path: Path, session_id: str) -> StateModel:

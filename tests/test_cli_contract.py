@@ -52,7 +52,8 @@ class TestRunCommand:
         assert response["command"] == "run"
 
     def test_run_json_response_has_all_required_fields(self, tmp_path: Path, create_config, capsys):
-        """run command JSON response must have command, command_status, workflow_status, event_code, message, errors, data."""
+        """run command JSON response must have command, command_status,
+        workflow_status, event_code, message, errors, data."""
         scan_root = tmp_path / "scan-root"
         create_scan_fixture(scan_root)
         workflow_path = tmp_path / "workflow.json"
@@ -64,7 +65,16 @@ class TestRunCommand:
         )
 
         assert code == 0
-        required_fields = {"command", "command_status", "workflow_status", "event_code", "message", "errors", "data", "session_id"}
+        required_fields = {
+            "command",
+            "command_status",
+            "workflow_status",
+            "event_code",
+            "message",
+            "errors",
+            "data",
+            "session_id",
+        }
         assert set(response.keys()) == required_fields
         assert response["command"] == "run"
         assert response["command_status"] == "completed"
@@ -93,7 +103,18 @@ class TestInitNewSessionCommand:
         workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
 
         with pytest.raises(SystemExit) as exc_info:
-            main(["init-new-session", "--workflow-file", workflow_path.as_posix(), "--max-nodes-visited", "not_a_number", "--config", create_config.as_posix(), "--json"])
+            main(
+                [
+                    "init-new-session",
+                    "--workflow-file",
+                    workflow_path.as_posix(),
+                    "--max-nodes-visited",
+                    "not_a_number",
+                    "--config",
+                    create_config.as_posix(),
+                    "--json",
+                ]
+            )
 
         assert exc_info.value.code == 4
 
@@ -163,7 +184,7 @@ class TestSetLimitCommand:
         workflow_path = tmp_path / "workflow.json"
         workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
 
-        code, init_response = run_json_cli(
+        _, init_response = run_json_cli(
             [
                 "init-new-session",
                 "--workflow-file",
@@ -176,7 +197,18 @@ class TestSetLimitCommand:
         session_id = cast(str, cast(dict[str, object], init_response["data"])["session_id"])
 
         with pytest.raises(SystemExit) as exc_info:
-            main(["set-limit", "--session-id", session_id, "--limit", "not_a_number", "--config", create_config.as_posix(), "--json"])
+            main(
+                [
+                    "set-limit",
+                    "--session-id",
+                    session_id,
+                    "--limit",
+                    "not_a_number",
+                    "--config",
+                    create_config.as_posix(),
+                    "--json",
+                ]
+            )
 
         assert exc_info.value.code == 4
 
@@ -187,7 +219,7 @@ class TestSetLimitCommand:
         workflow_path = tmp_path / "workflow.json"
         workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
 
-        code, init_response = run_json_cli(
+        _, init_response = run_json_cli(
             [
                 "init-new-session",
                 "--workflow-file",
@@ -355,7 +387,7 @@ class TestCliOutputSchema:
         ]
 
         for cmd in commands:
-            code, response = run_json_cli(cmd, capsys)
+            _, response = run_json_cli(cmd, capsys)
             assert "command" in response
             assert "command_status" in response
             assert "message" in response
