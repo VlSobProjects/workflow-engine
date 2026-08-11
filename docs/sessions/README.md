@@ -78,6 +78,7 @@ missing from the registry is effectively lost. Add the row when the branch is me
 | 2026-08-09 | implementation | Closed ADR 006 audit gaps: resume equivalence test, stale surfaces removal, and structured event details | completed | feature/adr_006-data-flow-between-nodes | [2026-08-09-implementation-3_handoff.md](2026-08-09-implementation-3_handoff.md) |
 | 2026-08-09 | architecture | Accepted and froze ADR 006 after merge to development, closing setup-error journaling semantics as `workflow_setup_failed` | completed | development | [2026-08-09-architecture-1_handoff.md](2026-08-09-architecture-1_handoff.md) |
 | 2026-08-09 | architecture | Opened ADR 007-010 drafts for phase 1 CLI release scope and aligned cheap architecture documentation corrections | completed | docs/adr_007-v1-foundation | [2026-08-09-architecture-2_handoff.md](2026-08-09-architecture-2_handoff.md) |
+| 2026-08-11 | architecture | Accepted ADR 007 after aligning the public CLI contract with the delivered command surface and installed entry point | completed | development | [2026-08-11-architecture-2_handoff.md](2026-08-11-architecture-2_handoff.md) |
 
 `Summary` states what the session was about, in one line.
 `Status` is `completed` or `interrupted`.

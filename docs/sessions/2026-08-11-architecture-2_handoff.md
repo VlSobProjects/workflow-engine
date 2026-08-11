@@ -19,4 +19,15 @@ Re-run ADR-007 acceptance, align the ADR text with the delivered CLI contract, a
 - No new ADR creation.
 
 ## Status
-in_progress
+completed
+
+## Result
+ADR-007 was accepted after the feature branch was merged to `development`. The public CLI contract now matches the delivered surface, including `help-component` as the detail command and the installed `workflow-engine` entry point as the acceptance path.
+
+## Decisions
+1. Keep `help-component` as a public v1 command.
+2. Treat the installed `workflow-engine` console script as the process-level acceptance target.
+3. Freeze ADR-007 as `Accepted` on `development` and update the registry in the same change.
+
+## Next steps
+1. Proceed with ADR-008, ADR-009, and ADR-010 as separate architecture work.

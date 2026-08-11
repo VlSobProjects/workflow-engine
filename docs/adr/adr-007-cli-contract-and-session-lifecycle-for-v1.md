@@ -1,10 +1,10 @@
 # ADR 007: CLI contract and session lifecycle for v1
 
 ## Status
-Implementing
+Accepted
 
 ## Active branch
-feature/adr_007-cli-contract-and-session-lifecycle-for-v1
+—
 
 ## Context
 
@@ -192,3 +192,5 @@ Minimum command acceptance for phase 1:
   lifecycle outcomes; mapped exit codes from their combination.
 - Added `init-new-session` to the public v1 CLI contract as an explicit non-runner lifecycle command for
   session preparation without execution, instead of overloading `run`.
+- Kept `help-component` as a public v1 detail command and validated the installed `workflow-engine` console script
+  as the process-level acceptance path.
