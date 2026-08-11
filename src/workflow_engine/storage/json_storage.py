@@ -2,7 +2,7 @@ import dataclasses
 import json
 from pathlib import Path
 
-from workflow_engine.exceptions import StateLoadError, WorkflowEngineError, WorkflowParameterError
+from workflow_engine.exceptions import StateLoadError, WorkflowConfigurationError, WorkflowParameterError
 from workflow_engine.models.node import WorkflowNodeModel
 from workflow_engine.models.state import ActionParameter, ArtifactEvent, GuardRecord, SessionEvent, StateModel
 from workflow_engine.models.workflow import WorkflowModel
@@ -50,6 +50,14 @@ class JsonStorage(Storage):
 
     storage_dir: Path
 
+    def _ensure_storage_directory(self) -> None:
+        try:
+            self.storage_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as ex:
+            raise WorkflowConfigurationError(
+                f"Failed to create storage directory: {self.storage_dir.resolve(strict=False)}"
+            ) from ex
+
     def load_all_states(self) -> list[StateModel]:
         """Load all states from storage."""
         states = []
@@ -68,19 +76,27 @@ class JsonStorage(Storage):
         return states
 
     def __init__(self, storage_dir: Path) -> None:
-        self.storage_dir = storage_dir
+        path = storage_dir.expanduser()
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        self.storage_dir = path.resolve(strict=False)
 
     def load_workflow(self, session_id) -> WorkflowModel:
         return self.upload_workflow_from_file(self.storage_dir.joinpath(session_id).joinpath(WORKFLOW_FILE))
 
     def save_workflow(self, session_id: str, workflow: WorkflowModel) -> None:
         try:
+            self._ensure_storage_directory()
             workflow_file = self.storage_dir / session_id / WORKFLOW_FILE
             workflow_file.parent.mkdir(parents=True, exist_ok=True)
             with workflow_file.open("w") as f:
                 json.dump(workflow.__dict__, f, indent=4, default=workflow_encoder)
+        except WorkflowConfigurationError:
+            raise
         except Exception as ex:
-            raise WorkflowEngineError("Failed to save workflow") from ex
+            raise WorkflowConfigurationError(
+                f"Failed to save workflow to: {self.storage_dir.resolve(strict=False)}"
+            ) from ex
 
     def load_state(self, session_id: str) -> StateModel:
         state_file = self.storage_dir / session_id / STATE_FILE
@@ -101,8 +117,13 @@ class JsonStorage(Storage):
         """Save state to state file."""
         state_file = self.storage_dir / state.session_id / STATE_FILE
         try:
+            self._ensure_storage_directory()
             state_file.parent.mkdir(parents=True, exist_ok=True)
             with state_file.open("w") as f:
                 json.dump(state.__dict__, f, indent=4, sort_keys=True, default=state_encoder)
+        except WorkflowConfigurationError:
+            raise
         except Exception as ex:
-            raise StateLoadError("state_file", f"Failed to save state at path: {state_file.absolute()}") from ex
+            raise StateLoadError(
+                "state_file", f"Failed to save state at path: {state_file.resolve(strict=False)}"
+            ) from ex

@@ -1,10 +1,7 @@
 # ADR 008: Runtime directory and default path policy for v1
 
 ## Status
-Implementing
-
-## Active branch
-feature/adr_008-runtime-directory-and-default-path-policy-for-v1
+Accepted
 
 ## Context
 
@@ -98,3 +95,4 @@ Acceptance criteria for implementation stage:
 - Initial draft opened from phase 1 architecture planning session.
 - Refined the draft with explicit config precedence, `.workflow-engine` runtime root, and `WorkflowConfigurationError` semantics for setup/config failures.
 - Moved the ADR to Implementing and recorded the active implementation branch.
+- Moved the ADR to Accepted after implementation validation and merge into `development`.

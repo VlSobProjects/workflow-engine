@@ -40,3 +40,15 @@ def test_environment_work_dir_override_has_priority_over_config_defaults(tmp_pat
 
     assert config.work_dir == custom_work_dir.resolve().as_posix()
     assert config.storage["storage_dir"] == (custom_work_dir / "json-storage").resolve().as_posix()
+
+
+def test_environment_storage_dir_override_has_priority_over_work_dir_env(tmp_path: Path, monkeypatch):
+    custom_work_dir = tmp_path / "env-work"
+    custom_storage_dir = tmp_path / "env-storage"
+    monkeypatch.setenv("WE_WORK_DIR", custom_work_dir.as_posix())
+    monkeypatch.setenv("WE_STORAGE_DIR", custom_storage_dir.as_posix())
+
+    config = load_config_file(cwd=tmp_path)
+
+    assert config.work_dir == custom_work_dir.resolve().as_posix()
+    assert config.storage["storage_dir"] == custom_storage_dir.resolve().as_posix()

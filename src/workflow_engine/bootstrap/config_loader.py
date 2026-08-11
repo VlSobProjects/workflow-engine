@@ -112,12 +112,12 @@ def _resolve_storage_dir(
     if storage_dir_override is not None:
         return _to_posix_string(storage_dir_override, base_dir)
 
-    if work_dir_override is not None or os.getenv(ENV_WORK_DIR):
-        return work_dir_value.joinpath("json-storage").as_posix()
-
     env_storage_dir = os.getenv(ENV_STORAGE_DIR)
     if env_storage_dir:
         return _to_posix_string(env_storage_dir, base_dir)
+
+    if work_dir_override is not None or os.getenv(ENV_WORK_DIR):
+        return work_dir_value.joinpath("json-storage").as_posix()
 
     config_storage = parameter_from_dict_default(config_data, "storage", dict, {})
     config_storage_dir = parameter_from_dict_default(config_storage, "storage_dir", str, None)

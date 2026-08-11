@@ -5,7 +5,7 @@ import pytest
 
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import WorkflowEngineConfiguration
-from workflow_engine.exceptions import StateLoadError
+from workflow_engine.exceptions import StateLoadError, WorkflowConfigurationError
 from workflow_engine.models.state import ActionParameter, StateModel
 from workflow_engine.storage.json_storage import JsonStorage
 
@@ -106,6 +106,25 @@ def corrupt_json(tmp_path, json_storage):
 def test_load_state(json_storage, state):
     loaded_state = json_storage.load_state(SESSION_ID)
     assert loaded_state == state
+
+
+def test_save_state_raises_configuration_error_when_storage_dir_cannot_be_created(tmp_path):
+    storage_path = tmp_path / "storage"
+    storage_path.write_text("not a directory")
+    storage = JsonStorage(storage_path)
+    state = StateModel(
+        timestamp=datetime.datetime.now(tz=datetime.UTC),
+        work_dir=tmp_path,
+        schema_version="1",
+        flow_id="test",
+        current_node_id="test_node_id",
+        session_id=SESSION_ID,
+    )
+
+    with pytest.raises(WorkflowConfigurationError, match="Failed to create storage directory") as error:
+        storage.save_state(state)
+
+    assert str(storage_path.resolve(strict=False)) in str(error.value)
 
 
 def test_save_state(tmp_path, json_storage):
