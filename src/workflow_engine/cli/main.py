@@ -218,6 +218,8 @@ def _get_parser() -> CustomArgumentParser:
     shared_parser = argparse.ArgumentParser(add_help=False)
     shared_parser.add_argument("--json", action="store_true", help="Output in JSON format")
     shared_parser.add_argument("--config", type=str, help="Path to the workflow engine configuration file")
+    shared_parser.add_argument("--work-dir", type=str, help="Override the runtime work directory")
+    shared_parser.add_argument("--storage-dir", type=str, help="Override the storage directory")
     subparsers = parser.add_subparsers(dest="command", required=True, help="Workflow engine commands")
     for command_name in CommandName:
         _get_commend(command_name).add_to_parser(subparsers, shared_parser)

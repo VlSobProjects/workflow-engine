@@ -32,6 +32,23 @@ def response_data(response: dict[str, object]) -> dict[str, object]:
     return cast(dict[str, object], response["data"])
 
 
+def test_main_accepts_shared_runtime_path_options(tmp_path: Path, capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "list-sessions",
+                "--work-dir",
+                tmp_path.as_posix(),
+                "--storage-dir",
+                (tmp_path / "storage").as_posix(),
+                "--json",
+            ]
+        )
+
+    assert exc_info.value.code == 0
+    assert "command_status" in capsys.readouterr().out
+
+
 def test_run_workflow(tmp_path: Path, create_config, capsys):
     scan_root = tmp_path / "scan-root"
     create_scan_fixture(scan_root)
