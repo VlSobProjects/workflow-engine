@@ -33,7 +33,8 @@ semantics.
    - `set-limit` — set per-session `max_nodes_visited` soft limit;
    - `show-state` — render persisted state for a session;
    - `list-sessions` — list discoverable sessions in the configured `work_dir`;
-   - `help-components` — list registered actions/functions/validators/codecs and show details by name.
+   - `help-components` — list registered actions/functions/validators/codecs;
+   - `help-component` — show details for one component by type and name.
    - v1 does not add a separate `get-status` command; workflow lifecycle status is exposed through
      `run`/`resume` results and `show-state`.
 2. Output modes:
@@ -66,7 +67,7 @@ semantics.
 8. ADR boundaries:
    - ADR 007 defines command surfaces and process contract;
    - ADR 008 defines default/override path policy (`work_dir`, `storage_dir`);
-   - ADR 009 defines detailed component introspection schema for `help-components`;
+   - ADR 009 defines detailed component introspection schema for `help-component`;
    - ADR 010 stays optional for v1 and does not block ADR 007 implementation.
 
 ## Alternatives considered
@@ -124,7 +125,7 @@ Practical implementation design in the current project:
    - `main.py` — `main(argv)` only, parser creation, command dispatch call;
    - `contract.py` — result types (`CommandStatus`, `CommandResult`);
    - `use_cases.py` — one function per command (`init_session`, `run`, `resume`, `set_limit`, `show_state`,
-     `list_sessions`, `help_components`) that returns `CommandResult`;
+     `list_sessions`, `help_components`, `help_component`) that returns `CommandResult`;
    - `presenters.py` — `render_text(result)` and `render_json(result)` only;
    - `exit_codes.py` — pure mapping `CommandResult -> int`.
 2. Parser responsibilities:
@@ -147,14 +148,14 @@ Practical implementation design in the current project:
    - `command_status=ok` and `workflow_status=failed` -> `3` for runner commands only;
    - `command_status=error` -> `4`;
    - `command_status=ok` and non-runner command (`init-new-session`, `show-state`, `set-limit`, `list-sessions`,
-     `help-components`) -> `0` regardless of `workflow_status`;
+     `help-components`, `help-component`) -> `0` regardless of `workflow_status`;
    - mapping is centralized in `cli_exit_codes.py`, not duplicated in command functions.
 6. `pyproject.toml` changes for v1:
    - add `[project.scripts] workflow-engine = "workflow_engine.cli.main:main"`;
    - no parser library dependency additions for ADR 007.
 7. Test suite shape (`pytest`):
    - add `tests/cli/` command contract tests;
-   - test via subprocess (`python -m workflow_engine.cli.main ...`) to verify real process behavior and exit codes;
+   - test via subprocess against the installed `workflow-engine` entry point to verify real process behavior and exit codes;
    - cover both `text` and `--json` output modes for each command;
    - include negative scenarios: missing workflow path, unknown session, invalid limit argument,
      setup failure workflow.
