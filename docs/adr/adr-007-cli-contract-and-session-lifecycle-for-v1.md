@@ -27,6 +27,7 @@ Define one process-level CLI contract for v1, backed by existing engine API with
 semantics.
 
 1. Public commands:
+   - `init-new-session` — create a new session from a workflow file without starting execution;
    - `run` — create a new session from a workflow file and execute it;
    - `resume` — continue an existing session;
    - `set-limit` — set per-session `max_nodes_visited` soft limit;
@@ -39,8 +40,8 @@ semantics.
    - `text` (default) for operators;
    - `json` for automation (`--json` flag) with stable field names.
 3. Exit codes:
-   - `0`: command succeeded and workflow is completed, or command succeeded and is non-runner (`set-limit`,
-     `list-sessions`, `help-components`);
+   - `0`: command succeeded and workflow is completed, or command succeeded and is non-runner (`init-new-session`,
+     `show-state`, `set-limit`, `list-sessions`, `help-components`);
    - `2`: command succeeded and workflow is paused or awaiting operator action (limit/safety stop/interactive stop);
    - `3`: command succeeded and workflow failed by node/runtime outcome;
    - `4`: command-level setup/config/session resolution error.
@@ -59,7 +60,9 @@ semantics.
    - transport-independent: the same contract is rendered in text and json;
    - parser replacement must not change this contract.
    - `workflow_status` is reported by workflow commands (`run`, `resume`, `show-state`) and is omitted for commands
-     that do not execute workflow progression.
+     that do not execute workflow progression (`init-new-session`, `set-limit`, `list-sessions`, `help-components`);
+   - for `show-state`, `workflow_status` is informational (read from persisted state) and does not affect exit code
+     mapping.
 8. ADR boundaries:
    - ADR 007 defines command surfaces and process contract;
    - ADR 008 defines default/override path policy (`work_dir`, `storage_dir`);
@@ -120,7 +123,7 @@ Practical implementation design in the current project:
 1. Module structure in `src/workflow_engine/cli/` package:
    - `main.py` — `main(argv)` only, parser creation, command dispatch call;
    - `contract.py` — result types (`CommandStatus`, `CommandResult`);
-   - `use_cases.py` — one function per command (`run`, `resume`, `set_limit`, `show_state`,
+   - `use_cases.py` — one function per command (`init_session`, `run`, `resume`, `set_limit`, `show_state`,
      `list_sessions`, `help_components`) that returns `CommandResult`;
    - `presenters.py` — `render_text(result)` and `render_json(result)` only;
    - `exit_codes.py` — pure mapping `CommandResult -> int`.
@@ -140,10 +143,11 @@ Practical implementation design in the current project:
    - keep extra command-specific payload only inside `data`.
 5. Exit-code policy implementation:
    - `command_status=ok` and `workflow_status=completed` -> `0`;
-   - `command_status=ok` and `workflow_status=paused` -> `2`;
-   - `command_status=ok` and `workflow_status=failed` -> `3`;
+   - `command_status=ok` and `workflow_status=paused` -> `2` for runner commands only;
+   - `command_status=ok` and `workflow_status=failed` -> `3` for runner commands only;
    - `command_status=error` -> `4`;
-   - `command_status=ok` and no `workflow_status` (non-runner commands) -> `0`;
+   - `command_status=ok` and non-runner command (`init-new-session`, `show-state`, `set-limit`, `list-sessions`,
+     `help-components`) -> `0` regardless of `workflow_status`;
    - mapping is centralized in `cli_exit_codes.py`, not duplicated in command functions.
 6. `pyproject.toml` changes for v1:
    - add `[project.scripts] workflow-engine = "workflow_engine.cli.main:main"`;
@@ -169,8 +173,10 @@ Practical implementation design in the current project:
 
 Minimum command acceptance for phase 1:
 - run from CLI with defaults;
+- initialize a session from CLI without execution and then continue with `resume`;
 - run with explicit `work_dir` and `storage_dir`;
 - hit limit and resume after `set-limit`;
+- show-state reports persisted `workflow_status` while still returning exit code `0` on command success;
 - list available components and details by name;
 - deterministic exit codes and stable json schema across commands.
 
@@ -183,3 +189,5 @@ Minimum command acceptance for phase 1:
   the same transport/use-case/contract boundaries.
 - Split status model into `command_status` and `workflow_status` to avoid mixing transport success with workflow
   lifecycle outcomes; mapped exit codes from their combination.
+- Added `init-new-session` to the public v1 CLI contract as an explicit non-runner lifecycle command for
+  session preparation without execution, instead of overloading `run`.
