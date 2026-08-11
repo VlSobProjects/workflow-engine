@@ -9,7 +9,7 @@ from types import MappingProxyType
 from uuid import uuid4
 
 from workflow_engine.bootstrap.config_loader import WorkflowEngineConfiguration
-from workflow_engine.exceptions import WorkflowRuntimeError
+from workflow_engine.exceptions import WorkflowConfigurationError, WorkflowRuntimeError
 from workflow_engine.models.state import StateModel
 from workflow_engine.models.workflow import WorkflowModel
 from workflow_engine.tools import parameter_from_dict
@@ -75,6 +75,19 @@ class WorkflowSessionsFactory:
     def __init__(self, config: WorkflowEngineConfiguration) -> None:
         self.work_dir = Path(config.work_dir)
 
+    @staticmethod
+    def _ensure_directory(path_value: str | Path, context: str) -> Path:
+        path = Path(path_value).expanduser()
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError as ex:
+            raise WorkflowConfigurationError(
+                f"Failed to create {context} directory: {path.resolve(strict=False)}"
+            ) from ex
+        return path.resolve(strict=False)
+
     def get_all_sessions(self) -> list[str]:
         if not (self.work_dir / SESSION_DIRECTORY).exists():
             return []
@@ -114,16 +127,20 @@ class WorkflowSessionsFactory:
 
     def new_session(self, workflow: WorkflowModel, storage_config: MappingProxyType[str, str]) -> WorkflowSession:
         session_id = self._create_session_id()
-        session = WorkflowSession(
-            timestamp=datetime.now(tz=UTC),
-            session_id=session_id,
-            work_dir=(self.work_dir / SESSION_DIRECTORY / session_id).absolute(),
-            flow_id=workflow.flow_id,
-            schema_version=workflow.schema_version,
-            storage=storage_config,
-        )
-        session_path = self.work_dir / SESSION_DIRECTORY / session_id / SESSION_FILE
+        session_dir = self.work_dir / SESSION_DIRECTORY / session_id
+        session_path = session_dir / SESSION_FILE
+        storage_dir = parameter_from_dict(storage_config, "storage_dir", str)
         try:
+            self._ensure_directory(session_dir, "session")
+            self._ensure_directory(storage_dir, "storage")
+            session = WorkflowSession(
+                timestamp=datetime.now(tz=UTC),
+                session_id=session_id,
+                work_dir=session_dir.resolve(strict=False),
+                flow_id=workflow.flow_id,
+                schema_version=workflow.schema_version,
+                storage=storage_config,
+            )
             with session_path.open(mode="w") as session_file:
                 json.dump(session.to_dict(), session_file)
         except OSError as e:

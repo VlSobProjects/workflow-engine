@@ -12,12 +12,18 @@ from workflow_engine.output import ActionNodeOutput, ParamWrite, WorkflowArtifac
 # def _get_engine():
 
 
-def _get_config(config_path: str | None):
-    return load_config_file(None if config_path is None else Path(config_path))
+def _get_config(args: Namespace):
+    config_path = getattr(args, "config", None)
+    return load_config_file(
+        None if config_path is None else Path(config_path),
+        cwd=Path.cwd(),
+        work_dir_override=getattr(args, "work_dir", None),
+        storage_dir_override=getattr(args, "storage_dir", None),
+    )
 
 
-def _get_engine(config_path: str | None = None):
-    bootstrap = Bootstrap(_get_config(config_path))
+def _get_engine(args: Namespace):
+    bootstrap = Bootstrap(_get_config(args))
     return bootstrap.build_engine()
 
 
@@ -56,7 +62,7 @@ def _output_node(args: Namespace) -> ActionNodeOutput | None:
 
 
 def init_session(command_name: CommandName, args: Namespace) -> CommandResult:
-    engine = _get_engine(args.config)
+    engine = _get_engine(args)
     session_id = engine.init_new_session(workflow_path=Path(args.workflow_file))
     if args.max_nodes_visited is not None:
         engine.set_session_limits(session_id=session_id, max_nodes_visited=args.max_nodes_visited)
@@ -69,7 +75,7 @@ def init_session(command_name: CommandName, args: Namespace) -> CommandResult:
 
 
 def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
-    engine = _get_engine(args.config)
+    engine = _get_engine(args)
     session_id = engine.init_new_session(workflow_path=Path(args.workflow_file))
     res, state = engine.start_workflow(session_id=session_id)
     return CommandResult.from_state(
@@ -81,7 +87,7 @@ def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
 
 
 def resume_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
-    engine = _get_engine(args.config)
+    engine = _get_engine(args)
     session_id = args.session_id
     res, state = engine.start_workflow(session_id=session_id, output=_output_node(args))
     return CommandResult.from_state(
@@ -93,7 +99,7 @@ def resume_workflow(command_name: CommandName, args: Namespace) -> CommandResult
 
 
 def set_limit(command_name: CommandName, args: Namespace) -> CommandResult:
-    engine = _get_engine(args.config)
+    engine = _get_engine(args)
     session_id = args.session_id
     state = engine.set_session_limits(session_id=session_id, max_nodes_visited=args.limit)
     return CommandResult.from_state(
@@ -105,7 +111,7 @@ def set_limit(command_name: CommandName, args: Namespace) -> CommandResult:
 
 
 def show_state(command_name: CommandName, args: Namespace) -> CommandResult:
-    engine = _get_engine(args.config)
+    engine = _get_engine(args)
     session_id = args.session_id
     state = engine.get_status(session_id=session_id)
     return CommandResult.from_state_full(
@@ -117,13 +123,13 @@ def show_state(command_name: CommandName, args: Namespace) -> CommandResult:
 
 
 def list_of_sessions(command_name: CommandName, args: Namespace) -> CommandResult:
-    engine = _get_engine(args.config)
+    engine = _get_engine(args)
     sessions = engine.session_factory.get_all_sessions()
     return CommandResult(command=command_name, command_status=CommandStatus.COMPLETED, data={"sessions": sessions})
 
 
 def help_components(command_name: CommandName, args: Namespace) -> CommandResult:
-    engine = _get_engine(args.config)
+    engine = _get_engine(args)
     components = engine.components
     return CommandResult(command=command_name, command_status=CommandStatus.COMPLETED, data={"components": components})
 
