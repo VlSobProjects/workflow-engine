@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from argparse import Namespace
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -47,3 +48,20 @@ class ActionNodeOutput:
     def on_error(self) -> str:
         output_part = f", output: {self.output_text if self.output_text else ''}"
         return f"Error code {self.error_code}, message: {self.error_msg}{output_part}."
+
+    @classmethod
+    def from_args(cls, args: Namespace) -> ActionNodeOutput | None:
+        if not hasattr(args, "input") and not hasattr(args, "error_code"):
+            return None
+        output_text = getattr(args, "input", "")
+        error_code = getattr(args, "error_code", None)
+        error_msg = getattr(args, "error_msg", None)
+        param_writes = getattr(args, "param_writes", {})
+        artifacts = getattr(args, "artifacts", {})
+        return cls(
+            output_text=output_text,
+            error_code=error_code,
+            error_msg=error_msg,
+            param_writes=param_writes,
+            artifacts=artifacts
+        )

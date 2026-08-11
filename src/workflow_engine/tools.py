@@ -1,4 +1,7 @@
 from collections.abc import Callable, Mapping
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
 
 from workflow_engine.exceptions import WorkflowParameterError
 
@@ -81,3 +84,15 @@ def dict_to_text_lv3(title: str, data: dict[str, dict[str, dict[str, str]]], int
     for k, v in data.items():
         lines.append(dict_to_text_lv2(k, v, intend_start + intend, intend))
     return "\n".join(lines)
+
+def common_encoder(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+
+    if isinstance(obj, Path):
+        return obj.as_posix()
+
+    if isinstance(obj, Enum):
+        return obj.value
+
+    return None

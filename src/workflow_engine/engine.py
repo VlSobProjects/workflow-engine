@@ -447,7 +447,7 @@ class WorkflowEngine:
         self._commit(runtime)
         return response, runtime.state
 
-    def set_session_limits(self, session_id: str, max_nodes_visited: int) -> None:
+    def set_session_limits(self, session_id: str, max_nodes_visited: int) -> StateReadOnlyView:
         runtime = self._acquire(session_id)
         state = runtime.state
         limit_before = state.max_nodes_visited
@@ -471,3 +471,8 @@ class WorkflowEngine:
             )
         )
         self._commit(runtime)
+        return StateReadOnlyView.from_state(runtime.state)
+
+    def get_status(self, session_id: str) -> StateReadOnlyView:
+        runtime = self._acquire(session_id)
+        return StateReadOnlyView.from_state(runtime.state)

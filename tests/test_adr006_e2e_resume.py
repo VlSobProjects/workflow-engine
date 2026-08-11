@@ -30,7 +30,7 @@ def artifact_content(state: StateModel, logical_name: str) -> str:
 
 
 def codes(state: StateModel) -> list[str]:
-    return [event.code for event in state.session_events]
+    return [event.code.value for event in state.session_events]
 
 
 def run_straight(tmp_path: Path, scan_root: Path) -> StateModel:
@@ -68,6 +68,7 @@ def test_a_resumed_run_ends_with_the_same_parameters_and_artifacts(tmp_path: Pat
     straight_rows = straight.get_param("table_rows", list)
     resumed_rows = resumed.get_param("table_rows", list)
     assert straight_rows is not None
+    assert resumed_rows is not None
     assert sorted(resumed_rows, key=lambda row: row["Path"]) == sorted(straight_rows, key=lambda row: row["Path"])
 
     # `state.params` is a flat namespace keyed by name; key order is not part of the ADR contract and

@@ -37,6 +37,10 @@ ARTIFACT_PATH_CONFLICT = "artifact_path_conflict"
 INVALID_WRITE_MODE = "invalid_write_mode"
 PARAM_TYPE_MISMATCH = "param_type_mismatch"
 
+class WorkflowStatusCode(Enum):
+    COMPLETED="completed"
+    PAUSED= "paused"
+    FAILED = "failed"
 
 class SessionEventCode(Enum):
     SESSION_CREATED = "session_created"
@@ -64,10 +68,12 @@ ENGINE_CODES = (
 )
 
 
+
+
 @dataclass(frozen=True, slots=True)
 class SessionEvent:
     timestamp: datetime
-    code: str
+    code: SessionEventCode
     actor: Literal["engine", "operator"]
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     details: dict[str, object] = field(default_factory=dict)
@@ -87,7 +93,7 @@ class SessionEvent:
             )
         return cls(
             timestamp=datetime.fromisoformat(parameter_from_dict(data, "timestamp", str)),
-            code=parameter_from_dict(data, "code", str),
+            code=SessionEventCode(parameter_from_dict(data, "code", str)),
             actor=actor,
             event_id=event_id,
             details=parameter_from_dict_optional(data, "details", dict) or {},
@@ -96,7 +102,7 @@ class SessionEvent:
     def to_dict(self) -> dict[str, object]:
         return {
             "timestamp": self.timestamp.isoformat(),
-            "code": self.code,
+            "code": self.code.value,
             "actor": self.actor,
             "event_id": self.event_id,
             "details": self.details
@@ -108,7 +114,7 @@ class SessionEvent:
             raise WorkflowRuntimeError(
                 f"{code} is not a valid session event code for operator. valid codes: {OPERATOR_CODES} "
             )
-        return cls(timestamp=datetime.now(tz=UTC), code=code.value, actor="operator", details=details or {})
+        return cls(timestamp=datetime.now(tz=UTC), code=code, actor="operator", details=details or {})
 
     @classmethod
     def engine_event(cls, code: SessionEventCode, details: dict[str, object] | None = None) -> SessionEvent:
@@ -116,7 +122,7 @@ class SessionEvent:
             raise WorkflowRuntimeError(
                 f"{code} is not a valid session event code for engine. valid codes: {ENGINE_CODES} "
             )
-        return cls(timestamp=datetime.now(tz=UTC), code=code.value, actor="engine", details=details or {})
+        return cls(timestamp=datetime.now(tz=UTC), code=code, actor="engine", details=details or {})
 
 
 @dataclass(frozen=True)
@@ -196,7 +202,7 @@ class GuardRecord:
 
     @classmethod
     def from_list(cls, data: list) -> list[GuardRecord]:
-        return [cls.from_dict(check_param_type("item", dict, item)) for item in data]
+        return [cls.from_dict(check_param_type("item", dict, item)) for item in data if item is not None]
 
 
 class StateSource(ABC):
@@ -266,7 +272,24 @@ class StateReadOnlyView:
     _set_parameters: Final[Callable[[dict[str, object], dict[str, object] | None], dict[str, object]]]
     _is_artifact_exist_by_name: Final[Callable[[str], bool]]
     _is_artifact_exist_by_path: Final[Callable[[Path], bool]]
+    _get_status_code: Final[Callable[[], WorkflowStatusCode]]
+    _get_last_event_code: Final[Callable[[], SessionEventCode]]
+    _get_errors: Final[Callable[[], MappingProxyType[str, str]]]
+    _get_parameters: Final[Callable[[], MappingProxyType[str, object]]]
+    _get_artifacts: Final[Callable[[], dict[str, str]]]
+
+    timestamp: datetime
     work_dir: Path
+    schema_version: str
+    flow_id: str
+    current_node_id: str
+    session_id: str
+    max_nodes_visited: int
+    nodes_visited: int
+
+    error_code: str | None
+    error_msg: str | None
+
 
     @classmethod
     def from_state(cls, state: StateModel) -> StateReadOnlyView:
@@ -291,6 +314,21 @@ class StateReadOnlyView:
         def is_artifact_exist_by_path(relative_path: Path) -> bool:
             return any(artifact.relative_path == relative_path for artifact in state.artifacts.values())
 
+        def get_status_code() -> WorkflowStatusCode:
+            return state.get_workflow_status_code()
+
+        def get_last_event_code() -> SessionEventCode:
+            return state.get_last_event_code()
+
+        def get_errors() -> MappingProxyType[str, str]:
+            return MappingProxyType(dict(state.errors))
+
+        def get_parameters() -> MappingProxyType[str, object]:
+            return MappingProxyType({param_name: deepcopy(param.value) for param_name, param in state.params.items()})
+
+        def get_artifacts() -> dict[str, str]:
+            return {name: artifact.relative_path.as_posix() for name, artifact in state.artifacts.items()}
+
         return cls(
             get_param,
             get_output,
@@ -298,7 +336,21 @@ class StateReadOnlyView:
             set_parameters,
             is_artifact_exist_by_name,
             is_artifact_exist_by_path,
+            get_status_code,
+            get_last_event_code,
+            get_errors,
+            get_parameters,
+            get_artifacts,
             work_dir=state.work_dir,
+            timestamp=state.timestamp,
+            schema_version=state.schema_version,
+            flow_id=state.flow_id,
+            current_node_id=state.current_node_id,
+            session_id=state.session_id,
+            error_code=state.error_code,
+            error_msg=state.error_msg,
+            max_nodes_visited=state.max_nodes_visited,
+            nodes_visited=state.nodes_visited
         )
 
     def get_param(self, name: str, default: object = None) -> object | None:
@@ -307,8 +359,8 @@ class StateReadOnlyView:
     def get_output(self, node_id: str) -> str | None:
         return self._get_output_fn(node_id)
 
-    def outputs(self) -> MappingProxyType[str, str]:
-        return self._outputs_fn()
+    def outputs(self) -> dict[str, str]:
+        return dict(self._outputs_fn())
 
     def set_parameters(self, params: dict[str, object], options: dict[str, object] | None = None) -> dict[str, object]:
         return self._set_parameters(params, options)
@@ -347,6 +399,9 @@ class StateReadOnlyView:
             )
         return absolute_path, relative_path
 
+    def get_artifacts_path(self) -> str:
+        return (self.work_dir / "artifacts").resolve().absolute().as_posix()
+
     def get_artifact_absolute_path(self, path: str | Path) -> Path:
         absolute_path, _ = self._resolve_artifact_path(path)
         return absolute_path
@@ -354,6 +409,21 @@ class StateReadOnlyView:
     def get_artifact_relative_path(self, path: str | Path) -> Path:
         _, relative_path = self._resolve_artifact_path(path)
         return relative_path
+
+    def get_workflow_status_code(self) -> WorkflowStatusCode:
+        return self._get_status_code()
+
+    def get_last_event_code(self) -> SessionEventCode:
+        return self._get_last_event_code()
+
+    def get_errors(self) -> dict[str, str]:
+        return dict(self._get_errors())
+
+    def get_parameters(self) -> dict[str, object]:
+        return dict(self._get_parameters())
+
+    def get_artifacts(self) -> dict[str, str]:
+        return self._get_artifacts()
 
 
 @dataclass
@@ -412,12 +482,17 @@ class StateModel:
             params["params"] = {
                 k: ActionParameter.from_dict(v)
                 for k, v in parameter_from_dict_default(data, "params", dict, {}).items()
+                if v is not None
             }
             params["artifact_events"] = [
-                ArtifactEvent.from_dict(v) for v in parameter_from_dict_default(data, "artifact_events", list, [])
+                ArtifactEvent.from_dict(v)
+                for v in parameter_from_dict_default(data, "artifact_events", list, [])
+                if v is not None
             ]
             params["session_events"] = [
-                SessionEvent.from_dict(v) for v in parameter_from_dict_default(data, "session_events", list, [])
+                SessionEvent.from_dict(v)
+                for v in parameter_from_dict_default(data, "session_events", list, [])
+                if v is not None
             ]
             guard_results = parameter_from_dict_default(data, "guard_results", dict, {})
             params["guard_results"] = {
@@ -427,6 +502,7 @@ class StateModel:
             params["artifacts"] = {
                 k: WorkflowArtifact.from_dict(v)
                 for k, v in parameter_from_dict_default(data, "artifacts", dict, {}).items()
+                if v is not None
             }
             params["max_nodes_visited"] = parameter_from_dict_default(data, "max_nodes_visited", int, 0)
             params["nodes_visited"] = parameter_from_dict_default(data, "nodes_visited", int, 0)
@@ -467,11 +543,37 @@ class StateModel:
         new_params.update(updater or {})
         return new_params
 
+    def get_workflow_status_code(self):
+        if len(self.session_events) == 0:
+            raise WorkflowRuntimeError("Unexpected - No session events recorded, cannot determine workflow status code")
+        last_event = self.session_events[-1]
+        match last_event.code:
+            case SessionEventCode.WORKFLOW_COMPLETED:
+                return WorkflowStatusCode.COMPLETED
+            case (
+                SessionEventCode.WORKFLOW_PAUSED_LIMIT |
+                SessionEventCode.WORKFLOW_STARTED |
+                SessionEventCode.WORKFLOW_RESUMED |
+                SessionEventCode.OPERATOR_LIMIT_UPDATED |
+                SessionEventCode.SESSION_CREATED
+            ):
+                return WorkflowStatusCode.PAUSED
+            case SessionEventCode.WORKFLOW_FAILED| SessionEventCode.WORKFLOW_SETUP_FAILED:
+                return WorkflowStatusCode.FAILED
+            case _:
+                raise WorkflowRuntimeError(f"Unexpected session event code: {last_event.code}, cannot determine workflow status code")
+
+    def get_last_event_code(self) -> SessionEventCode:
+        if len(self.session_events) == 0:
+            raise WorkflowRuntimeError("Unexpected - No session events recorded, cannot determine last event code")
+        return self.session_events[-1].code
+
+
     def is_max_node_exceeded(self) -> bool:
         return self.max_nodes_visited != 0 and self.nodes_visited >= self.max_nodes_visited
 
     def has_session_event(self, code: SessionEventCode) -> bool:
-        return any(event.code == code.value for event in self.session_events)
+        return any(event.code == code for event in self.session_events)
 
     def record_session_event(self, event: SessionEvent) -> None:
         self.session_events.append(event)
