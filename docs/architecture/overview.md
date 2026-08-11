@@ -130,6 +130,31 @@ it was created under; discovery across several `work_dir` roots is not part of t
 Paths are serialized in POSIX form, so a record or a state written from one shell reads back identically
 from another.
 
+## CLI
+
+The public CLI entry point is the installed `workflow-engine` console script. It uses a thin `argparse`
+transport layer and dispatches into command use cases.
+
+Public commands are:
+
+- `init-new-session` to create a session without starting execution;
+- `run` to create and execute a session;
+- `resume` to continue an existing session;
+- `set-limit` to update the per-session `max_nodes_visited` soft limit;
+- `show-state` to render persisted session state;
+- `list-sessions` to list sessions discoverable under the configured `work_dir`;
+- `help-components` to list registered components;
+- `help-component` to show one component by type and name.
+
+Command results are normalized as `command`, `session_id`, `command_status`, `workflow_status`,
+`event_code`, `message`, `errors`, and `data`. Text output is for operators, JSON output is for
+automation. Exit codes are `0` for successful completion and non-runner commands, `2` for paused
+workflow commands, `3` for failed workflow commands, and `4` for command-level setup or resolution
+errors.
+
 ## What is not settled yet
 
+- Default runtime and storage path policy for CLI calls remains open. See ADR 008.
+- The detailed operator help/introspection schema remains open. See ADR 009.
+- The engine-wide hard safety cap for unbounded runs remains open. See ADR 010.
 - The error and retry policy beyond the allowance a transition declares.
