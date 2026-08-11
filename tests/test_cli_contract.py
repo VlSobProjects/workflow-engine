@@ -1,0 +1,396 @@
+"""CLI contract tests: negative scenarios, edge cases, and schema consistency.
+
+Tests are organized by command and cover:
+- missing required arguments
+- invalid arguments
+- setup failures
+- command-specific output contracts
+"""
+
+import json
+from pathlib import Path
+from typing import cast
+
+import pytest
+
+from tests.test_adr006_e2e_scan import build_workflow, create_scan_fixture
+from workflow_engine.cli.main import main
+
+
+@pytest.fixture
+def create_config(tmp_path: Path):
+    config_path = tmp_path / "workflow_engine_config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_data = {
+        "work_dir": tmp_path.as_posix(),
+        "external_modules": [],
+        "storage": {},
+    }
+    with config_path.open("w") as f:
+        json.dump(config_data, f)
+    return config_path.absolute()
+
+
+def run_json_cli(argv: list[str], capsys) -> tuple[int, dict[str, object]]:
+    """Run CLI with --json flag and capture exit code and parsed output."""
+    with pytest.raises(SystemExit) as exc_info:
+        main([*argv, "--json"])
+    return cast(int, exc_info.value.code), cast(dict[str, object], json.loads(capsys.readouterr().out))
+
+
+class TestRunCommand:
+    """Tests for `run` command."""
+
+    def test_run_with_missing_workflow_file(self, create_config, capsys):
+        """Missing workflow file should return error exit code 4."""
+        code, response = run_json_cli(
+            ["run", "--workflow-file", "/nonexistent/workflow.json", "--config", create_config.as_posix()],
+            capsys,
+        )
+        assert code == 4
+        assert response["command_status"] == "error"
+        assert response["command"] == "run"
+
+    def test_run_json_response_has_all_required_fields(self, tmp_path: Path, create_config, capsys):
+        """run command JSON response must have command, command_status,
+        workflow_status, event_code, message, errors, data."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        code, response = run_json_cli(
+            ["run", "--workflow-file", workflow_path.as_posix(), "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 0
+        required_fields = {
+            "command",
+            "command_status",
+            "workflow_status",
+            "event_code",
+            "message",
+            "errors",
+            "data",
+            "session_id",
+        }
+        assert set(response.keys()) == required_fields
+        assert response["command"] == "run"
+        assert response["command_status"] == "completed"
+        assert isinstance(response["data"], dict)
+        assert isinstance(response["session_id"], str)
+
+
+class TestInitNewSessionCommand:
+    """Tests for `init-new-session` command."""
+
+    def test_init_with_missing_workflow_file(self, create_config, capsys):
+        """Missing workflow file should return error exit code 4."""
+        code, response = run_json_cli(
+            ["init-new-session", "--workflow-file", "/nonexistent/workflow.json", "--config", create_config.as_posix()],
+            capsys,
+        )
+        assert code == 4
+        assert response["command_status"] == "error"
+        assert response["command"] == "init-new-session"
+
+    def test_init_with_invalid_max_nodes_visited(self, tmp_path: Path, create_config, capsys):
+        """Non-numeric max-nodes-visited should fail at parser level."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        with pytest.raises(SystemExit) as exc_info:
+            main(
+                [
+                    "init-new-session",
+                    "--workflow-file",
+                    workflow_path.as_posix(),
+                    "--max-nodes-visited",
+                    "not_a_number",
+                    "--config",
+                    create_config.as_posix(),
+                    "--json",
+                ]
+            )
+
+        assert exc_info.value.code == 4
+
+
+class TestResumeCommand:
+    """Tests for `resume` command."""
+
+    def test_resume_with_unknown_session_id(self, create_config, capsys):
+        """Unknown session ID should return error exit code 4."""
+        code, response = run_json_cli(
+            ["resume", "--session-id", "unknown-session-id", "--config", create_config.as_posix()],
+            capsys,
+        )
+        assert code == 4
+        assert response["command_status"] == "error"
+        assert response["command"] == "resume"
+
+    def test_resume_json_response_has_workflow_status(self, tmp_path: Path, create_config, capsys):
+        """resume command response must include workflow_status and session_id at top level."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        code, init_response = run_json_cli(
+            [
+                "init-new-session",
+                "--workflow-file",
+                workflow_path.as_posix(),
+                "--max-nodes-visited",
+                "5",
+                "--config",
+                create_config.as_posix(),
+            ],
+            capsys,
+        )
+        session_id = cast(str, cast(dict[str, object], init_response["data"])["session_id"])
+
+        code, response = run_json_cli(
+            ["resume", "--session-id", session_id, "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 2
+        assert response["workflow_status"] in ["completed", "paused", "failed"]
+        assert isinstance(response["session_id"], str)
+        assert response["session_id"] == session_id
+
+
+class TestSetLimitCommand:
+    """Tests for `set-limit` command."""
+
+    def test_set_limit_with_unknown_session_id(self, create_config, capsys):
+        """Unknown session ID should return error exit code 4."""
+        code, response = run_json_cli(
+            ["set-limit", "--session-id", "unknown-session-id", "--limit", "100", "--config", create_config.as_posix()],
+            capsys,
+        )
+        assert code == 4
+        assert response["command_status"] == "error"
+        assert response["command"] == "set-limit"
+
+    def test_set_limit_with_invalid_limit(self, tmp_path: Path, create_config, capsys):
+        """Non-numeric limit should fail at parser level."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        _, init_response = run_json_cli(
+            [
+                "init-new-session",
+                "--workflow-file",
+                workflow_path.as_posix(),
+                "--config",
+                create_config.as_posix(),
+            ],
+            capsys,
+        )
+        session_id = cast(str, cast(dict[str, object], init_response["data"])["session_id"])
+
+        with pytest.raises(SystemExit) as exc_info:
+            main(
+                [
+                    "set-limit",
+                    "--session-id",
+                    session_id,
+                    "--limit",
+                    "not_a_number",
+                    "--config",
+                    create_config.as_posix(),
+                    "--json",
+                ]
+            )
+
+        assert exc_info.value.code == 4
+
+    def test_set_limit_always_returns_exit_code_0(self, tmp_path: Path, create_config, capsys):
+        """set-limit is not a runner command; even on paused workflow it returns 0."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        _, init_response = run_json_cli(
+            [
+                "init-new-session",
+                "--workflow-file",
+                workflow_path.as_posix(),
+                "--max-nodes-visited",
+                "5",
+                "--config",
+                create_config.as_posix(),
+            ],
+            capsys,
+        )
+        session_id = cast(str, cast(dict[str, object], init_response["data"])["session_id"])
+
+        run_json_cli(
+            ["resume", "--session-id", session_id, "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        code, response = run_json_cli(
+            ["set-limit", "--limit", "100", "--session-id", session_id, "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 0
+        assert response["command_status"] == "completed"
+
+
+class TestShowStateCommand:
+    """Tests for `show-state` command."""
+
+    def test_show_state_with_unknown_session_id(self, create_config, capsys):
+        """Unknown session ID should return error exit code 4."""
+        code, response = run_json_cli(
+            ["show-state", "--session-id", "unknown-session-id", "--config", create_config.as_posix()],
+            capsys,
+        )
+        assert code == 4
+        assert response["command_status"] == "error"
+        assert response["command"] == "show-state"
+
+    def test_show_state_returns_full_data(self, tmp_path: Path, create_config, capsys):
+        """show-state must return full state data including artifacts, parameters, outputs."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        code, init_response = run_json_cli(
+            [
+                "init-new-session",
+                "--workflow-file",
+                workflow_path.as_posix(),
+                "--config",
+                create_config.as_posix(),
+            ],
+            capsys,
+        )
+        session_id = cast(str, cast(dict[str, object], init_response["data"])["session_id"])
+
+        run_json_cli(
+            ["resume", "--session-id", session_id, "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        code, response = run_json_cli(
+            ["show-state", "--session-id", session_id, "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 0
+        data = cast(dict[str, object], response["data"])
+        assert "artifacts" in data
+        assert "parameters" in data
+        assert "outputs" in data
+
+
+class TestListSessionsCommand:
+    """Tests for `list-sessions` command."""
+
+    def test_list_sessions_returns_exit_code_0(self, create_config, capsys):
+        """list-sessions is not a runner command; always returns 0."""
+        code, response = run_json_cli(
+            ["list-sessions", "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 0
+        assert response["command_status"] == "completed"
+        assert response["command"] == "list-sessions"
+
+    def test_list_sessions_returns_sessions_array(self, tmp_path: Path, create_config, capsys):
+        """list-sessions must return data.sessions as array."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        code, init_response = run_json_cli(
+            [
+                "init-new-session",
+                "--workflow-file",
+                workflow_path.as_posix(),
+                "--config",
+                create_config.as_posix(),
+            ],
+            capsys,
+        )
+        session_id = cast(str, cast(dict[str, object], init_response["data"])["session_id"])
+
+        code, response = run_json_cli(
+            ["list-sessions", "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 0
+        data = cast(dict[str, object], response["data"])
+        sessions = cast(list[str], data["sessions"])
+        assert isinstance(sessions, list)
+        assert session_id in sessions
+
+
+class TestHelpComponentsCommand:
+    """Tests for `help-components` command."""
+
+    def test_help_components_returns_exit_code_0(self, create_config, capsys):
+        """help-components is not a runner command; always returns 0."""
+        code, response = run_json_cli(
+            ["help-components", "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 0
+        assert response["command_status"] == "completed"
+        assert response["command"] == "help-components"
+
+    def test_help_components_returns_components_dict(self, create_config, capsys):
+        """help-components must return data.components as dict."""
+        code, response = run_json_cli(
+            ["help-components", "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 0
+        data = cast(dict[str, object], response["data"])
+        components = data["components"]
+        assert isinstance(components, dict)
+        assert "Core components" in components or "External components" in components
+
+
+class TestCliOutputSchema:
+    """Tests for JSON/text output schema consistency across all commands."""
+
+    def test_all_commands_have_consistent_json_schema(self, tmp_path: Path, create_config, capsys):
+        """All command responses must have: command, command_status, message, errors, data."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        commands = [
+            ["init-new-session", "--workflow-file", workflow_path.as_posix(), "--config", create_config.as_posix()],
+            ["run", "--workflow-file", workflow_path.as_posix(), "--config", create_config.as_posix()],
+            ["list-sessions", "--config", create_config.as_posix()],
+            ["help-components", "--config", create_config.as_posix()],
+        ]
+
+        for cmd in commands:
+            _, response = run_json_cli(cmd, capsys)
+            assert "command" in response
+            assert "command_status" in response
+            assert "message" in response
+            assert "errors" in response
+            assert "data" in response
+            assert response["command_status"] in ["completed", "error"]

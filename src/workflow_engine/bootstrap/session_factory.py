@@ -76,6 +76,8 @@ class WorkflowSessionsFactory:
         self.work_dir = Path(config.work_dir)
 
     def get_all_sessions(self) -> list[str]:
+        if not (self.work_dir / SESSION_DIRECTORY).exists():
+            return []
         return [session.name for session in (self.work_dir / SESSION_DIRECTORY).iterdir() if session.is_dir()]
 
     def is_session(self, session_id: str) -> bool:

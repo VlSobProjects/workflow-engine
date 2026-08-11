@@ -1,6 +1,5 @@
 import dataclasses
 import json
-from datetime import datetime
 from pathlib import Path
 
 from workflow_engine.exceptions import StateLoadError, WorkflowEngineError, WorkflowParameterError
@@ -9,6 +8,7 @@ from workflow_engine.models.state import ActionParameter, ArtifactEvent, GuardRe
 from workflow_engine.models.workflow import WorkflowModel
 from workflow_engine.output import WorkflowArtifact
 from workflow_engine.storage.storage import Storage
+from workflow_engine.tools import common_encoder
 
 STATE_FILE = "state.json"
 WORKFLOW_FILE = "workflow.json"
@@ -21,8 +21,11 @@ def workflow_encoder(obj):
 
 
 def state_encoder(obj):
-    if isinstance(obj, datetime):
-        return obj.isoformat()
+
+    obj_common = common_encoder(obj)
+
+    if obj_common is not None:
+        return obj_common
 
     if isinstance(obj, WorkflowArtifact):
         return obj.to_dict()
@@ -38,9 +41,6 @@ def state_encoder(obj):
 
     if isinstance(obj, GuardRecord):
         return obj.to_dict()
-
-    if isinstance(obj, Path):
-        return obj.as_posix()
 
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 

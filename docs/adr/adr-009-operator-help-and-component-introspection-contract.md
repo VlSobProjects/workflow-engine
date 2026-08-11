@@ -25,7 +25,7 @@ Define one help/introspection contract for CLI v1:
 
 1. Surfaces:
    - `help-components` list by type: `actions`, `functions`, `validators`, `guards`, `codecs`;
-   - `help-components --type <type> --name <component>` for detailed view.
+   - `help-component --type <type> --name <component>` for detailed view.
 2. Output shape:
    - text and json modes share the same semantic fields (`name`, `type`, `description`, `parameters`,
      `source`, `notes`).
@@ -67,7 +67,7 @@ Planned branch when status moves beyond Draft:
 - `feature/adr_009-operator-help-and-component-introspection-contract`
 
 Minimum v1 implementation:
-- list and detail commands for all component types;
+- list and detail commands for all component types via `help-components` and `help-component`;
 - deterministic JSON schema;
 - at least one test with external module registration visibility.
 

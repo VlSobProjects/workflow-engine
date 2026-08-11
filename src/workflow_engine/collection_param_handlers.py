@@ -20,12 +20,39 @@ class WriteParamMode(Enum):
     REPLACE = auto()
     APPEND = auto()
     EXTEND = auto()
-    DICT = auto()
     POP_LEFT = auto()
     DICT_UPDATE = auto()
     POP_RIGHT = auto()
     POP_INDEX = auto()
     REMOVE = auto()
+
+
+def get_write_param_help(mode: WriteParamMode) -> str:
+    match mode:
+        case WriteParamMode.SET:
+            return "Set a parameter"
+        case WriteParamMode.REPLACE:
+            return "Replace a parameter"
+        case WriteParamMode.APPEND:
+            return "Append to a parameter to list, set or deque"
+        case WriteParamMode.EXTEND:
+            return "Extend parameters to list, set or deque"
+        case WriteParamMode.POP_LEFT:
+            return "Pop deque from the left"
+        case WriteParamMode.DICT_UPDATE:
+            return "Update dictionary"
+        case WriteParamMode.POP_RIGHT:
+            return "Pop deque from the right"
+        case WriteParamMode.POP_INDEX:
+            return "Pop list or set by index"
+        case WriteParamMode.REMOVE:
+            return "Remove a parameter from list, set or deque"
+        case _:
+            return "Unknown mode"
+
+
+def get_all_modes_help() -> str:
+    return "\n".join(f"{mode.name}: {get_write_param_help(mode)}" for mode in WriteParamMode)
 
 
 MODIFY_GROUP = (
