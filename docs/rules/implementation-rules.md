@@ -5,6 +5,8 @@ These rules apply to every code change.
 ## 1. Before changing code
 Read the code and the tests that surround the change.
 Understand how the piece is used before editing it.
+Detailed attention to the context and potential side effects.
+Before changing any code, give a short explanation and wait for the confirmation or questions for details.
 
 ## 2. Size of a change
 Keep a change small enough to review in one pass.
