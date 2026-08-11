@@ -45,7 +45,10 @@ Run the relevant tests and Ruff before merging into `development`, and report wh
 Validate input at the boundaries of the engine and fail with the project's own exception types.
 Do not swallow errors and do not return a silent default in place of an error.
 
-## 9. Dependencies
+## 9. Path serialization
+Persist and expose paths in POSIX form, not native OS path separators. This keeps config, state and session data portable across platforms and matches ADR 008: `docs/adr/adr-008-runtime-directory-and-default-path-policy-for-v1.md`.
+
+## 10. Dependencies
 Prefer the standard library.
 A new dependency must earn its place: it has to solve a real problem better than a small local
 implementation, be maintained, and have an acceptable licence.

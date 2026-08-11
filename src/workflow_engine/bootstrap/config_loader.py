@@ -46,6 +46,12 @@ def _normalize_path(path_value: str | Path, base_dir: Path) -> Path:
     return path.resolve(strict=False)
 
 
+def _to_posix_string(path_value: str | Path | None, base_dir: Path) -> str:
+    if path_value is None:
+        raise ValueError("path value cannot be None")
+    return _normalize_path(path_value, base_dir).as_posix()
+
+
 def _resolve_config_search_path(explicit_path: Path | None, base_dir: Path, runtime_root: Path) -> Path:
     if explicit_path is not None:
         return _normalize_path(explicit_path, base_dir)
@@ -82,18 +88,18 @@ def _resolve_work_dir(
     config_data: dict[str, object],
 ) -> str:
     if work_dir_override is not None:
-        return str(_normalize_path(work_dir_override, base_dir))
+        return _to_posix_string(work_dir_override, base_dir)
 
     env_work_dir = os.getenv(ENV_WORK_DIR)
     if env_work_dir:
-        return str(_normalize_path(env_work_dir, base_dir))
+        return _to_posix_string(env_work_dir, base_dir)
 
     if storage_dir_override is None:
         config_work_dir = parameter_from_dict_default(config_data, "work_dir", str, None)
         if config_work_dir is not None:
-            return str(_normalize_path(config_work_dir, base_dir))
+            return _to_posix_string(config_work_dir, base_dir)
 
-    return str(_resolve_runtime_root(base_dir, None, storage_dir_override))
+    return _to_posix_string(_resolve_runtime_root(base_dir, None, storage_dir_override), base_dir)
 
 
 def _resolve_storage_dir(
@@ -104,21 +110,21 @@ def _resolve_storage_dir(
     config_data: dict[str, object],
 ) -> str:
     if storage_dir_override is not None:
-        return str(_normalize_path(storage_dir_override, base_dir))
+        return _to_posix_string(storage_dir_override, base_dir)
 
     if work_dir_override is not None or os.getenv(ENV_WORK_DIR):
-        return str(work_dir_value / "json-storage")
+        return work_dir_value.joinpath("json-storage").as_posix()
 
     env_storage_dir = os.getenv(ENV_STORAGE_DIR)
     if env_storage_dir:
-        return str(_normalize_path(env_storage_dir, base_dir))
+        return _to_posix_string(env_storage_dir, base_dir)
 
     config_storage = parameter_from_dict_default(config_data, "storage", dict, {})
     config_storage_dir = parameter_from_dict_default(config_storage, "storage_dir", str, None)
     if config_storage_dir is not None:
-        return str(_normalize_path(config_storage_dir, base_dir))
+        return _to_posix_string(config_storage_dir, base_dir)
 
-    return str(work_dir_value / "json-storage")
+    return work_dir_value.joinpath("json-storage").as_posix()
 
 
 def _load_config_data(path: Path) -> dict[str, object]:
@@ -164,9 +170,9 @@ def load_config_file(
     )
 
     config = WorkflowEngineConfiguration(
-        work_dir=str(work_dir_value),
+        work_dir=work_dir_value.as_posix(),
         external_modules=tuple(parameter_from_dict_default(config_data, "external_modules", list, [])),
-        storage=MappingProxyType({"storage_dir": str(storage_dir_value)}),
+        storage=MappingProxyType({"storage_dir": storage_dir_value.as_posix()}),
     )
 
     if not resolved_config_path.exists():
