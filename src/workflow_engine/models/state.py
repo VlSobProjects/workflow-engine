@@ -37,10 +37,12 @@ ARTIFACT_PATH_CONFLICT = "artifact_path_conflict"
 INVALID_WRITE_MODE = "invalid_write_mode"
 PARAM_TYPE_MISMATCH = "param_type_mismatch"
 
+
 class WorkflowStatusCode(Enum):
-    COMPLETED="completed"
-    PAUSED= "paused"
+    COMPLETED = "completed"
+    PAUSED = "paused"
     FAILED = "failed"
+
 
 class SessionEventCode(Enum):
     SESSION_CREATED = "session_created"
@@ -66,8 +68,6 @@ ENGINE_CODES = (
     SessionEventCode.WORKFLOW_COMPLETED,
     SessionEventCode.WORKFLOW_FAILED,
 )
-
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,7 +105,7 @@ class SessionEvent:
             "code": self.code.value,
             "actor": self.actor,
             "event_id": self.event_id,
-            "details": self.details
+            "details": self.details,
         }
 
     @classmethod
@@ -290,7 +290,6 @@ class StateReadOnlyView:
     error_code: str | None
     error_msg: str | None
 
-
     @classmethod
     def from_state(cls, state: StateModel) -> StateReadOnlyView:
         def get_param(name: str, default: object = None) -> object | None:
@@ -350,7 +349,7 @@ class StateReadOnlyView:
             error_code=state.error_code,
             error_msg=state.error_msg,
             max_nodes_visited=state.max_nodes_visited,
-            nodes_visited=state.nodes_visited
+            nodes_visited=state.nodes_visited,
         )
 
     def get_param(self, name: str, default: object = None) -> object | None:
@@ -551,23 +550,24 @@ class StateModel:
             case SessionEventCode.WORKFLOW_COMPLETED:
                 return WorkflowStatusCode.COMPLETED
             case (
-                SessionEventCode.WORKFLOW_PAUSED_LIMIT |
-                SessionEventCode.WORKFLOW_STARTED |
-                SessionEventCode.WORKFLOW_RESUMED |
-                SessionEventCode.OPERATOR_LIMIT_UPDATED |
-                SessionEventCode.SESSION_CREATED
+                SessionEventCode.WORKFLOW_PAUSED_LIMIT
+                | SessionEventCode.WORKFLOW_STARTED
+                | SessionEventCode.WORKFLOW_RESUMED
+                | SessionEventCode.OPERATOR_LIMIT_UPDATED
+                | SessionEventCode.SESSION_CREATED
             ):
                 return WorkflowStatusCode.PAUSED
-            case SessionEventCode.WORKFLOW_FAILED| SessionEventCode.WORKFLOW_SETUP_FAILED:
+            case SessionEventCode.WORKFLOW_FAILED | SessionEventCode.WORKFLOW_SETUP_FAILED:
                 return WorkflowStatusCode.FAILED
             case _:
-                raise WorkflowRuntimeError(f"Unexpected session event code: {last_event.code}, cannot determine workflow status code")
+                raise WorkflowRuntimeError(
+                    f"Unexpected session event code: {last_event.code}, cannot determine workflow status code"
+                )
 
     def get_last_event_code(self) -> SessionEventCode:
         if len(self.session_events) == 0:
             raise WorkflowRuntimeError("Unexpected - No session events recorded, cannot determine last event code")
         return self.session_events[-1].code
-
 
     def is_max_node_exceeded(self) -> bool:
         return self.max_nodes_visited != 0 and self.nodes_visited >= self.max_nodes_visited

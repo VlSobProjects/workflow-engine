@@ -1,48 +1,54 @@
-import sys
-from dataclasses import dataclass, field
-from typing import Callable
-
 import argparse
+import sys
 from argparse import Namespace
+from collections.abc import Callable
+from dataclasses import dataclass, field
 
-from workflow_engine.cli.contract import CommandResult, CommandStatus, CommandName
+from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
 from workflow_engine.cli.exit_codes import ExitCode, get_exit_code
 from workflow_engine.cli.presenters import render_json, render_text
-from workflow_engine.cli.use_cases import run_workflow, resume_workflow, set_limit, show_state, list_of_sessions, \
-    help_components, help_component, init_session
+from workflow_engine.cli.use_cases import (
+    help_component,
+    help_components,
+    init_session,
+    list_of_sessions,
+    resume_workflow,
+    run_workflow,
+    set_limit,
+    show_state,
+)
 from workflow_engine.collection_param_handlers import WriteParamMode, get_all_modes_help
 from workflow_engine.exceptions import WorkflowEngineError
 
 
 class CustomArgumentParser(argparse.ArgumentParser):
     def error(self, message):
-        print(f'Error: {message}')
+        print(f"Error: {message}")
         self.print_help()
         sys.exit(ExitCode.ERROR.value)
 
 
-
 @dataclass
 class CommandArgs:
-   key: str
-   help: str
-   required:bool = field(default=True)
-   type:type = field(default=str)
-   action:str = field(default="store")
-   choices: list[str] | None = field(default=None)
-   choices_help: str | None = field(default=None)
+    key: str
+    help: str
+    required: bool = field(default=True)
+    type: type = field(default=str)
+    action: str = field(default="store")
+    choices: list[str] | None = field(default=None)
+    choices_help: str | None = field(default=None)
 
-   def add_argument(self, command: argparse.ArgumentParser):
-       if self.choices is not None:
-           command.add_argument(
-               self.key,
-               help=self.help,
-               required=self.required,
-               type=self.type,
-               action=self.action,
-               choices=self.choices
-           )
-       else:
+    def add_argument(self, command: argparse.ArgumentParser):
+        if self.choices is not None:
+            command.add_argument(
+                self.key,
+                help=self.help,
+                required=self.required,
+                type=self.type,
+                action=self.action,
+                choices=self.choices,
+            )
+        else:
             command.add_argument(
                 self.key,
                 help=self.help,
@@ -56,10 +62,10 @@ class CommandArgs:
 class Command:
     command: CommandName
     help: str
-    runner:Callable[[CommandName, Namespace], CommandResult]
+    runner: Callable[[CommandName, Namespace], CommandResult]
     args: list[CommandArgs] = field(default_factory=list)
 
-    def add_to_parser(self, parser: argparse._SubParsersAction,shared_parser: argparse.ArgumentParser):
+    def add_to_parser(self, parser: argparse._SubParsersAction, shared_parser: argparse.ArgumentParser):
         command_parser = parser.add_parser(self.command.value, help=self.help, parents=[shared_parser])
         for arg in self.args:
             arg.add_argument(command_parser)
@@ -70,19 +76,20 @@ class Command:
         except WorkflowEngineError as e:
             return CommandResult(
                 command=self.command,
-                status=CommandStatus.ERROR,
+                command_status=CommandStatus.ERROR,
                 message=str(e),
                 data=args.__dict__,
             )
 
-def _session_id_arg()->CommandArgs:
+
+def _session_id_arg() -> CommandArgs:
     return CommandArgs(
         key="--session-id",
         help="Session ID",
     )
 
 
-def _get_commend(command_name:CommandName) -> Command:
+def _get_commend(command_name: CommandName) -> Command:
     match command_name:
         case CommandName.INIT_NEW_SESSION:
             return Command(
@@ -99,7 +106,7 @@ def _get_commend(command_name:CommandName) -> Command:
                         type=int,
                         help="Maximum number of nodes to visit in the workflow",
                         required=False,
-                    )
+                    ),
                 ],
             )
         case CommandName.RUN:
@@ -121,21 +128,33 @@ def _get_commend(command_name:CommandName) -> Command:
                 runner=resume_workflow,
                 args=[
                     _session_id_arg(),
-                    CommandArgs(key="--input",help="Input from operator to the workflow",required=False),
-                    CommandArgs(key="--error-code",help="Error code from operator to the workflow",required=False),
-                    CommandArgs(key="--error-msg",help="Error message from operator to the workflow",required=False),
-                    CommandArgs(key="--param-name",help="Parameter name from operator to the workflow",required=False),
-                    CommandArgs(key="--param-value",help="Parameter value from operator to the workflow",required=False),
+                    CommandArgs(key="--input", help="Input from operator to the workflow", required=False),
+                    CommandArgs(key="--error-code", help="Error code from operator to the workflow", required=False),
+                    CommandArgs(key="--error-msg", help="Error message from operator to the workflow", required=False),
+                    CommandArgs(
+                        key="--param-name", help="Parameter name from operator to the workflow", required=False
+                    ),
+                    CommandArgs(
+                        key="--param-value", help="Parameter value from operator to the workflow", required=False
+                    ),
                     CommandArgs(
                         key="--write-mode",
                         help="Write mode for the parameter",
                         required=False,
                         choices=[mode.name for mode in WriteParamMode],
-                        choices_help=get_all_modes_help()
+                        choices_help=get_all_modes_help(),
                     ),
-                    CommandArgs(key="--artifact-name",help="Artifact name from operator to the workflow",required=False),
-                    CommandArgs(key="--artifact-path",help="Artifact path from operator to the workflow",required=False),
-                    CommandArgs(key="--artifact-description",help="Artifact description from operator to the workflow",required=False),
+                    CommandArgs(
+                        key="--artifact-name", help="Artifact name from operator to the workflow", required=False
+                    ),
+                    CommandArgs(
+                        key="--artifact-path", help="Artifact path from operator to the workflow", required=False
+                    ),
+                    CommandArgs(
+                        key="--artifact-description",
+                        help="Artifact description from operator to the workflow",
+                        required=False,
+                    ),
                 ],
             )
         case CommandName.SET_LIMIT:
@@ -148,7 +167,7 @@ def _get_commend(command_name:CommandName) -> Command:
                         key="--limit",
                         type=int,
                         help="Set a workflow limit",
-                    )
+                    ),
                 ],
                 runner=set_limit,
             )
@@ -184,14 +203,14 @@ def _get_commend(command_name:CommandName) -> Command:
                     CommandArgs(
                         key="--component-name",
                         help="Name of the component",
-                    )
+                    ),
                 ],
             )
         case _:
             raise ValueError(f"Unknown command: {command_name}")
 
 
-def _get_parser()->CustomArgumentParser:
+def _get_parser() -> CustomArgumentParser:
     parser = CustomArgumentParser(
         description="Workflow Engine CLI",
         formatter_class=argparse.RawTextHelpFormatter,
@@ -217,5 +236,4 @@ def main(argv=None):
     else:
         print(render_text(response))
 
-    sys.exit(get_exit_code(response.status,response.workflow_status).value)
-
+    sys.exit(get_exit_code(command.command, response.command_status, response.workflow_status).value)

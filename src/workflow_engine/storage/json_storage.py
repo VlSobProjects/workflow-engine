@@ -19,6 +19,7 @@ def workflow_encoder(obj):
         return {**dataclasses.asdict(obj)}
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
+
 def state_encoder(obj):
 
     obj_common = common_encoder(obj)
@@ -42,6 +43,7 @@ def state_encoder(obj):
         return obj.to_dict()
 
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
 
 class JsonStorage(Storage):
     """JSON Storage class for states and workflows."""

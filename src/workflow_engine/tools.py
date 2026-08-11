@@ -1,3 +1,4 @@
+from collections import deque
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from enum import Enum
@@ -85,6 +86,7 @@ def dict_to_text_lv3(title: str, data: dict[str, dict[str, dict[str, str]]], int
         lines.append(dict_to_text_lv2(k, v, intend_start + intend, intend))
     return "\n".join(lines)
 
+
 def common_encoder(obj):
     if isinstance(obj, datetime):
         return obj.isoformat()
@@ -94,5 +96,8 @@ def common_encoder(obj):
 
     if isinstance(obj, Enum):
         return obj.value
+
+    if isinstance(obj, deque):
+        return list(obj)
 
     return None

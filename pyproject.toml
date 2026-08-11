@@ -5,10 +5,12 @@ description = "An engine that executes workflows described in JSON"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "argparse>=1.4.0",
     "platformdirs>=4.11.1",
     "prettytable>=3.18.0",
 ]
+
+[project.scripts]
+workflow-engine = "workflow_engine.cli.main:main"
 
 [dependency-groups]
 dev = [

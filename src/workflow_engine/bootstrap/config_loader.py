@@ -4,13 +4,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
-from platformdirs import user_config_dir
-
 from workflow_engine.tools import parameter_from_dict_default
 
 APPLICATION_DIRECTORY = ".workflow-engine"
 CONFIG_FILE_NAME = "workflow_engine_config.json"
-
 
 
 @dataclass(frozen=True)
@@ -37,6 +34,7 @@ class WorkflowEngineConfiguration:
 
 def _load_config(path: Path) -> WorkflowEngineConfiguration:
     import json
+
     if path.is_file():
         with path.open() as f:
             data = json.load(f)
@@ -48,6 +46,7 @@ def _load_config(path: Path) -> WorkflowEngineConfiguration:
             json.dump(config.to_dict(), f)
 
     return config
+
 
 def load_config_file(path: Path | None) -> WorkflowEngineConfiguration:
     if path is None:

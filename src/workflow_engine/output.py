@@ -63,5 +63,5 @@ class ActionNodeOutput:
             error_code=error_code,
             error_msg=error_msg,
             param_writes=param_writes,
-            artifacts=artifacts
+            artifacts=artifacts,
         )

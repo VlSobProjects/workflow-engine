@@ -1,10 +1,6 @@
-import sys
 from enum import Enum
-from types import MappingProxyType
 
-import argparse
-
-from workflow_engine.cli.contract import CommandStatus
+from workflow_engine.cli.contract import INFO_COMMANDS, CommandName, CommandStatus
 from workflow_engine.models.state import WorkflowStatusCode
 
 
@@ -15,14 +11,13 @@ class ExitCode(Enum):
     ERROR = 4
 
 
-
-
-
-
-
-def get_exit_code(command_status:CommandStatus, workflow_status_code: WorkflowStatusCode | None) -> ExitCode:
+def get_exit_code(
+    command_name: CommandName, command_status: CommandStatus, workflow_status_code: WorkflowStatusCode | None
+) -> ExitCode:
     if command_status == CommandStatus.ERROR:
         return ExitCode.ERROR
+    if command_name in INFO_COMMANDS:
+        return ExitCode.COMPLETED
     elif workflow_status_code == WorkflowStatusCode.PAUSED:
         return ExitCode.PAUSED
     elif workflow_status_code == WorkflowStatusCode.FAILED:

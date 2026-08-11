@@ -26,6 +26,7 @@ class WriteParamMode(Enum):
     POP_INDEX = auto()
     REMOVE = auto()
 
+
 def get_write_param_help(mode: WriteParamMode) -> str:
     match mode:
         case WriteParamMode.SET:
@@ -49,8 +50,10 @@ def get_write_param_help(mode: WriteParamMode) -> str:
         case _:
             return "Unknown mode"
 
+
 def get_all_modes_help() -> str:
     return "\n".join(f"{mode.name}: {get_write_param_help(mode)}" for mode in WriteParamMode)
+
 
 MODIFY_GROUP = (
     WriteParamMode.APPEND,
