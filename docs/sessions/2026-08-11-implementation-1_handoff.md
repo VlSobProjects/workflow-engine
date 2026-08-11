@@ -40,6 +40,13 @@ completed
    - Added console_scripts entry: `workflow-engine = "workflow_engine.cli.main:main"`
    - Allows package to be invoked as command-line tool
 
+3. **tests/test_install_smoke.py**
+   - Added a clean-venv install smoke test that builds a wheel, installs it, and runs the installed CLI entry point
+   - Verifies the package works from the built artifact rather than only from source
+
+4. **.gitignore**
+   - Added `.venv-smoke/` so the temporary smoke-test environment stays local
+
 ### Test Coverage Completed
 - **tests/test_main.py** (3 tests): Happy-path acceptance flow
   - Basic run workflow
@@ -52,7 +59,12 @@ completed
   - JSON schema consistency across all commands
   - Response field presence and type validation
 
-**Test Status**: ✅ All 16 tests passing, ruff clean
+- **tests/test_install_smoke.py** (1 test): Packaging and installed-CLI smoke coverage
+  - Wheel build from repository root
+  - Clean venv installation
+  - Installed `workflow-engine` invocation with JSON output
+
+**Test Status**: ✅ All relevant tests passing, ruff clean
 
 ### Alignment Gaps Identified (Not Bugs)
 1. **Extra commands not in ADR-007 Decision section**:
