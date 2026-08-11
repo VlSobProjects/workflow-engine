@@ -1,10 +1,10 @@
 # ADR 009: Operator help and component introspection contract
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+feature/adr_009-operator-help-and-component-introspection-contract
 
 ## Context
 
@@ -119,3 +119,4 @@ Minimum v1 implementation:
   acceptance coverage.
 - Added a core-component generality policy for migrating test-local helpers into reusable production
   registrations, with required validation by at least two realistic scenarios.
+- Status changed from `Draft` to `Implementing`; implementation branch assigned.
