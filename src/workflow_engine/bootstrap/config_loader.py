@@ -158,9 +158,7 @@ def load_config_file(
     if not resolved_config_path.exists():
         resolved_config_path.parent.mkdir(parents=True, exist_ok=True)
 
-    work_dir_value = Path(
-        _resolve_work_dir(base_dir, work_dir_override, storage_dir_override, config_data)
-    )
+    work_dir_value = Path(_resolve_work_dir(base_dir, work_dir_override, storage_dir_override, config_data))
     storage_dir_value = Path(
         _resolve_storage_dir(base_dir, work_dir_value, work_dir_override, storage_dir_override, config_data)
     )
