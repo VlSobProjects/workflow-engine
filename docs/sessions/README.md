@@ -93,6 +93,7 @@ missing from the registry is effectively lost. Add the row when the branch is me
 | 2026-08-18 | architecture | Defined the phase 1 completion gate, chose session-bound typed workflow inputs over a template entity, and opened Draft ADR 012 with removal of the uncontracted resume flags | completed | development | [2026-08-18-architecture-5_handoff.md](2026-08-18-architecture-5_handoff.md) |
 | 2026-08-18 | implementation | Implemented ADR 012: declared `inputs`, `set-input` command, one-shot `run --input`, codec-typed binding, required-input enforcement, and removal of uncontracted `resume` flags; 236 tests pass | completed | feature/adr_012-workflow-input-parameters | [2026-08-18-implementation-7_handoff.md](2026-08-18-implementation-7_handoff.md) |
 | 2026-08-18 | architecture | Reviewed ADR 012 implementation against requirements, merged feature branch into development, and froze ADR 012 as Accepted | completed | development | [2026-08-18-architecture-6_handoff.md](2026-08-18-architecture-6_handoff.md) |
+| 2026-08-18 | documentation | Introduced the architecture notes channel (`docs/architecture/notes/`) for durable ideas not yet decided, with fixed-header/free-body notes, a lifecycle and a registry; amended documentation-rules, git-workflow and adr-rules; captured the recovery roadmap and ADR 012 deferred-questions notes | completed | docs/architecture-notes-channel | [2026-08-18-documentation-1_handoff.md](2026-08-18-documentation-1_handoff.md) |
 
 `Summary` states what the session was about, in one line.
 `Status` is `completed` or `interrupted`.
