@@ -49,7 +49,14 @@ uncontracted `resume` flags.
    assignment form.
 3. Input values are typed through the existing codec registry (name, value, codec type name), so a
    bound input round-trips exactly like any session parameter (ADR 006).
-4. Phase 1 completion gate (in order):
+4. Assignment syntax settled: repeatable `--input NAME[:TYPE]=VALUE` on `set-input` and `run`;
+   typed values are JSON-parsed with raw-string fallback and decoded by the codec; bare codec
+   class names accepted while unambiguous; input names restricted to `[A-Za-z_][A-Za-z0-9_]*`.
+   The one-shot `run` form is confirmed as part of the contract.
+5. `hard_max_nodes_visited` keeps its default of 1000 in phase 1; the documentation session (gate
+   item 3) documents the default and how to raise it in the configuration file. Raising the
+   default, if ever, is a later decision.
+6. Phase 1 completion gate (in order):
    1. ADR 012 implemented and Accepted (includes removing the broken `resume` flags).
    2. Minor-defect session: UTF-8 BOM rejection in config/workflow loading, `init-new-session`
       top-level `session_id: null`, blank lines in the prettytable CSV on Windows; decide the
@@ -60,13 +67,11 @@ uncontracted `resume` flags.
    4. Release: merge `development` into `main`, tag the first version.
 
 ## Open questions
-1. Exact assignment syntax for `set-input`/`run` (argparse shape for repeatable name/type/value
-   with values containing `=` and spaces) — settled when ADR 012 moves to Implementing.
-2. Whether the minor-defect session also raises the default hard cap or only documents it.
+None. Both questions raised during the session (assignment syntax, hard-cap default) were resolved
+in decisions 5 and 6 before the session closed.
 
 ## Next steps
-1. Review the ADR 012 Draft, refine the assignment syntax, and move it to Implementing on
-   `feature/adr_012-workflow-input-parameters`.
+1. Move ADR 012 to Implementing and open `feature/adr_012-workflow-input-parameters`.
 2. Run the minor-defect fix session (gate item 2).
 3. Run the documentation session (gate item 3).
 4. Release phase 1 (gate item 4).

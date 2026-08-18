@@ -48,8 +48,9 @@ workflow file stays reusable, and no separate template entity is introduced.
   (default `true`), and optional `description`.
 - The declaration is the input interface of the workflow — the mirror of `deliverables` (ADR 011)
   on the input side. It states *what* the workflow needs, never the concrete values.
-- Build-time validation covers shape only: a list of unique non-empty names; a declared `type`
-  must name a registered codec.
+- Build-time validation covers shape only: a list of unique names matching
+  `[A-Za-z_][A-Za-z0-9_]*` (so an input name can never contain the `:` and `=` separators of the
+  assignment grammar below); a declared `type` must name a registered codec.
 - The declaration is introspectable: it surfaces through the CLI result data and the ADR 009 help
   contract.
 
@@ -58,6 +59,22 @@ workflow file stays reusable, and no separate template entity is introduced.
 - New CLI command `set-input`: binds one or more input values to an existing session in a single
   invocation. Each assignment carries the input name, the value as text, and optionally a codec
   type name.
+- Assignment grammar: a repeatable `--input` option, one assignment per occurrence, in the form
+  `--input NAME[:TYPE]=VALUE`. The first `=` separates the value; the first `:` before it
+  separates the optional type from the name. `VALUE` is a single shell argument and may contain
+  `=`, `:`, spaces and JSON — shell quoting is the operator's tool, no escaping syntax of our own.
+  An assignment without `=` is a command error.
+
+  ```
+  workflow-engine set-input --session-id S \
+      --input "scan_root:Path=C:/data to scan" \
+      --input depth:int=3 \
+      --input "columns:list=[\"Path\", \"Size\", \"MD5\"]"
+  workflow-engine run --workflow-file flow.json --input scan_root:Path=C:/data --export-dir out/
+  ```
+- `set-input` requires at least one assignment. The same name twice in one invocation is a command
+  error; binding a name that an earlier invocation already bound overwrites the value while the
+  session is still unstarted, and both bindings stay in the journal.
 - `set-input` accepts only names declared in the session's `inputs` block. An undeclared name is a
   command error.
 - Binding is allowed only while the session has visited no node. A session whose run has started
@@ -74,10 +91,20 @@ workflow file stays reusable, and no separate template entity is introduced.
   type (for example `pathlib.Path`, `collections.deque`) — the same round-trip contract session
   parameters already use, so a bound input is indistinguishable in state from a parameter written
   by a node.
+- Decoding rule for a typed value: the value text is parsed as JSON; when it is not valid JSON it
+  is used as the raw string; the result is decoded by the codec. This makes `depth:int=3` an
+  integer, `scan_root:Path=C:/data` a `Path` (an unquoted path is not JSON), and
+  `columns:list=[...]` a list. The one documented edge: a string value that itself parses as JSON
+  (such as a purely numeric `Path`) must be JSON-quoted by the operator. A value the codec cannot
+  decode is a command error naming the input.
+- An untyped value never goes through JSON parsing: it is bound as the literal string.
 - The codec is resolved with this precedence: the explicit type in the assignment, else the `type`
   declared in `inputs`, else the value stays a plain string. When both are present they must
   agree.
-- Codec type names are the operator-facing vocabulary and are discoverable via `help-components`.
+- `TYPE` accepts the full registered codec name (`pathlib.Path`, `builtins.int`) or the bare class
+  name (`Path`, `int`, `list`, `deque`) while the bare name is unambiguous in the codec registry;
+  an ambiguous bare name is a command error asking for the full form. Codec names are discoverable
+  via `help-components`.
 
 ### 4. One-shot form on `run`
 
@@ -174,19 +201,20 @@ Closes off:
 
 ## Implementation notes
 
-To be refined when the ADR moves toward Implementing. Current sketch:
-
-- Assignment syntax candidate: a repeatable option, one assignment per occurrence, carrying
-  `name`, optional codec type name, and the value text (exact argparse shape to be settled; it
-  must allow several assignments in one invocation and values containing `=` and spaces).
-- Decoding: parse the value text as JSON when the target codec's serialized form is structured,
-  otherwise pass the raw string to the codec (`CODEC_REGISTRY` lookup via
-  `get_codec_by_type_name`, decode via `value_from_dict_obj`). No codec means the value stays a
-  string.
+- Parsing: `--input` is `action="append"`; each occurrence is split in the use-case layer (not in
+  argparse) — `partition("=")` for the value, then `partition(":")` on the left part for the
+  optional type. Split errors are command errors (exit `4`), not argparse errors, so they render
+  through the normal result contract.
+- Decoding: resolve the codec (`CODEC_REGISTRY` full name, or unique match on the bare class
+  name), `json.loads` the value text falling back to the raw string on `JSONDecodeError`, then
+  `codec.value_from_dict_obj(...)`; a codec exception becomes a command error naming the input.
+  No codec means the value stays a string and skips JSON parsing.
 - Engine API: one method that validates names against the definition's `inputs`, applies
-  `ParamWrite(mode=SET)` per value through the existing write path, and records an operator
-  session event (e.g. `INPUTS_SET`) with the bound names in `details` (values are already
-  persisted in `state.params`; the event records names, not values).
+  `ParamWrite(mode=SET, allow_overwrite=True)` per value through the existing write path (the
+  overwrite covers pre-start re-binding; the no-node-visited guard makes it safe), and records an
+  operator session event (e.g. `INPUTS_SET`) with the bound names and resolved codec names in
+  `details` (values are already persisted in `state.params`; the event records names, not
+  values).
 - The "no node visited" guard checks the persisted visit counters of the session.
 - Start-time check: on the first execution of a session, unbound `required` inputs fail setup
   before node execution, journaled per the ADR 006 `workflow_setup_failed` semantics with the
@@ -195,14 +223,23 @@ To be refined when the ADR moves toward Implementing. Current sketch:
   in `cli/use_cases.py` are removed; `get_all_modes_help` and the `WriteParamMode` enum stay — they
   serve the engine-internal write modes and the future phase-2 surface.
 - Help contract: `inputs` joins the definition surfaces additively (ADR 009 stability rules).
-- Test surface: schema validation of `inputs`; binding matrix (declared/undeclared name, typed
-  decode for `pathlib.Path` and a collection type, agree/disagree between declared and explicit
-  type, rejection after first node visit, exit codes); required-unbound setup error; e2e — the
-  folder-inventory template run parameterized by a bound scan root and exported with
-  `--export-dir`; absence of the removed `resume` flags.
+- Test surface: schema validation of `inputs` (name charset, unknown codec name); assignment
+  parsing (missing `=`, type split, values containing `=`/`:`/spaces/JSON); binding matrix
+  (declared/undeclared name, typed decode for `Path`/`int`/`list`, JSON-fallback rule, bare vs
+  full codec name, agree/disagree between declared and explicit type, duplicate in one
+  invocation, re-binding before start, rejection after first node visit, exit codes);
+  required-unbound setup error; e2e — the folder-inventory template run parameterized by a bound
+  scan root and exported with `--export-dir`; absence of the removed `resume` flags.
 
 ## Change log
 
 - Draft opened from the 2026-08-18 phase 1 readiness architecture session: stance 1 (reusable
   workflow, session-bound inputs) chosen over a single-run workflow with a separate template
   entity; typed multi-parameter `set-input` chosen as the two-step binding form.
+- Assignment syntax settled in the same session: repeatable `--input NAME[:TYPE]=VALUE` chosen
+  over nargs triplets (fragile with values starting with `-`) and a JSON-payload option (shell
+  quoting burden as the only form; may still be added additively later). Decoding fixed as
+  JSON-parse-with-raw-string-fallback for typed values; bare codec class names accepted while
+  unambiguous; duplicate-in-invocation is an error while pre-start re-binding overwrites and is
+  journaled. Input names restricted to `[A-Za-z_][A-Za-z0-9_]*` at build time. The one-shot `run`
+  form confirmed.
