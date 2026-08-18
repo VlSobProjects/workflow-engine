@@ -95,6 +95,7 @@ missing from the registry is effectively lost. Add the row when the branch is me
 | 2026-08-18 | architecture | Reviewed ADR 012 implementation against requirements, merged feature branch into development, and froze ADR 012 as Accepted | completed | development | [2026-08-18-architecture-6_handoff.md](2026-08-18-architecture-6_handoff.md) |
 | 2026-08-18 | documentation | Introduced the architecture notes channel (`docs/architecture/notes/`) for durable ideas not yet decided, with fixed-header/free-body notes, a lifecycle and a registry; amended documentation-rules, git-workflow and adr-rules; captured the recovery roadmap and ADR 012 deferred-questions notes | completed | docs/architecture-notes-channel | [2026-08-18-documentation-1_handoff.md](2026-08-18-documentation-1_handoff.md) |
 | 2026-08-19 | implementation | Closed the minor operator findings: top-level `session_id` for `init-new-session`, BOM-tolerant UTF-8 JSON IO, CSV artifacts without blank rows; replaced the personal-path example with a `tmp_path` test fixture | completed | fix/minor-operator-findings | [2026-08-19-implementation-1_handoff.md](2026-08-19-implementation-1_handoff.md) |
+| 2026-08-19 | documentation | Added a README how-to for running the two example templates end to end, retrieving the result, the CLI exit codes and the hard node cap recovery | completed | docs/readme-run-and-retrieve-howto | [2026-08-19-documentation-1_handoff.md](2026-08-19-documentation-1_handoff.md) |
 
 `Summary` states what the session was about, in one line.
 `Status` is `completed` or `interrupted`.
