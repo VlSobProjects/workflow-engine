@@ -1,61 +1,16 @@
 import hashlib
 import json
-from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
 
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import WorkflowEngineConfiguration
 from workflow_engine.engine import WorkflowEngine
-from workflow_engine.output import ActionNodeOutput, ParamWrite, WriteParamMode
-from workflow_engine.registry.function_registry import register_function
 
 
 def create_engine(tmp_path: Path) -> WorkflowEngine:
     bootstrap = Bootstrap(WorkflowEngineConfiguration(work_dir=tmp_path.as_posix()))
     return bootstrap.build_engine()
-
-
-@register_function
-def adr006_seed_scan_queue(root_path: str, queue_param_name: str, rows_param_name: str) -> ActionNodeOutput:
-    root = Path(root_path).resolve()
-    return ActionNodeOutput(
-        output_text=root.as_posix(),
-        param_writes={
-            queue_param_name: ParamWrite(mode=WriteParamMode.SET, value=deque([root.as_posix()])),
-            rows_param_name: ParamWrite(mode=WriteParamMode.SET, value=[]),
-        },
-    )
-
-
-@register_function
-def adr006_enqueue_folder_entries(folder_path: str, queue_param_name: str) -> ActionNodeOutput:
-    folder = Path(folder_path)
-    if not folder.is_dir():
-        return ActionNodeOutput(
-            output_text="",
-            error_code="folder_not_found",
-            error_msg=f"Folder '{folder_path}' does not exist",
-        )
-
-    entries = sorted(item.resolve().as_posix() for item in folder.iterdir() if item.is_dir() or item.is_file())
-    if len(entries) > 0:
-        return ActionNodeOutput(
-            output_text=folder.resolve().as_posix(),
-            param_writes={queue_param_name: ParamWrite(mode=WriteParamMode.EXTEND, value=entries)},
-        )
-    return ActionNodeOutput(output_text=folder.resolve().as_posix())
-
-
-@register_function
-def adr006_pass_path(file_path: str) -> ActionNodeOutput:
-    return ActionNodeOutput(output_text=file_path)
-
-
-@register_function
-def adr006_emit_param(param_name: str, state) -> ActionNodeOutput:
-    value = state.get_param(param_name)
-    return ActionNodeOutput(output_text=value if isinstance(value, str) else "")
 
 
 def create_scan_fixture(root: Path) -> None:
@@ -92,18 +47,26 @@ def build_workflow(scan_root: Path) -> dict[str, object]:
     return {
         "schema_version": "1",
         "flow_id": "adr006-e2e-scan",
-        "start_node_id": "INIT",
+        "start_node_id": "INIT_QUEUE",
         "nodes": [
             {
-                "id": "INIT",
+                "id": "INIT_QUEUE",
                 "action_type": "function",
                 "action_parameters": {
-                    "function_name": "adr006_seed_scan_queue",
+                    "function_name": "init_deque_param",
                     "function_parameters": {
-                        "root_path": scan_root.as_posix(),
-                        "queue_param_name": "scan_queue",
-                        "rows_param_name": "table_rows",
+                        "param_name": "scan_queue",
+                        "items": [scan_root.resolve().as_posix()],
                     },
+                },
+                "transitions": [{"next": "INIT_ROWS"}],
+            },
+            {
+                "id": "INIT_ROWS",
+                "action_type": "function",
+                "action_parameters": {
+                    "function_name": "init_list_param",
+                    "function_parameters": {"param_name": "table_rows"},
                 },
                 "transitions": [{"next": "POP_NEXT"}],
             },
@@ -128,8 +91,8 @@ def build_workflow(scan_root: Path) -> dict[str, object]:
                 "id": "EMIT_CUR_PATH",
                 "action_type": "function",
                 "action_parameters": {
-                    "function_name": "adr006_emit_param",
-                    "function_parameters": {"param_name": "cur_path"},
+                    "function_name": "echo_value",
+                    "function_parameters": {"value": "param.cur_path"},
                 },
                 "transitions": [
                     {"validator": {"function_name": "is_output_exist_file"}, "next": "COLLECT_FILE_INFO"},
@@ -143,8 +106,8 @@ def build_workflow(scan_root: Path) -> dict[str, object]:
                     "save_to_list": "table_rows",
                     "functions": {
                         "Path": {
-                            "function_name": "adr006_pass_path",
-                            "function_parameters": {"file_path": "param.cur_path"},
+                            "function_name": "echo_value",
+                            "function_parameters": {"value": "param.cur_path"},
                         },
                         "MD5": {
                             "function_name": "md5_check_sum_file",
@@ -166,10 +129,10 @@ def build_workflow(scan_root: Path) -> dict[str, object]:
                 "id": "ENQUEUE_FOLDER",
                 "action_type": "function",
                 "action_parameters": {
-                    "function_name": "adr006_enqueue_folder_entries",
+                    "function_name": "enqueue_folder_entries",
                     "function_parameters": {
                         "folder_path": "param.cur_path",
-                        "queue_param_name": "scan_queue",
+                        "deque_param_name": "scan_queue",
                     },
                 },
                 "transitions": [{"next": "POP_NEXT"}],

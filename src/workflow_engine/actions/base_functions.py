@@ -13,6 +13,19 @@ from workflow_engine.validators.functions_validators import (
 )
 
 
+@register_function(summary="Emit a value as the action output.")
+def echo_value(
+    value: Annotated[str, "Value to emit; supports 'param.<name>' and 'output.<node_id>' references"],
+) -> ActionNodeOutput:
+    """Emit the given value unchanged as the output text of the action.
+
+    The main operator use is to surface a state parameter into a node output so transition guards
+    can evaluate it, because guards read the action result and never the state. A non-string value
+    is emitted as its string representation.
+    """
+    return ActionNodeOutput(output_text=value if isinstance(value, str) else str(value))
+
+
 @register_function(
     decorators=[
         file_exists_arg_validator({"path_source": 0}),
@@ -21,9 +34,13 @@ from workflow_engine.validators.functions_validators import (
 )
 def copy_file(
         path_source: Annotated[str, "Path to the source file"],
-        path_target: Annotated[str, "Path to the target file"]
+        path_target: Annotated[str, "Path to the target file, or an existing folder to copy into under the source name"]
 ) -> ActionNodeOutput:
-    """Copy a file from source to target."""
+    """Copy a file from source to target.
+
+    When the target is an existing folder, the file is copied into it under the source file name;
+    otherwise the target is the full path of the copy.
+    """
     source = Path(path_source)
     if not source.is_file():
         return ActionNodeOutput(
@@ -32,6 +49,8 @@ def copy_file(
             error_msg=f"Source file '{source.absolute()}' is not a file or does not exist.",
         )
     target = Path(path_target)
+    if target.is_dir():
+        target = target / source.name
     if not target.parent.exists():
         target.parent.mkdir(parents=True, exist_ok=True)
     try:

@@ -75,6 +75,75 @@ def read_folder_items_to_deque(
     return ActionNodeOutput(output_text=folder.absolute().as_posix(), param_writes=param_writes)
 
 
+@register_function(
+    decorators=[not_empty_str_arg_validator({"param_name": 0})],
+    summary="Initializes a deque parameter from a list of items.",
+)
+def init_deque_param(
+    param_name: Annotated[str, "Name of the state parameter to create as a deque"],
+    items: Annotated[list | None, "Initial items of the deque, front first; empty when omitted"] = None,
+) -> ActionNodeOutput:
+    """Create a deque parameter seeded with the given items.
+
+    The main operator use is to prepare a work queue before a traversal loop: seed it with the
+    starting items, extend it with functions such as 'enqueue_folder_entries', and consume it
+    with 'set_param_from_deque'.
+    """
+    return ActionNodeOutput(
+        output_text=param_name,
+        param_writes={param_name: ParamWrite(mode=WriteParamMode.SET, value=deque(items or []))},
+    )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"param_name": 0})],
+    summary="Initializes an empty list parameter.",
+)
+def init_list_param(
+    param_name: Annotated[str, "Name of the state parameter to create as an empty list"],
+) -> ActionNodeOutput:
+    """Create an empty list parameter.
+
+    The main operator use is to prepare an accumulator before a loop that appends to it, for
+    example the 'functions' action with 'save_to_list' or 'dict_list_to_pretty_table'.
+    """
+    return ActionNodeOutput(
+        output_text=param_name,
+        param_writes={param_name: ParamWrite(mode=WriteParamMode.SET, value=[])},
+    )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"deque_param_name": 1})],
+    summary="Extends a deque parameter with the entries of a folder.",
+)
+def enqueue_folder_entries(
+    folder_path: Annotated[str, "Path to the folder whose files and subfolders are enqueued"],
+    deque_param_name: Annotated[str, "Name of the existing deque parameter to extend"],
+) -> ActionNodeOutput:
+    """Extend an existing deque parameter with the sorted entries of a folder.
+
+    Files and subfolders are enqueued together as resolved POSIX paths, so repeated application
+    combined with 'set_param_from_deque' walks a tree breadth-first. Returns the error code
+    'folder_not_found' when the path is not a directory.
+    """
+    folder = Path(folder_path)
+    if not folder.is_dir():
+        return ActionNodeOutput(
+            output_text="",
+            error_code="folder_not_found",
+            error_msg=f"Folder '{folder_path}' does not exist",
+        )
+
+    entries = sorted(item.resolve().as_posix() for item in folder.iterdir() if item.is_dir() or item.is_file())
+    if len(entries) > 0:
+        return ActionNodeOutput(
+            output_text=folder.resolve().as_posix(),
+            param_writes={deque_param_name: ParamWrite(mode=WriteParamMode.EXTEND, value=entries)},
+        )
+    return ActionNodeOutput(output_text=folder.resolve().as_posix())
+
+
 @register_function(summary="Pops an item from the front of a deque.")
 def set_param_from_deque(
     deque_param_name: Annotated[str, "Name of the deque parameter to pop from"],
