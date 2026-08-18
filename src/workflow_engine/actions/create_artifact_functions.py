@@ -54,7 +54,7 @@ def pretty_table_str(table_format: str | None, table: PrettyTable) -> str:
 
 @register_function(
     decorators=[not_empty_str_arg_validator({"artifact_name": 0, "dict_param_name": 1})],
-    summary="Convert a list of dictionaries to a pretty table artifact"
+    summary="Convert a list of dictionaries to a pretty table artifact",
 )
 def dict_list_to_pretty_table(
     artifact_name: Annotated[str, "Name of the artifact to create"],

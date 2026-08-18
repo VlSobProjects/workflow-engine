@@ -13,9 +13,7 @@ def adapt_validator(validator: RegisteredValidator, source: ComponentSource) -> 
     description = get_function_description(validator)
     notes: list[str] = []
     if engine_provided:
-        notes.append(
-            f"Provided by the engine automatically, not configured: {', '.join(engine_provided)}."
-        )
+        notes.append(f"Provided by the engine automatically, not configured: {', '.join(engine_provided)}.")
     if source is ComponentSource.EXTERNAL:
         description = description or MISSING_METADATA_TEXT
     return ValidatorComponent(

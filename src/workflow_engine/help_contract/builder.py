@@ -57,8 +57,7 @@ def collect_help_components(external: ExternalNames | None = None) -> dict[Compo
         ],
         ComponentType.GUARD: [adapt_guard(entry) for entry in GUARD_CATALOG],
         ComponentType.CODEC: [
-            adapt_codec(codec, _source(ComponentType.CODEC, name, external))
-            for name, codec in CODEC_REGISTRY.items()
+            adapt_codec(codec, _source(ComponentType.CODEC, name, external)) for name, codec in CODEC_REGISTRY.items()
         ],
     }
 

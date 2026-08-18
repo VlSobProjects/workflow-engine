@@ -13,9 +13,7 @@ def adapt_function(function: RegisteredFunction, source: ComponentSource) -> Fun
     description = get_function_description(function)
     notes: list[str] = []
     if engine_provided:
-        notes.append(
-            f"Provided by the engine automatically, not configured: {', '.join(engine_provided)}."
-        )
+        notes.append(f"Provided by the engine automatically, not configured: {', '.join(engine_provided)}.")
     if source is ComponentSource.EXTERNAL:
         description = description or MISSING_METADATA_TEXT
     return FunctionComponent(
