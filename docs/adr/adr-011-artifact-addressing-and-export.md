@@ -87,9 +87,10 @@ extracts artifacts regardless of how the run ended.
 
 ### 4. CLI extraction and surfacing
 
-- New command `export-artifact`: copies one named artifact (or all deliverables when no name is
-  given) of an existing session to a target directory. It works for completed, paused and failed
-  sessions and is the manual/salvage path.
+- New command `export-artifact`: copies one named artifact of an existing session to a target
+  directory, or all declared deliverables when `--all` is given. The artifact name and `--all` are
+  mutually exclusive and exactly one is required, so a bulk export is always an explicit choice.
+  The command works for completed, paused and failed sessions and is the manual/salvage path.
 - Terminal `run`/`resume` results additively gain an `artifacts` entry in `data`: a map of logical
   name to absolute POSIX path plus description, and the `deliverables` list.
 - `show-state` additively exposes the absolute path per artifact; the existing `artifacts_path` and
@@ -171,15 +172,83 @@ Out of scope:
 
 ## Implementation notes
 
-- Resolution target of `artifact.<name>` is the absolute path in POSIX form; state continues to
-  persist relative paths only.
-- `export-artifact` result data should include the concrete target paths written.
-- The e2e acceptance scenario is the operator flow from the 2026-08-18 investigation: scan a tree,
-  declare the CSV as a deliverable, run with `--export-dir`, and find the CSV in the operator
-  folder with its path in the result output; plus a salvage run where a paused session's artifact
-  is extracted by command.
+### Reference resolution (`artifact.<name>`)
+
+- The resolution point is `StateModel.set_parameters` (`src/workflow_engine/models/state.py`),
+  which today string-matches the `param.` and `output.` prefixes. Adding the third prefix should
+  consolidate the matching into one prefix-dispatch table instead of extending the `if/elif`
+  chain; `StateReadOnlyView.set_parameters` delegates there, so guards and action parameter
+  resolution pick the prefix up through the existing path with no separate guard-side work.
+- The absolute path is built by joining the artifacts root (`work_dir/artifacts`) with the stored
+  `WorkflowArtifact.relative_path` and rendering it in POSIX form. State persistence is unchanged:
+  only relative paths are stored.
+- A reference to a name absent from `state.artifacts` must surface as the node contract error
+  `artifact_not_found` — an error value on the node result, consistent with ADR 001/006 — not as a
+  raised `StateLoadParameterError` escaping to the caller.
+- Resolution reads `state.artifacts` at each node execution; the resolved path is never written
+  into `state.params`.
+
+### Workflow schema (`deliverables`)
+
+- The definition model gains an optional top-level `deliverables: list[str]`. Build-time
+  validation (aggregated with the other configuration errors per ADR 001): a list, entries are
+  non-empty strings, no duplicates. No check against registered artifact names — they exist only
+  at runtime.
+- An absent block and an empty list are equivalent: nothing is auto-exported and `export-artifact
+  --all` has nothing to select.
+
+### Engine export step
+
+- Export runs inside the completion path, when the run reaches its terminal `workflow_completed`
+  state and a destination is resolved. Copies preserve the artifact's relative path under the
+  destination directory (so `tables/report.csv` stays `tables/report.csv`), creating parent
+  directories as needed. An existing file at the target is overwritten: the destination is
+  operator-owned and re-export must be idempotent.
+- New members of `SessionEventCode` (engine actor): `DELIVERABLE_MISSING`,
+  `ARTIFACT_EXPORT_FAILED`, `ARTIFACTS_EXPORTED`. `details` carries the logical names and, for
+  exports, the destination and concrete target paths; for failures, the OS error message.
+- Trap: `StateModel.get_workflow_status_code` derives the workflow status from the **last**
+  session event. Export events are appended after `workflow_completed`, so all three new codes
+  must map to `COMPLETED` in that match — otherwise a completed-and-exported session reports an
+  unknown status.
+- Export failures never change the workflow status and never raise; they end in the event journal
+  and in the command result data.
+
+### CLI surface
+
+- `run`/`resume` gain `--export-dir`; the config file gains `export_dir`. Precedence follows the
+  ADR 008 pattern: CLI option, then config value, then no auto-export. The resolved destination is
+  recorded in the `artifacts_exported` event details.
+- `export-artifact` arguments: the session id, a target directory, and exactly one of
+  `--artifact-name` or `--all` (argparse mutually exclusive group, required). `--all` selects the
+  declared deliverables; it is an error (exit 4) when the definition declares none. Copy semantics
+  are identical to the engine export step. Exit codes per ADR 007: `0` on success, `4` for
+  resolution errors (unknown session, unknown artifact name, missing artifact file, unwritable
+  target).
+- Additive result keys: terminal `run`/`resume` and `show-state` data gain per-artifact absolute
+  POSIX paths and the `deliverables` list; `export-artifact` data lists the exported logical names
+  with their concrete target paths. Existing keys (`artifacts_path`, the relative-path `artifacts`
+  map) are untouched.
+- Help surfaces (ADR 009): the reference-prefix documentation gains `artifact.`, and
+  `export-artifact` joins the command surface; payload extension is additive only.
+
+### Test surface
+
+- Unit: prefix resolution (hit, `artifact_not_found`, no caching into params); `deliverables`
+  schema validation errors; status derivation with each new event code as the last event.
+- CLI contract: `export-artifact` argument matrix (name XOR `--all`, exit codes), destination
+  precedence CLI-over-config.
+- E2e, the operator flow of the 2026-08-18 investigation: scan a tree, declare the CSV as a
+  deliverable, run with `--export-dir`, assert the CSV lands in the operator folder and its path
+  appears in the result data; a salvage run where a paused session's artifact is extracted with
+  `export-artifact`; an export-failure run (unwritable destination) asserting `completed` status
+  plus `artifact_export_failed` in the journal.
 
 ## Change log
 
 - Draft opened from the 2026-08-18 architecture session, capturing finding 2 of the 2026-08-18
   operator investigation as context.
+- Bulk export made explicit: `export-artifact` requires exactly one of an artifact name or `--all`
+  instead of defaulting to all deliverables, so an accidental bulk export is impossible.
+  Implementation notes expanded with the concrete resolution point, schema validation, export
+  copy semantics, event/status-derivation trap, CLI argument contract and test surface.

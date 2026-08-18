@@ -49,9 +49,12 @@ same change.
 4. Scope: the empty-root failure and the `WriteParamMode` resume crash stay in a standalone
    bug-fix session; workflow templating stays a separate future decision.
 
+5. `export-artifact` requires exactly one of an artifact name or an explicit `--all`; a bulk
+   export never happens by default (settled in a session follow-up, recorded in the ADR 011
+   change log).
+
 ## Open questions
-1. Whether `export-artifact` without an artifact name exporting all deliverables is the right
-   default, or an explicit `--all` flag is safer — to be settled before Implementing.
+None.
 
 ## Next steps
 1. Open the standalone bug-fix session for the empty-root failure (finding 3) and the CLI
