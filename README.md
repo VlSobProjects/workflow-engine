@@ -152,12 +152,15 @@ from typing import Annotated
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import register_function
 
+
 @register_function(summary="Shout a string in upper case.")
 def shout(text: Annotated[str, "Text to upper-case"]) -> ActionNodeOutput:
     return ActionNodeOutput(output_text=text.upper())
 
+
 from workflow_engine.cli.main import main
 import sys
+
 main(sys.argv[1:])
 ```
 
