@@ -3,6 +3,7 @@ import json
 
 import pytest
 
+from tests.fixtures.simple_workflow import write_simple_workflow
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import WorkflowEngineConfiguration
 from workflow_engine.exceptions import StateLoadError, WorkflowConfigurationError
@@ -47,9 +48,9 @@ def json_storage(tmp_path, state):
 
 
 @pytest.fixture
-def json_storage_upload_workflow(json_storage, examples_dir):
+def json_storage_upload_workflow(json_storage, tmp_path):
     json_storage.save_workflow(
-        session_id=SESSION_ID, workflow=json_storage.upload_workflow_from_file(examples_dir / "simple_workflow.json")
+        session_id=SESSION_ID, workflow=json_storage.upload_workflow_from_file(write_simple_workflow(tmp_path))
     )
     workflow = json_storage.load_workflow(session_id=SESSION_ID)
     assert workflow is not None
@@ -194,3 +195,28 @@ def test_upload_workflow(json_storage_upload_workflow):
     assert workflow.flow_id == "simple-workflow"
     assert workflow.nodes[0].id == "NODE_1"
     print(f" Uploaded workflow:  {workflow.flow_id}, nodes: {[node.id for node in workflow.nodes]}")
+
+
+def test_workflow_file_with_a_utf8_bom_and_non_ascii_text_is_loaded(tmp_path, json_storage):
+    """The definition is an operator-edited file: a BOM and non-ASCII text must survive loading."""
+    workflow_path = write_simple_workflow(tmp_path)
+    definition = json.loads(workflow_path.read_text(encoding="utf-8"))
+    definition["flow_id"] = "простой-поток"
+    workflow_path.write_text(json.dumps(definition, ensure_ascii=False, indent=2), encoding="utf-8-sig")
+
+    workflow = json_storage.upload_workflow_from_file(workflow_path)
+
+    assert workflow.flow_id == "простой-поток"
+
+
+def test_state_file_written_as_raw_utf8_keeps_non_ascii_parameter_values(tmp_path, json_storage):
+    """A state file is read as UTF-8, not in the platform default encoding."""
+    state = json_storage.load_state(SESSION_ID)
+    state.params["test_param"] = ActionParameter.create("test_node_id", "test_param", "отчёт")
+    json_storage.save_state(state)
+
+    state_file = json_storage.storage_dir / SESSION_ID / "state.json"
+    raw = json.loads(state_file.read_text(encoding="utf-8"))
+    state_file.write_text(json.dumps(raw, ensure_ascii=False, indent=4), encoding="utf-8")
+
+    assert json_storage.load_state(SESSION_ID).params["test_param"].value == "отчёт"

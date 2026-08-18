@@ -67,7 +67,7 @@ class JsonStorage(Storage):
             if session_folder.is_dir() and session_folder.joinpath(STATE_FILE).exists():
                 state_file = session_folder.joinpath(STATE_FILE)
                 try:
-                    with state_file.open() as f:
+                    with state_file.open(encoding="utf-8-sig") as f:
                         json_obj = json.load(f)
                     try:
                         states.append(StateModel.from_dict(json_obj))
@@ -91,7 +91,7 @@ class JsonStorage(Storage):
             self._ensure_storage_directory()
             workflow_file = self.storage_dir / session_id / WORKFLOW_FILE
             workflow_file.parent.mkdir(parents=True, exist_ok=True)
-            with workflow_file.open("w") as f:
+            with workflow_file.open("w", encoding="utf-8") as f:
                 json.dump(workflow.__dict__, f, indent=4, default=workflow_encoder)
         except WorkflowConfigurationError:
             raise
@@ -105,7 +105,7 @@ class JsonStorage(Storage):
         try:
             if not state_file.is_file():
                 raise StateLoadError("state_file", f"State file not found at path: {state_file.absolute()}")
-            with state_file.open() as f:
+            with state_file.open(encoding="utf-8-sig") as f:
                 json_obj = json.load(f)
             return StateModel.from_dict(json_obj)
         except FileNotFoundError as ex:
@@ -121,7 +121,7 @@ class JsonStorage(Storage):
         try:
             self._ensure_storage_directory()
             state_file.parent.mkdir(parents=True, exist_ok=True)
-            with state_file.open("w") as f:
+            with state_file.open("w", encoding="utf-8") as f:
                 json.dump(state.__dict__, f, indent=4, sort_keys=True, default=state_encoder)
         except WorkflowConfigurationError:
             raise

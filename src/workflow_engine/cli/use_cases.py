@@ -49,6 +49,7 @@ def init_session(command_name: CommandName, args: Namespace) -> CommandResult:
     return CommandResult(
         command=command_name,
         command_status=CommandStatus.COMPLETED,
+        session_id=session_id,
         message=f"Session {session_id} initialized for workflow {args.workflow_file}",
         data={"session_id": session_id, "workflow_path": args.workflow_file},
     )

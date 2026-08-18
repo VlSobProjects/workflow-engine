@@ -94,7 +94,7 @@ def dict_list_to_pretty_table(
         table.add_row(list(item.values()))
     try:
         absolute_path.parent.mkdir(parents=True, exist_ok=True)
-        with absolute_path.open("w") as file:
+        with absolute_path.open("w", encoding="utf-8", newline="") as file:
             file.write(pretty_table_str(table_format, table))
     except OSError as e:
         return ActionNodeOutput(output_text="", error_code="pretty_table_write_error", error_msg=str(e))
