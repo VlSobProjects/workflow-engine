@@ -12,6 +12,7 @@ from types import MappingProxyType
 from typing import Final, Literal, final
 
 from workflow_engine.exceptions import (
+    ArtifactNotFoundError,
     ArtifactPathError,
     StateLoadError,
     StateLoadParameterError,
@@ -34,8 +35,11 @@ from workflow_engine.tools import (
 PARAM_OVERWRITE_FORBIDDEN = "param_overwrite_forbidden"
 ARTIFACT_OVERWRITE = "artifact_overwritten"
 ARTIFACT_PATH_CONFLICT = "artifact_path_conflict"
+ARTIFACT_NOT_FOUND = "artifact_not_found"
 INVALID_WRITE_MODE = "invalid_write_mode"
 PARAM_TYPE_MISMATCH = "param_type_mismatch"
+
+ARTIFACTS_DIR = "artifacts"
 
 
 class WorkflowStatusCode(Enum):
@@ -518,31 +522,55 @@ class StateModel:
     def set_parameters(
         self, parameters: dict[str, object], updater: dict[str, object] | None = None
     ) -> dict[str, object]:
-        new_params = {}
-        for param_name, param_value in parameters.items():
-            if isinstance(param_value, str) and (param_value.startswith(("param.", "output."))):
-                p_arr = param_value.split(".")
-                p_source = p_arr[0]
-                p_value = p_arr[1]
-                if p_source == "param":
-                    if p_value in self.params:
-                        new_params[param_name] = self.params[p_value].value
-                    else:
-                        raise StateLoadParameterError(
-                            self.current_node_id, p_value, f"Parameter not found in params: {self.params}"
-                        )
-                elif p_source == "output":
-                    if p_value in self.outputs:
-                        new_params[param_name] = self.outputs[p_value]
-                    else:
-                        raise StateLoadParameterError(
-                            self.current_node_id, p_value, f"Parameter not found in output: {self.outputs}"
-                        )
-            else:
-                new_params[param_name] = param_value
-
+        new_params = {name: self._resolve_reference(value) for name, value in parameters.items()}
         new_params.update(updater or {})
         return new_params
+
+    def _resolve_reference(self, value: object) -> object:
+        """Resolve a ``param.``/``output.``/``artifact.`` reference to its value.
+
+        A non-string, or a string without one of the known prefixes, is returned unchanged. The
+        three reference kinds share one prefix dispatch so a new kind is added in one place rather
+        than by extending an if/elif chain. See ADR 011.
+        """
+        if not isinstance(value, str):
+            return value
+        parts = value.split(".")
+        if len(parts) < 2:
+            return value
+        prefix, name = parts[0], parts[1]
+        match prefix:
+            case "param":
+                if name in self.params:
+                    return self.params[name].value
+                raise StateLoadParameterError(
+                    self.current_node_id, name, f"Parameter not found in params: {self.params}"
+                )
+            case "output":
+                if name in self.outputs:
+                    return self.outputs[name]
+                raise StateLoadParameterError(
+                    self.current_node_id, name, f"Parameter not found in output: {self.outputs}"
+                )
+            case "artifact":
+                return self._resolve_artifact_reference(name)
+            case _:
+                return value
+
+    def _resolve_artifact_reference(self, name: str) -> str:
+        """Resolve ``artifact.<name>`` to the absolute POSIX path of the registered artifact.
+
+        ``state.artifacts`` is the single source of truth: the path is rebuilt on every execution
+        and never written into ``state.params``. An unregistered name is the node contract error
+        ``artifact_not_found``. See ADR 011.
+        """
+        artifact = self.artifacts.get(name)
+        if artifact is None:
+            raise ArtifactNotFoundError(
+                name=name,
+                message=f"known artifacts: {sorted(self.artifacts)}",
+            )
+        return (self.work_dir / ARTIFACTS_DIR / artifact.relative_path).resolve().as_posix()
 
     def get_workflow_status_code(self):
         if len(self.session_events) == 0:
