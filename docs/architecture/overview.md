@@ -62,7 +62,7 @@ caller passes a list of records and each guard appends its answer, which the eng
 the node. The name of a guard is the error code of a node that fails it.
 
 Guards read the state only through the parameter references the engine resolves before calling them,
-so `param.` and `output.` in a guard configuration keep working.
+so `param.`, `output.`, and `artifact.` in a guard configuration keep working.
 
 Kinds: comparison against a value, a registered function returning a boolean, a match on the error
 code, the absence of an error, and the nested groups `all_of` and `any_of`. Any guard may be negated.
@@ -99,6 +99,32 @@ save and a load.
 `state.params` is an engine-managed flat bus: actions return typed `param_writes`, and the engine
 applies and persists them on each turn. Session-level control outcomes are stored in
 `state.session_events` as a persisted append-only journal.
+
+### Artifacts and deliverables (see ADR 011)
+
+`state.artifacts` holds registered artifacts as a map of logical name to `WorkflowArtifact`
+(relative path, description). Artifacts always live under `work_dir/artifacts`; only relative paths
+are stored.
+
+A workflow definition may declare an optional `deliverables` block: an ordered list of logical
+artifact names that constitute the product of the workflow. Validated at build time for shape only;
+the named artifacts may not exist until runtime.
+
+Nodes address artifacts through engine-resolved `artifact.<logical_name>` references, which return
+the absolute POSIX path of the registered artifact at execution time. An unregistered name is the
+node contract error `artifact_not_found`, caught at the action level and returned as a node error
+value.
+
+On `workflow_completed`, when an export destination is known (`--export-dir` CLI option or
+`export_dir` config, highest wins), the engine copies each declared deliverable to that directory.
+Export is non-fatal: missing or unwritable deliverables record session events
+(`deliverable_missing`, `artifact_export_failed`) but do not change the completed status.
+Successful export records an `artifacts_exported` event. All three event codes map to `COMPLETED`
+in status derivation so they never corrupt the session status.
+
+`copy_artifact(source, target, target_path, allow_overwrite)` copies and registers a new artifact
+from an existing one (copy-promote pattern). Move/delete semantics are out of scope; the source
+artifact stays registered.
 
 ## Storage
 
@@ -168,7 +194,9 @@ remain in POSIX form regardless of OS (ADR 008).
 - `show-state` to render persisted session state;
 - `list-sessions` to list sessions discoverable under the configured `work_dir`;
 - `help-components` to list registered components;
-- `help-component` to show one component by type and name.
+- `help-component` to show one component by type and name;
+- `export-artifact` to copy one named artifact or all declared deliverables of a session to a
+  target directory (works for completed, paused and failed sessions).
 
 Command results are normalized as `command`, `session_id`, `command_status`, `workflow_status`,
 `event_code`, `message`, `errors`, and `data`. Text output is for operators, JSON output is for

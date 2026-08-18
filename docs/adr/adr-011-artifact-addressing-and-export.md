@@ -1,10 +1,7 @@
 # ADR 011: Artifact addressing and export contract
 
 ## Status
-Implementing
-
-## Active branch
-feature/adr_011-artifact-addressing-and-export
+Accepted
 
 ## Context
 
@@ -52,8 +49,11 @@ extracts artifacts regardless of how the run ended.
   resolved values the same way they do today.
 - `state.artifacts` remains the single source of truth: the reference is resolved per execution and
   never cached into `state.params`.
-- Referencing an unregistered artifact is a contract error and fails the node under
-  `artifact_not_found`, symmetric to unresolved `param.`/`output.` references.
+- Referencing an unregistered artifact is a node contract error: `artifact_not_found` is returned
+  as the node error value (not raised as an engine-level exception), consistent with ADR 001/006.
+  Unlike `param.`/`output.` missing references, which raise `StateLoadParameterError` and escalate
+  as engine errors, `artifact_not_found` is caught at the action level so a missing artifact fails
+  only the node, not the engine.
 - With this, in-workflow export needs no new component: `copy_file` with
   `path_source: artifact.<name>` and an operator-provided target is the supported in-graph pattern.
 
@@ -298,3 +298,7 @@ Out of scope:
 - Trust boundary recorded: the engine does not police filesystem side effects of functions inside
   `work_dir/artifacts`; stale registrations are tolerated because every consumer of one fails
   through an already-defined error path.
+- Frozen as Accepted (2026-08-18): Decision §1 corrected to remove the misleading "symmetric to
+  `param.`/`output.` references" phrasing — `artifact_not_found` is caught at the action level as
+  a node error value, whereas `param.`/`output.` missing references raise `StateLoadParameterError`
+  as engine-level errors; the Implementation Notes already stated this correctly.
