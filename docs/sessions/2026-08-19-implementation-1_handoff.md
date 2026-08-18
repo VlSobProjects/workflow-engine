@@ -66,6 +66,12 @@ encoding. Both follow the platform-independent persistence direction of ADR 008.
    would either carry absolute paths again or need placeholder substitution.
 3. No ADR is involved: all three defects are contract-preserving fixes inside decisions already accepted
    (ADR 007 CLI contract, ADR 008 path/encoding portability, ADR 011 artifacts).
+4. The `hard_max_nodes_visited` scope question leaves the session channel: it is captured as the
+   architecture note `docs/architecture/notes/2026-08-19-hard-node-cap-scoping.md`. Phase 1 keeps the
+   current global config field and its default; the cap, the `workflow_paused_safety_limit` stop and the
+   config-edit recovery are documented in the README session instead.
+5. The scratch operator folder `C:/Users/Vladimir/we-op-demo` is kept deliberately as the operator
+   experiment sandbox outside the repository, contrary to next step 4 of `2026-08-18-investigation-1`.
 
 ## Open questions
 1. Should the default `hard_max_nodes_visited` stay at 1000, and does the cap belong to the host, to the
@@ -76,19 +82,17 @@ encoding. Both follow the platform-independent persistence direction of ADR 008.
    untouched by this session). Whether to run a one-off formatting pass is a separate maintenance decision.
 
 ## Next steps
-1. Add the run/retrieve how-to for `examples/folder-inventory-to-csv.json` and
-   `examples/flatten-copy-tree.json` to the top-level `README.md` (the remaining half of next step 3 of
-   `2026-08-18-investigation-1`).
-2. Done after the session: the `hard_max_nodes_visited` question is captured as the architecture note
-   `docs/architecture/notes/2026-08-19-hard-node-cap-scoping.md`. Phase 1 keeps the current global field
-   and default; the README session documents the cap, the `workflow_paused_safety_limit` stop and the
-   config-edit recovery.
-3. Decide whether to make the repository `ruff format` clean in a `chore/` session.
-4. The scratch operator folder `C:/Users/Vladimir/we-op-demo` is kept deliberately as the operator
-   experiment sandbox outside the repository; it is not removed.
+1. Documentation session on the top-level `README.md` — the last open item of
+   `2026-08-18-investigation-1`: how to run `examples/folder-inventory-to-csv.json` and
+   `examples/flatten-copy-tree.json` (`init-new-session` / `set-input` / `resume` and one-shot
+   `run --input`), how to retrieve the result (deliverables, artifact absolute paths, `show-state`,
+   `export-artifact`), the CLI exit codes, and the hard cap with its safety stop and config-edit recovery.
+2. Decide whether a `chore/` session makes the repository `ruff format` clean.
 
 ## References
 - Branch: `fix/minor-operator-findings`
 - Closes findings 5 and the first half of next step 3 of
   [2026-08-18-investigation-1_handoff.md](2026-08-18-investigation-1_handoff.md).
 - Related: ADR 007 (CLI contract), ADR 008 (path policy), ADR 011 (artifacts).
+- Opened afterwards: architecture note
+  [2026-08-19-hard-node-cap-scoping.md](../architecture/notes/2026-08-19-hard-node-cap-scoping.md).
