@@ -95,6 +95,22 @@ class TestInitNewSessionCommand:
         assert response["command_status"] == "error"
         assert response["command"] == "init-new-session"
 
+    def test_init_reports_the_session_id_at_top_level(self, tmp_path: Path, create_config, capsys):
+        """init-new-session must fill the top-level session_id field like every other command."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        code, response = run_json_cli(
+            ["init-new-session", "--workflow-file", workflow_path.as_posix(), "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 0
+        assert isinstance(response["session_id"], str)
+        assert response["session_id"] == cast(dict[str, object], response["data"])["session_id"]
+
     def test_init_with_invalid_max_nodes_visited(self, tmp_path: Path, create_config, capsys):
         """Non-numeric max-nodes-visited should fail at parser level."""
         scan_root = tmp_path / "scan-root"

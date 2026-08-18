@@ -53,7 +53,7 @@ class WorkflowSource(ABC):
         try:
             if not work_flow_file_path.exists():
                 raise WorkflowEngineError(f"Workflow file not found at path: {work_flow_file_path.absolute()}")
-            with work_flow_file_path.open() as f:
+            with work_flow_file_path.open(encoding="utf-8-sig") as f:
                 json_obj = json.load(f)
             return WorkflowModel.from_dict(json_obj)
         except FileNotFoundError as ex:

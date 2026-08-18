@@ -144,3 +144,21 @@ def test_copy_artifact_allow_overwrite_proceeds(state_with_artifact, tmp_path):
     assert result.error_code is None
     assert result.artifacts["source"].relative_path == Path("out/other.csv")
     assert (tmp_path / "artifacts" / "out" / "other.csv").is_file()
+
+
+def test_csv_artifact_has_no_blank_line_between_rows(state_with_list, tmp_path):
+    """prettytable emits CRLF itself, so the file must be written without newline translation."""
+    state = state_with_list([{"Path": "a.txt", "Size": "1"}, {"Path": "b.txt", "Size": "2"}])
+
+    result = dict_list_to_pretty_table(
+        artifact_name="table",
+        dict_param_name="rows",
+        state=state,
+        artifact_path="reports/table.csv",
+        table_format="csv",
+    )
+
+    assert result.error_code is None
+    raw = (tmp_path / "artifacts" / "reports" / "table.csv").read_text(encoding="utf-8", newline="")
+    assert "\r\r\n" not in raw
+    assert raw.splitlines() == ["Path,Size", "a.txt,1", "b.txt,2"]

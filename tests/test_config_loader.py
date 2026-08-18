@@ -92,3 +92,14 @@ def test_environment_storage_dir_override_has_priority_over_work_dir_env(tmp_pat
 
     assert config.work_dir == custom_work_dir.resolve().as_posix()
     assert config.storage["storage_dir"] == custom_storage_dir.resolve().as_posix()
+
+
+def test_config_file_with_a_utf8_bom_is_loaded(tmp_path: Path):
+    """A BOM is what Windows PowerShell writes with `Set-Content -Encoding utf8`; it must not break loading."""
+    config_path = tmp_path / ".workflow-engine" / "workflow_engine_config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text('{"hard_max_nodes_visited": 4200}', encoding="utf-8-sig")
+
+    config = load_config_file(cwd=tmp_path)
+
+    assert config.hard_max_nodes_visited == 4200

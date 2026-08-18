@@ -150,7 +150,7 @@ def _resolve_storage_dir(
 def _load_config_data(path: Path) -> dict[str, object]:
     if path.is_file():
         try:
-            with path.open() as f:
+            with path.open(encoding="utf-8-sig") as f:
                 return json.load(f)
         except json.JSONDecodeError as ex:
             raise WorkflowConfigurationError(f"Invalid JSON in config file: {path}") from ex
@@ -163,7 +163,7 @@ def _load_config_data(path: Path) -> dict[str, object]:
 def _write_config(path: Path, config: WorkflowEngineConfiguration) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w") as f:
+        with path.open("w", encoding="utf-8") as f:
             json.dump(config.to_dict(), f, indent=2)
     except OSError as ex:
         raise WorkflowConfigurationError(f"Failed to create config file: {path}") from ex

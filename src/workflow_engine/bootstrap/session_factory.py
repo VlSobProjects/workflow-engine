@@ -112,7 +112,7 @@ class WorkflowSessionsFactory:
         if not session_path.exists():
             raise WorkflowRuntimeError(f"Session file not found at path: {session_path.absolute()}")
         try:
-            with session_path.open() as f:
+            with session_path.open(encoding="utf-8-sig") as f:
                 json_obj = json.load(f)
             session = WorkflowSession.from_dict(json_obj)
         except JSONDecodeError as e:
@@ -141,7 +141,7 @@ class WorkflowSessionsFactory:
                 schema_version=workflow.schema_version,
                 storage=storage_config,
             )
-            with session_path.open(mode="w") as session_file:
+            with session_path.open(mode="w", encoding="utf-8") as session_file:
                 json.dump(session.to_dict(), session_file)
         except OSError as e:
             raise WorkflowRuntimeError(f"Failed to create session file: {session_path}") from e

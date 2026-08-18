@@ -4,6 +4,7 @@ from types import MappingProxyType
 
 import pytest
 
+from tests.fixtures.simple_workflow import write_simple_workflow
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import WorkflowEngineConfiguration
 from workflow_engine.bootstrap.session_factory import SESSION_DIRECTORY, SESSION_FILE
@@ -40,9 +41,9 @@ def session_file(tmp_path: Path, session_id: str) -> Path:
     return tmp_path / SESSION_DIRECTORY / session_id / SESSION_FILE
 
 
-def started_session(tmp_path: Path, examples_dir: Path) -> str:
+def started_session(tmp_path: Path) -> str:
     engine = create_engine(tmp_path)
-    session_id = engine.init_new_session(workflow_path=examples_dir / "simple_workflow.json")
+    session_id = engine.init_new_session(workflow_path=write_simple_workflow(tmp_path))
     engine.start_workflow(session_id=session_id)
     return session_id
 
@@ -52,9 +53,10 @@ def load_engine(tmp_path):
     return create_engine(tmp_path)
 
 
-def test_simple_workflow(load_engine, examples_dir):
+def test_simple_workflow(load_engine, tmp_path):
     engine = load_engine
-    session_id = engine.init_new_session(workflow_path=examples_dir / "simple_workflow.json")
+    workflow_path = write_simple_workflow(tmp_path)
+    session_id = engine.init_new_session(workflow_path=workflow_path)
     resp, state = engine.start_workflow(session_id=session_id)
     print(SimplePresentResponseRender(resp).render())
 
@@ -71,15 +73,15 @@ def test_simple_workflow(load_engine, examples_dir):
     assert state.visit_counters["NODE_1"] == 1
 
     with pytest.raises(WorkflowEngineError):
-        engine.init_new_session(workflow_path=examples_dir / "simple_workflow.json")
+        engine.init_new_session(workflow_path=workflow_path)
 
     with pytest.raises(WorkflowEngineError):
         engine.start_workflow(session_id="122334")
 
 
-def test_resume_uses_the_storage_of_the_session_not_the_current_configuration(tmp_path, examples_dir):
+def test_resume_uses_the_storage_of_the_session_not_the_current_configuration(tmp_path):
     """The point of ADR 004: storage settings of a session survive a change of the global configuration."""
-    session_id = started_session(tmp_path, examples_dir)
+    session_id = started_session(tmp_path)
     recorded_storage = create_engine(tmp_path).session_factory.load_session(session_id).storage
 
     drifted_storage_dir = tmp_path / "another-storage"
@@ -94,8 +96,8 @@ def test_resume_uses_the_storage_of_the_session_not_the_current_configuration(tm
     print(f"Resumed under drifted configuration: {response.title}")
 
 
-def test_the_session_record_is_written_once_and_never_rewritten(tmp_path, examples_dir):
-    session_id = started_session(tmp_path, examples_dir)
+def test_the_session_record_is_written_once_and_never_rewritten(tmp_path):
+    session_id = started_session(tmp_path)
     record_after_start = session_file(tmp_path, session_id).read_bytes()
 
     create_engine(tmp_path).start_workflow(session_id=session_id)
@@ -103,8 +105,8 @@ def test_the_session_record_is_written_once_and_never_rewritten(tmp_path, exampl
     assert session_file(tmp_path, session_id).read_bytes() == record_after_start
 
 
-def test_resume_fails_when_the_session_record_is_missing(tmp_path, examples_dir):
-    session_id = started_session(tmp_path, examples_dir)
+def test_resume_fails_when_the_session_record_is_missing(tmp_path):
+    session_id = started_session(tmp_path)
     session_file(tmp_path, session_id).unlink()
 
     with pytest.raises(WorkflowEngineError) as error:
@@ -114,8 +116,8 @@ def test_resume_fails_when_the_session_record_is_missing(tmp_path, examples_dir)
     print(f"Missing session record: {error.value}")
 
 
-def test_resume_fails_explicitly_when_the_session_record_is_corrupted(tmp_path, examples_dir):
-    session_id = started_session(tmp_path, examples_dir)
+def test_resume_fails_explicitly_when_the_session_record_is_corrupted(tmp_path):
+    session_id = started_session(tmp_path)
     record = session_file(tmp_path, session_id)
     record.write_text(record.read_text()[:-3])
 
@@ -127,8 +129,8 @@ def test_resume_fails_explicitly_when_the_session_record_is_corrupted(tmp_path, 
     print(f"Corrupted session record: {error.value}")
 
 
-def test_resume_fails_when_the_session_record_carries_another_session_id(tmp_path, examples_dir):
-    session_id = started_session(tmp_path, examples_dir)
+def test_resume_fails_when_the_session_record_carries_another_session_id(tmp_path):
+    session_id = started_session(tmp_path)
     record = session_file(tmp_path, session_id)
     data = json.loads(record.read_text())
     data["session_id"] = "another-session-id"
