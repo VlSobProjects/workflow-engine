@@ -69,3 +69,4 @@ branch merges into `development`.
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
 | 2026-08-18 | Recovery and resilience roadmap for phase 2 and beyond: retry/backoff, manual takeover via interactive node output, snapshot-based rollback with operator-registered compensation | open | ADR 006, ADR 007, ADR 012 | [2026-08-18-recovery-and-resilience-roadmap.md](2026-08-18-recovery-and-resilience-roadmap.md) |
+| 2026-08-18 | Deferred architectural questions from ADR 012 implementation: shallow reference resolution, Python-version-dependent codec names, and the missing workflow-definition introspection surface | open | ADR 006, ADR 009, ADR 011, ADR 012 | [2026-08-18-adr012-deferred-questions.md](2026-08-18-adr012-deferred-questions.md) |
