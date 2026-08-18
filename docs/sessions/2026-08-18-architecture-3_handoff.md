@@ -57,6 +57,11 @@ same change.
    `allow_overwrite=False` by default and full help metadata. Move/delete semantics were
    deliberately excluded — they need a deregistration concept absent from ADR 006 and stay a
    separate future decision; a broader speculative function set was rejected as YAGNI.
+7. Trust boundary settled: the engine guards its own artifact write path but does not police
+   filesystem side effects of functions inside `work_dir/artifacts`. A workflow author deleting
+   artifact files through a function is a deliberate choice; the resulting stale registration is
+   acceptable because every consumer of it (references, completion export, `export-artifact`)
+   fails through an already-defined error path rather than undefined behavior.
 
 ## Open questions
 None.

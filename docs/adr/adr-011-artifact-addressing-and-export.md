@@ -153,6 +153,16 @@ Closes off:
   explicit copy.
 - Destination paths in workflow definitions stay forbidden.
 
+Trust boundary:
+- The engine guards its own write path (artifact path resolution and registration); it does not
+  police the filesystem side effects of functions. A function wired by the workflow author can
+  delete or modify files under `work_dir/artifacts` — that is a deliberate authoring choice, and
+  the engine does not try to prevent it or reconcile `state.artifacts` afterwards.
+- A stale registration is tolerated because every consumer of it has a defined failure mode, never
+  undefined behavior: an `artifact.` reference still resolves but the consuming node fails with
+  its own file-level error, the completion export records a non-fatal `artifact_export_failed`,
+  and `export-artifact` exits with a resolution error for the missing file.
+
 Out of scope:
 - The empty-root `dict_list_to_pretty_table` failure and the `resume` param-injection
   `WriteParamMode` crash are standalone defects handled in a bug-fix session; neither depends on
@@ -285,3 +295,6 @@ Out of scope:
   promoted to a declared deliverable) needs a function that copies and registers, which no
   existing component does. Copy-only by design — move/delete would need a deregistration
   semantic absent from ADR 006 and stay a separate future decision.
+- Trust boundary recorded: the engine does not police filesystem side effects of functions inside
+  `work_dir/artifacts`; stale registrations are tolerated because every consumer of one fails
+  through an already-defined error path.
