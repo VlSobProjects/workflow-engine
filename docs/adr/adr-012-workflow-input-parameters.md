@@ -1,10 +1,10 @@
 # ADR 012: Workflow input parameters
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+feature/adr_012-workflow-input-parameters
 
 ## Context
 
