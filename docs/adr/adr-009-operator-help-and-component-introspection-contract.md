@@ -1,10 +1,10 @@
 # ADR 009: Operator help and component introspection contract
 
 ## Status
-Implementing
+Accepted
 
 ## Active branch
-feature/adr_009-operator-help-and-component-introspection-contract
+—
 
 ## Context
 
@@ -150,7 +150,7 @@ and fragile for test coverage of contract semantics.
 ## Related ADRs
 
 - ADR 005 component loading and plugin registration model (Accepted).
-- ADR 007 CLI contract and session lifecycle for v1 (Draft).
+- ADR 007 CLI contract and session lifecycle for v1 (Accepted).
 
 ## Implementation notes
 
@@ -220,3 +220,5 @@ Acceptance boundaries for moving ADR 009 to Accepted:
   became optional, and without it the command returns the type description with the list of its
   components under the new top-level `component_type` key. The `help-components` contract is unchanged
   and remains the automation surface.
+- Status changed from `Implementing` to `Accepted`; the feature branch was merged into `development`
+  and the ADR was frozen with the delivered contract.
