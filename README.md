@@ -40,7 +40,7 @@ So the first command run in a fresh directory writes a starter config there, rea
 | `storage.storage_dir` | Where session state and workflow files are kept | `<work_dir>/json-storage` |
 | `export_dir` | Destination deliverables are copied to on workflow completion; `--export-dir` on `run`/`resume` overrides it per call, and if neither is set nothing is exported | `null` |
 | `hard_max_nodes_visited` | Global safety cap on nodes visited per run/resume; config-only, no CLI flag (see "Hitting the hard node cap") | `1000` |
-| `external_modules` | Extra Python module names imported at bootstrap to register plugin components | `[]` |
+| `external_modules` | Extra Python module names imported at bootstrap to register plugin components (see "Writing a custom function") | `[]` |
 
 `work_dir` and `storage.storage_dir` are also overridable per call with `--work-dir`/`--storage-dir`
 or the `WE_WORK_DIR`/`WE_STORAGE_DIR` environment variables, which win over the config file. Full
@@ -127,6 +127,62 @@ code `2`) well before a short task flow would, because the hard node cap
 run continues from where it paused. The cap's long-term scope (host vs. workflow vs. workflow class)
 is open, tracked in
 [`docs/architecture/notes/2026-08-19-hard-node-cap-scoping.md`](docs/architecture/notes/2026-08-19-hard-node-cap-scoping.md).
+
+## Writing a custom function
+
+A `function`/`functions` action node calls a Python function registered with `@register_function`
+(see `docs/architecture/overview.md`, "Registries"). Two ways to make one available, both verified
+against a real run:
+
+### Fastest: register it in your own launcher script
+
+Registration is a decorator side effect that runs the moment Python imports the function's module.
+Define the function and call the CLI in the same process, before any config change:
+
+```python
+# run_it.py
+from typing import Annotated
+from workflow_engine.output import ActionNodeOutput
+from workflow_engine.registry.function_registry import register_function
+
+@register_function(summary="Shout a string in upper case.")
+def shout(text: Annotated[str, "Text to upper-case"]) -> ActionNodeOutput:
+    return ActionNodeOutput(output_text=text.upper())
+
+from workflow_engine.cli.main import main
+import sys
+main(sys.argv[1:])
+```
+
+Run it as `python run_it.py run --workflow-file my_flow.json --json` instead of `workflow-engine
+run ...`. No `external_modules` entry needed: the function is already in the registry by the time
+the workflow starts.
+
+### To use the plain `workflow-engine` command: `external_modules`
+
+List the module by its importable name in the config file's `external_modules` (see "Configuration
+file"):
+
+```json
+"external_modules": ["my_functions"]
+```
+
+The engine imports it with `importlib.import_module`, Python's standard mechanism — a script merely
+sitting next to where you run `workflow-engine` from is **not** found on its own. Make the module
+importable, either:
+- `PYTHONPATH=<folder-containing-my_functions.py> workflow-engine run ...`, or
+- turn the folder into an installed package (`uv pip install -e .`) for anything more than a quick
+  one-off script.
+
+### Function contract
+
+- One `@register_function`-decorated function per registration; the decorator takes an optional
+  `summary` string.
+- Every parameter needs an `Annotated[<type>, "<description>"]` hint; the description surfaces in
+  `help-component`.
+- The function must declare `ActionNodeOutput` as its return type and return one.
+- `help-component --component-type functions --component-name <name>` shows the registered
+  contract, including whether it loaded from a core or an external module.
 
 ## Running the tests
 
