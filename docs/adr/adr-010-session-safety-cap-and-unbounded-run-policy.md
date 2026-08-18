@@ -1,10 +1,10 @@
 # ADR 010: Session safety cap and unbounded run policy
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+`feature/adr_010-session-safety-cap-and-unbounded-run-policy`
 
 ## Context
 
@@ -78,3 +78,4 @@ Minimum implementation slice:
 ## Change log
 
 - Initial draft opened from phase 1 architecture planning session as optional phase 1 decision.
+- Moved to Implementing and opened the implementation branch.
