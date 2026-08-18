@@ -5,6 +5,7 @@ This directory contains the repository's structured documentation.
 ## Document areas
 - `rules/` — general and task-specific rules
 - `architecture/` — the architecture as it currently is
+- `architecture/notes/` — durable architectural ideas not yet decided, and their registry
 - `adr/` — architecture decision records and ADR governance
 - `sessions/` — session notes and session registry
 - `processes/` — workflows such as git and documentation processes

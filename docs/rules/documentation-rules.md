@@ -13,6 +13,7 @@ Only the documents listed below may exist:
 | `docs/README.md` | Documentation index |
 | `docs/rules/` | General and task specific rules |
 | `docs/architecture/overview.md` | The architecture as it currently is |
+| `docs/architecture/notes/` | Architecture notes and their registry: durable ideas not yet decided |
 | `docs/adr/` | Architecture decision records and their governance |
 | `docs/sessions/` | Session notes and the session registry |
 | `docs/processes/` | Workflows such as git and documentation |
@@ -41,10 +42,13 @@ They must not carry rule content of their own.
 
 ## 6. Update or delete
 A document that no longer matches reality is corrected or removed.
-Do not keep superseded documentation as `archive`, `old`, `notes` or versioned copies.
-The only historical record is the ADR history.
+Do not keep superseded documentation as ad hoc `archive`, `old` or versioned copies.
+The historical record is the ADR history and the architecture notes trail
+(`docs/architecture/notes/`, retained per its own README, not this rule).
 
 ## 7. No side documents
 Do not write reports, summaries, plans, analyses or work logs into the repository.
 Session outcomes belong in `docs/sessions/` in the defined format, and nowhere else.
-Working notes stay outside the repository.
+Durable architectural ideas that are not yet decisions belong in `docs/architecture/notes/`, in the
+format defined by its README — the single sanctioned in-repo channel for architectural thinking.
+Ephemeral working notes stay outside the repository.
