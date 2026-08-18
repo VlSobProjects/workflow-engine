@@ -20,7 +20,7 @@ class ComponentLoader:
         ManifestPluginSource.load_core_modules()
         result_core_actions = get_registered_actions_info()
         result_core_functions = get_registered_function_info()
-        result_core_guards = get_registered_validator_info()
+        result_core_validators = get_registered_validator_info()
         result_core_codecs = get_registered_codec_info()
         load_external_modules(self.config.external_modules)
         result_external_actions = {
@@ -29,8 +29,8 @@ class ComponentLoader:
         result_external_functions = {
             key: value for key, value in get_registered_function_info().items() if key not in result_core_functions
         }
-        result_external_guards = {
-            key: value for key, value in get_registered_validator_info().items() if key not in result_core_guards
+        result_external_validators = {
+            key: value for key, value in get_registered_validator_info().items() if key not in result_core_validators
         }
         result_external_codecs = {
             key: value for key, value in get_registered_codec_info().items() if key not in result_core_codecs
@@ -39,13 +39,13 @@ class ComponentLoader:
             "Core components": {
                 "Actions": result_core_actions,
                 "Functions": result_core_functions,
-                "Guards": result_core_guards,
+                "Validators": result_core_validators,
                 "Codecs": result_core_codecs,
             },
             "External components": {
                 "Actions": result_external_actions,
                 "Functions": result_external_functions,
-                "Guards": result_external_guards,
+                "Validators": result_external_validators,
                 "Codecs": result_external_codecs,
             },
         }

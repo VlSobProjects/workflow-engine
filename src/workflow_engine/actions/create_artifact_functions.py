@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Annotated
 
 from prettytable import PrettyTable
 
@@ -43,15 +44,27 @@ def pretty_table_str(table_format: str | None, table: PrettyTable) -> str:
             return table.get_string()
 
 
-@register_function(decorators=[not_empty_str_arg_validator({"artifact_name": 0, "dict_param_name": 1})])
+@register_function(
+    decorators=[not_empty_str_arg_validator({"artifact_name": 0, "dict_param_name": 1})],
+    summary="Convert a list of dictionaries to a pretty table artifact"
+)
 def dict_list_to_pretty_table(
-    artifact_name: str,
-    dict_param_name: str,
-    state: StateReadOnlyView,
-    artifact_path: str | None = None,
-    artifact_description: str | None = None,
-    table_format: str | None = None,
+    artifact_name: Annotated[str, "Name of the artifact to create"],
+    dict_param_name: Annotated[str, "Name of the parameter containing the list of dictionaries"],
+    state: Annotated[StateReadOnlyView, "Read-only state view used to access parameters and artifacts"],
+    artifact_path: Annotated[str | None, "Path to the artifact"] = None,
+    artifact_description: Annotated[str | None, "Description of the artifact"] = None,
+    table_format: Annotated[str | None, "Format of the pretty table"] = None,
 ) -> ActionNodeOutput:
+    """Convert a list of dictionaries to a pretty table and save it as an artifact.
+    Available table formats: 'html', 'csv', 'json', 'latex', 'mediawiki'. Default is plain text.
+    On OsError during file writing, returns an ActionNodeOutput with error_code
+    'pretty_table_write_error' and the error message.
+    If the artifact already exists in the state, returns an ActionNodeOutput with error_code
+    'pretty_table_artifact_exists' and the error message.
+    If the parameter does not contain a list of dictionaries, returns an ActionNodeOutput with
+    error_code 'pretty_table_no_data'.
+    """
     dict_list = state.get_param(dict_param_name, list)
     if not isinstance(dict_list, list):
         return ActionNodeOutput(output_text="", error_code="pretty_table_no_data")

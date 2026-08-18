@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
+from dataclasses import dataclass
 from inspect import getmro
 from typing import ClassVar
 
@@ -9,6 +10,17 @@ from workflow_engine.exceptions import WorkflowConfigurationError
 
 CODECS: dict[type, type[Codec]] = {}
 CODEC_REGISTRY: dict[str, type[Codec]] = {}
+
+
+@dataclass(frozen=True)
+class CodecMetadata:
+    """Operator-facing description of a codec. See ADR 009."""
+
+    summary: str
+    description: str
+
+
+CODEC_METADATA: dict[str, CodecMetadata] = {}
 
 CODEC_OBJ = "object"
 CODEC_OBJ_TYPE = "object_type"
@@ -120,7 +132,7 @@ class IterableCodec(Codec, ABC):
         return cls.list_to_collection(objects)
 
 
-def register_type(codec_type: type):
+def register_type(codec_type: type, *, summary: str | None = None, description: str | None = None):
     def decorator(codec_cls: type[Codec]) -> type[Codec]:
         if not issubclass(codec_cls, Codec):
             raise TypeError(f"{codec_cls.__name__} is not a Codec")
@@ -133,10 +145,18 @@ def register_type(codec_type: type):
 
         CODECS[codec_type] = codec_cls
         CODEC_REGISTRY[codec_cls.type_name()] = codec_cls
+        if summary is not None or description is not None:
+            CODEC_METADATA[codec_cls.type_name()] = CodecMetadata(
+                summary=summary or "", description=description or summary or ""
+            )
 
         return codec_cls
 
     return decorator
+
+
+def get_codec_metadata(type_name: str) -> CodecMetadata | None:
+    return CODEC_METADATA.get(type_name)
 
 
 def get_registered_codec_info() -> dict[str, str]:

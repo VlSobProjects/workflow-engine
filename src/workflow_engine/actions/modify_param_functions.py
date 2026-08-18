@@ -1,5 +1,6 @@
 from collections import deque
 from pathlib import Path
+from typing import Annotated
 
 from workflow_engine.collection_param_handlers import WriteParamMode
 from workflow_engine.models.state import StateReadOnlyView
@@ -34,31 +35,19 @@ def set_items(
     decorators=[
         folder_exists_arg_validator({"path_target": 0}),
         not_empty_str_arg_validator({"folder_deque_name": 1, "file_deque_name": 2}),
-    ]
+    ],
+    summary="Reads the paths in a folder into two deques",
 )
 def read_folder_items_to_deque(
-    path_target: str,
-    folder_deque_name: str,
-    file_deque_name: str,
-    state: StateReadOnlyView,
-    on_empty_items: str | None = "empty",
+    path_target: Annotated[str, "Path to the target directory to scan"],
+    folder_deque_name: Annotated[str, "Name of the state parameter that stores folder paths in a deque"],
+    file_deque_name: Annotated[str, "Name of the state parameter that stores file paths in a deque"],
+    state: Annotated[StateReadOnlyView, "Read-only state view used to check whether deque parameters already exist"],
+    on_empty_items: Annotated[str | None, "Value to return if the deque is empty default 'empty'"] = "empty",
 ) -> ActionNodeOutput:
-    """
-    Read directory items and prepare state updates for file and folder.
+    """Read directory paths and prepare state updates for files and folders.
     Set cur_file and cur_folder parameters - first item from list with allow_overwrite=True if lists is not empty.
     Set folder deque and file deque with the remaining items.
-
-    Args:
-        path_target: Path to the target directory to scan.
-        folder_deque_name: Name of the state parameter that stores folder paths in a deque.
-        file_deque_name: Name of the state parameter that stores file paths in a deque.
-        state: Read-only state view used to check whether deque parameters already exist.
-        on_empty_items: Value to return if the deque is empty.
-
-    Returns:
-        ActionNodeOutput containing:
-        - output_text: Absolute POSIX path of the scanned directory.
-        - param_writes: Updates for file/folder deques and current file/folder parameters.
     """
     folder = Path(path_target)
     list_of_paths = [item.absolute() for item in folder.iterdir() if item.is_dir() or item.is_file()]
@@ -86,30 +75,91 @@ def read_folder_items_to_deque(
     return ActionNodeOutput(output_text=folder.absolute().as_posix(), param_writes=param_writes)
 
 
-@register_function()
-def set_param_from_deque(
-    deque_param_name: str,
-    param_name: str,
-    state: StateReadOnlyView,
-    on_empty: str = "empty",
-    on_set: str = "popleft_from_deque",
-    error_not_found: str = "deque_not_found",
+@register_function(
+    decorators=[not_empty_str_arg_validator({"param_name": 0})],
+    summary="Initializes a deque parameter from a list of items.",
+)
+def init_deque_param(
+    param_name: Annotated[str, "Name of the state parameter to create as a deque"],
+    items: Annotated[list | None, "Initial items of the deque, front first; empty when omitted"] = None,
 ) -> ActionNodeOutput:
-    """
-    Set a parameter from the front of a deque parameter.
+    """Create a deque parameter seeded with the given items.
 
-        :param on_set: Value to return when a parameter is successfully set from the deque.
-        :param deque_param_name: Name of the deque parameter to pop from.
-        :param param_name: Name of the parameter to set with the popped value.
-        :param on_empty: Value to return if the deque is empty.
-        :param state: Read-only state view used to access the deque parameter.
-        :param error_not_found: Error code to return if the deque parameter is not found.
-
-    :returns: ActionNodeOutput containing:
-        - output_text: Value popped from the deque.
-        - param_writes: Updates for the parameter set from the deque.
-        - error_not_found: Error code to return if the deque parameter is not found.
+    The main operator use is to prepare a work queue before a traversal loop: seed it with the
+    starting items, extend it with functions such as 'enqueue_folder_entries', and consume it
+    with 'set_param_from_deque'.
     """
+    return ActionNodeOutput(
+        output_text=param_name,
+        param_writes={param_name: ParamWrite(mode=WriteParamMode.SET, value=deque(items or []))},
+    )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"param_name": 0})],
+    summary="Initializes an empty list parameter.",
+)
+def init_list_param(
+    param_name: Annotated[str, "Name of the state parameter to create as an empty list"],
+) -> ActionNodeOutput:
+    """Create an empty list parameter.
+
+    The main operator use is to prepare an accumulator before a loop that appends to it, for
+    example the 'functions' action with 'save_to_list' or 'dict_list_to_pretty_table'.
+    """
+    return ActionNodeOutput(
+        output_text=param_name,
+        param_writes={param_name: ParamWrite(mode=WriteParamMode.SET, value=[])},
+    )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"deque_param_name": 1})],
+    summary="Extends a deque parameter with the entries of a folder.",
+)
+def enqueue_folder_entries(
+    folder_path: Annotated[str, "Path to the folder whose files and subfolders are enqueued"],
+    deque_param_name: Annotated[str, "Name of the existing deque parameter to extend"],
+) -> ActionNodeOutput:
+    """Extend an existing deque parameter with the sorted entries of a folder.
+
+    Files and subfolders are enqueued together as resolved POSIX paths, so repeated application
+    combined with 'set_param_from_deque' walks a tree breadth-first. Returns the error code
+    'folder_not_found' when the path is not a directory.
+    """
+    folder = Path(folder_path)
+    if not folder.is_dir():
+        return ActionNodeOutput(
+            output_text="",
+            error_code="folder_not_found",
+            error_msg=f"Folder '{folder_path}' does not exist",
+        )
+
+    entries = sorted(item.resolve().as_posix() for item in folder.iterdir() if item.is_dir() or item.is_file())
+    if len(entries) > 0:
+        return ActionNodeOutput(
+            output_text=folder.resolve().as_posix(),
+            param_writes={deque_param_name: ParamWrite(mode=WriteParamMode.EXTEND, value=entries)},
+        )
+    return ActionNodeOutput(output_text=folder.resolve().as_posix())
+
+
+@register_function(summary="Pops an item from the front of a deque.")
+def set_param_from_deque(
+    deque_param_name: Annotated[str, "Name of the deque parameter to pop from"],
+    param_name: Annotated[str, "Name of the parameter to set with the popped value"],
+    state: Annotated[StateReadOnlyView, "Read-only state view used to access the deque parameter"],
+    on_empty: Annotated[str, "Value to return if the deque is empty default 'empty'"] = "empty",
+    on_set: Annotated[
+        str, "Value to return when a parameter is successfully set from the deque default 'popleft_from_deque'"
+    ] = "popleft_from_deque",
+    error_not_found: Annotated[
+        str, "Error code to return if the deque parameter is not found default 'deque_not_found'"
+    ] = "deque_not_found",
+) -> ActionNodeOutput:
+    """Pops an item from the front of a deque parameter and sets it to another parameter.
+    If the deque is empty, sets the target parameter to a specified value.
+    Returns an error if the deque parameter is not found."""
     deque_obj = state.get_param(deque_param_name, deque)
     if isinstance(deque_obj, deque):
         if len(deque_obj) == 0:

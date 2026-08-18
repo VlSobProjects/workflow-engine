@@ -152,9 +152,36 @@ automation. Exit codes are `0` for successful completion and non-runner commands
 workflow commands, `3` for failed workflow commands, and `4` for command-level setup or resolution
 errors.
 
+## Operator help contract
+
+`help-components` and `help-component` expose the registered components as an operator contract.
+See ADR 009.
+
+The payloads are assembled in the `help_contract` module: `models.py` holds the DTOs, `adapters/`
+normalizes each component type, `builder.py` assembles payloads from the registries and the static
+guard catalog, and `renderers.py` renders DTOs as text or JSON. The CLI commands consume the builder
+only and never inspect registries themselves.
+
+`help-component` has two modes: with `--component-name` it renders the detail card of one component;
+with only `--component-type` it renders the type-level view, the description of the component type
+and the list of its components. `help-components` is the full-list automation surface.
+
+JSON payloads carry a top-level `contract_version`. The list groups components under the normalized
+type keys `actions`, `functions`, `validators`, `guards`, `codecs`; a detail payload keeps the stable
+keys `name`, `type`, `summary`, `description`, `parameters`, `source`, `notes`, and an action detail
+adds the node-authoring sections (`node_template`, `action_parameters.required/optional`,
+`transition_hints`, `examples`); a type-level payload carries `component_type` with `type`,
+`description` and `components` entries in the list shape (`name`, `summary`, `source`). Existing keys and nesting are stable; extension is additive only.
+
+Metadata sources per type: actions and codecs declare explicit metadata at the registration point;
+functions and validators combine the signature with `Annotated`/`Args` parameter documentation;
+guard kinds are described by a static catalog keyed by the configuration keys an operator writes,
+including the `reversed` modifier and the `validators` shorthand. Internal components must carry
+complete metadata, enforced by a test quality gate; external registrations stay visible and report
+missing metadata explicitly.
+
 ## What is not settled yet
 
 - Default runtime and storage path policy for CLI calls remains open. See ADR 008.
-- The detailed operator help/introspection schema remains open. See ADR 009.
 - The engine-wide hard safety cap for unbounded runs remains open. See ADR 010.
 - The error and retry policy beyond the allowance a transition declares.

@@ -29,6 +29,7 @@ class BaseRegisteredFunction[T](ABC):
     hints: dict[str, object]
     function: Callable[..., T]
     args_cleaner: Callable[[dict[str, object]], dict[str, object]]
+    summary: str | None
 
     def check_args(self, args: dict[str, object] | None) -> None:
         bound_args = self.args_cleaner(args) if args is not None else {}
@@ -58,7 +59,12 @@ class BaseRegisteredFunction[T](ABC):
 
     @classmethod
     def factory(
-        cls, name: str, signature: inspect.Signature, hints: dict[str, object], function: Callable[..., T]
+        cls,
+        name: str,
+        signature: inspect.Signature,
+        hints: dict[str, object],
+        function: Callable[..., T],
+        summary: str | None,
     ) -> Self:
         if cls == BaseRegisteredFunction:
             raise TypeError("BaseRegisteredFunction cannot be instantiated directly. Use a subclass.")
@@ -66,7 +72,7 @@ class BaseRegisteredFunction[T](ABC):
         def arg_c(data: dict[str, object]) -> dict[str, object]:
             return {k: v for k, v in data.items() if k in signature.parameters}
 
-        return cls(name=name, signature=signature, hints=hints, function=function, args_cleaner=arg_c)
+        return cls(name=name, signature=signature, hints=hints, function=function, args_cleaner=arg_c, summary=summary)
 
     @abstractmethod
     def get_expected_type(self) -> type[T]:
@@ -93,6 +99,7 @@ def _register[T](
     func: Callable[..., T],
     registry: dict[str, BaseRegisteredFunction[T]],
     register_type: type[BaseRegisteredFunction[T]],
+    summary: str | None = None,
 ):
     func_name = func.__name__
     if func_name in registry:
@@ -104,6 +111,7 @@ def _register[T](
         function=func,
         signature=signature,
         hints=get_type_hints(func, include_extras=True),
+        summary=summary,
     )
     registered_function.check_function_return_type()
     registry[func.__name__] = registered_function
@@ -114,6 +122,7 @@ def _reg[T](
     registry: dict[str, BaseRegisteredFunction[T]],
     register_type: type[BaseRegisteredFunction[T]],
     decorators: Sequence[TDecorator[T]],
+    summary: str | None = None,
 ):
     def decorator(d_func: TFunc[T]) -> TFunc[T]:
         wrapped: TFunc[T] = d_func
@@ -121,7 +130,7 @@ def _reg[T](
         for d in reversed(decorators):
             wrapped = d(wrapped)
 
-        _register(wrapped, registry, register_type)
+        _register(wrapped, registry, register_type, summary=summary)
 
         return wrapped
 
@@ -134,17 +143,19 @@ def _reg[T](
 def register_function(
     func: TFunc[ActionNodeOutput] | None = None,
     *,
+    summary: str | None = None,
     decorators: Sequence[TDecorator[ActionNodeOutput]] = (),
 ):
-    return _reg(func, FUNCTION_REGISTRY, RegisteredFunction, decorators)
+    return _reg(func, FUNCTION_REGISTRY, RegisteredFunction, decorators, summary=summary)
 
 
 def register_validator(
     func: TFunc[bool] | None = None,
     *,
+    summary: str | None = None,
     decorators: Sequence[TDecorator[bool]] = (),
 ):
-    return _reg(func, VALIDATOR_REGISTRY, RegisteredValidator, decorators)
+    return _reg(func, VALIDATOR_REGISTRY, RegisteredValidator, decorators, summary=summary)
 
 
 @dataclass(slots=True)
@@ -184,6 +195,15 @@ def _get_registered_executor[T](
         )
     return RegisteredFunctionExecutor(registered_function=registered_function, parameters=parameters)
 
+
+# def get_registered_function(name: str) -> RegisteredFunction | None:
+#     """Get a registered function executor based on the function name."""
+#     return FUNCTION_REGISTRY.get(name)
+#     return _get_registered_executor(FUNCTION_REGISTRY, name, None)
+
+def get_function_registered(name:str) -> RegisteredFunction:
+    """Get a registered function executor based on the function name."""
+    return FUNCTION_REGISTRY[name]
 
 def get_registered_function[T](
     requested_class: type,
@@ -235,3 +255,17 @@ def get_registered_function_info() -> dict[str, str]:
 
 def get_registered_validator_info() -> dict[str, str]:
     return {key: ex.function.__doc__ or "N/A" for key, ex in VALIDATOR_REGISTRY.items()}
+
+def _get_docstring(registry: dict[str, BaseRegisteredFunction], function_name: str) -> str:
+    obj = registry.get(function_name)
+    if obj is None:
+        return f"function with name '{function_name}' is not registered"
+    return inspect.getdoc(obj.function) or "function not documented"
+
+def get_function_docstring(function_name: str) -> str:
+    return (f"{_get_docstring(FUNCTION_REGISTRY, function_name)}\n"
+            f"Return: ActionNodeOutput\n")
+
+def get_validator_docstring(function_name: str) -> str:
+    return (f"{_get_docstring(VALIDATOR_REGISTRY, function_name)}\n"
+            f"Return: bool\n")

@@ -82,6 +82,7 @@ missing from the registry is effectively lost. Add the row when the branch is me
 | 2026-08-11 | documentation | Synced the architecture overview with accepted ADRs and added the CLI contract to the current architecture view | completed | docs/architecture-overview-sync | [2026-08-11-documentation-1_handoff.md](2026-08-11-documentation-1_handoff.md) |
 | 2026-08-11 | architecture | Finalized ADR 009 contract decisions for metadata ownership, JSON stability and acceptance-test policy | completed | development | [2026-08-11-architecture-4_handoff.md](2026-08-11-architecture-4_handoff.md) |
 | 2026-08-11 | architecture | Moved ADR 009 to Implementing and opened its implementation branch | completed | development | [2026-08-11-architecture-5_handoff.md](2026-08-11-architecture-5_handoff.md) |
+| 2026-08-18 | architecture | Froze ADR 009 as Accepted after merge to development and synchronized the registry and session note | completed | development | [2026-08-18-architecture-1_handoff.md](2026-08-18-architecture-1_handoff.md) |
 
 `Summary` states what the session was about, in one line.
 `Status` is `completed` or `interrupted`.
