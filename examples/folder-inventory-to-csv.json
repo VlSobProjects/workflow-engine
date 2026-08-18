@@ -1,0 +1,113 @@
+{
+  "schema_version": "1",
+  "flow_id": "folder-inventory-to-csv",
+  "start_node_id": "INIT_QUEUE",
+  "nodes": [
+    {
+      "id": "INIT_QUEUE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "init_deque_param",
+        "function_parameters": {
+          "param_name": "scan_queue",
+          "items": ["__SCAN_ROOT__"]
+        }
+      },
+      "transitions": [{ "next": "INIT_ROWS" }]
+    },
+    {
+      "id": "INIT_ROWS",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "init_list_param",
+        "function_parameters": { "param_name": "table_rows" }
+      },
+      "transitions": [{ "next": "POP_NEXT" }]
+    },
+    {
+      "id": "POP_NEXT",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "set_param_from_deque",
+        "function_parameters": {
+          "deque_param_name": "scan_queue",
+          "param_name": "cur_path",
+          "on_empty": "empty",
+          "on_set": "has_item"
+        }
+      },
+      "transitions": [
+        { "validator": { "equals": "empty" }, "next": "WRITE_TABLE" },
+        { "next": "EMIT_CUR_PATH" }
+      ]
+    },
+    {
+      "id": "EMIT_CUR_PATH",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "echo_value",
+        "function_parameters": { "value": "param.cur_path" }
+      },
+      "transitions": [
+        { "validator": { "function_name": "is_output_exist_file" }, "next": "COLLECT" },
+        { "next": "ENQUEUE" }
+      ]
+    },
+    {
+      "id": "COLLECT",
+      "action_type": "functions",
+      "action_parameters": {
+        "save_to_list": "table_rows",
+        "functions": {
+          "Path": {
+            "function_name": "echo_value",
+            "function_parameters": { "value": "param.cur_path" }
+          },
+          "Size": {
+            "function_name": "file_size_human",
+            "function_parameters": { "file_path": "param.cur_path" }
+          },
+          "MIME": {
+            "function_name": "file_mime_type",
+            "function_parameters": { "file_path": "param.cur_path" }
+          },
+          "Modified": {
+            "function_name": "file_modify_time",
+            "function_parameters": { "file_path": "param.cur_path" }
+          },
+          "MD5": {
+            "function_name": "md5_check_sum_file",
+            "function_parameters": { "file_path": "param.cur_path" }
+          }
+        }
+      },
+      "transitions": [{ "next": "POP_NEXT" }]
+    },
+    {
+      "id": "ENQUEUE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "enqueue_folder_entries",
+        "function_parameters": {
+          "folder_path": "param.cur_path",
+          "deque_param_name": "scan_queue"
+        }
+      },
+      "transitions": [{ "next": "POP_NEXT" }]
+    },
+    {
+      "id": "WRITE_TABLE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "dict_list_to_pretty_table",
+        "function_parameters": {
+          "artifact_name": "file_scan_table",
+          "dict_param_name": "table_rows",
+          "artifact_path": "reports/file_scan_table.csv",
+          "table_format": "csv"
+        }
+      },
+      "transitions": [{ "stop": true }]
+    }
+  ]
+}
