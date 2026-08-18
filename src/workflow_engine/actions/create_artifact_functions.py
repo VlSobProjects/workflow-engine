@@ -62,11 +62,11 @@ def dict_list_to_pretty_table(
     'pretty_table_write_error' and the error message.
     If the artifact already exists in the state, returns an ActionNodeOutput with error_code
     'pretty_table_artifact_exists' and the error message.
-    If the parameter does not contain a list of dictionaries, returns an ActionNodeOutput with
-    error_code 'pretty_table_no_data'.
+    If the parameter does not contain a list of dictionaries, or contains an empty list, returns an
+    ActionNodeOutput with error_code 'pretty_table_no_data'.
     """
     dict_list = state.get_param(dict_param_name, list)
-    if not isinstance(dict_list, list):
+    if not isinstance(dict_list, list) or not dict_list:
         return ActionNodeOutput(output_text="", error_code="pretty_table_no_data")
 
     artifact_path = state.get_artifact_relative_path(artifact_path if artifact_path else artifact_name + ".txt")
