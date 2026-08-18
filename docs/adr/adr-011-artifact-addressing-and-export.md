@@ -1,10 +1,10 @@
 # ADR 011: Artifact addressing and export contract
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+feature/adr_011-artifact-addressing-and-export
 
 ## Context
 
