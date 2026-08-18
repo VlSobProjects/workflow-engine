@@ -20,6 +20,9 @@ frozen operator contract for:
 Without this contract, help output stays ad hoc, metadata quality drifts, and automation remains brittle.
 The current draft also needs a clear policy for internal vs external component metadata quality and for how
 acceptance tests validate the contract.
+During implementation start, a critical mismatch was identified: developer docstrings for `Action` classes
+describe implementation and inheritance details, while operator help must explain how to configure workflow
+nodes. These are different documentation domains and must not be conflated.
 
 ## Decision
 
@@ -30,35 +33,66 @@ Define one help/introspection contract for CLI v1:
    - `help-component --type <type> --name <component>` for detailed view.
 2. Two-level description model:
    - `summary`: short one-line operator description for list output;
-   - `description`: detailed usage description for detail output, including parameter meaning and return semantics.
+   - `description`: detailed operator usage description for detail output.
 3. Source of truth:
    - registries for actions/functions/validators/codecs;
    - explicit static catalog for guard kinds that are not registry-backed (`equals`, `contains`, groups, etc.).
-4. Metadata ownership and enforcement:
-   - internal components must provide non-empty `summary` and non-empty detailed docstring-based description;
+4. Operator-help domain rule:
+   - `help-component` describes workflow authoring contract, not implementation/inheritance guidance.
+   - Developer-oriented implementation details remain in code-level docs and are not the primary operator-help source.
+5. Per-type detail source policy:
+   - `actions`: detailed help comes from explicit action metadata focused on node authoring
+     (`action_type`, required/optional `action_parameters`, behavior notes, example shape), not from class `__doc__`;
+   - `functions` and `validators`: detailed help combines registry signature with doc-derived parameter descriptions;
+     `Args` are consumed for operator help, while `Returns` is optional and not required for v1 operator contract;
+   - `guards`: detailed help comes from explicit guard catalog entries;
+   - `codecs`: detailed help comes from explicit codec metadata plus registry type mapping.
+6. Metadata ownership and enforcement:
+   - internal components must provide non-empty `summary` and non-empty detailed operator description;
+   - for internal actions, "detailed description" means explicit workflow-node usage metadata, not class docstring;
    - v1 enforcement point is test/CI quality gates for internal components (not runtime hard-fail);
    - external components are best-effort; if metadata is missing, help output must state that the description
      is not provided by the external component.
-5. JSON contract stability:
+7. JSON contract stability:
    - `help-components` JSON response includes top-level `contract_version` and `components`, where
      `components` contains normalized type keys (`actions`, `functions`, `validators`, `guards`, `codecs`);
    - `help-component` JSON response includes top-level `contract_version` and `component`;
    - detailed component object keeps stable key names: `name`, `type`, `summary`, `description`,
-     `parameters`, `returns`, `source`, `notes`;
+     `parameters`, `source`, `notes`;
+   - `returns` is optional and type-specific; v1 function/validator operator help does not require it;
    - additive extension is allowed only via new optional fields; existing key names and structural nesting are stable.
-6. Scope:
+8. Scope:
    - report component metadata and usage contracts only;
    - do not perform runtime validation or workflow linting in this command.
-7. Testing policy for this ADR:
+9. Testing policy for this ADR:
    - operator-contract and e2e acceptance tests must use core registered components, not test-local extra
      registrations;
    - if a required component is missing, implement it in core registration surface rather than registering
      it only in tests.
-8. Core component generality policy:
+10. Core component generality policy:
    - when replacing test-local helpers with core components, design the component API to be reusable and
      domain-neutral rather than scenario-specific;
    - each newly introduced core helper in this scope must be justified by at least two realistic workflow
      scenarios.
+11. Help-contract module structure:
+   - introduce a dedicated operator-help module that maps runtime registrations into workflow-authoring
+     documentation payloads;
+   - target structure:
+     - `workflow_engine/help_contract/models.py`: canonical DTOs for list/detail payloads;
+     - `workflow_engine/help_contract/adapters/`: per-type adapters (`actions`, `functions`, `validators`,
+      `guards`, `codecs`) that normalize metadata into DTOs;
+     - `workflow_engine/help_contract/builder.py`: orchestration that assembles full help payloads from
+      registries and static catalogs;
+     - `workflow_engine/help_contract/renderers.py`: text/json rendering from DTOs without business logic.
+12. WorkflowNode-oriented detail schema:
+   - action detail payload must include a node-authoring section suitable for future workflow-creation commands:
+     `node_template`, `action_parameters.required`, `action_parameters.optional`, `transition_hints`,
+     `examples`;
+   - function/validator detail payload must expose call parameters as node-configuration keys and descriptions
+     (signature + Args extraction), independent from Python implementation narrative.
+13. CLI coupling boundary:
+   - CLI commands must call the help-contract builder and only render/route its DTOs;
+   - CLI layer must not inspect registries directly for help output formatting logic.
 
 ## Alternatives considered
 
@@ -68,7 +102,8 @@ Cons: not enough for workflow authoring; no discoverability of dynamic registrat
 
 ### B. Docstring-only metadata (summary and details from `__doc__`)
 Pros: low implementation cost; no extra metadata field.
-Cons: weak enforceability for short list output, inconsistent quality, and no explicit ownership signal in registration.
+Cons: weak enforceability for short list output, inconsistent quality, and a domain mismatch for actions where
+class docstrings usually describe implementation rather than node authoring usage.
 
 ### C. Central static metadata catalog
 Pros: explicit and consistent metadata in one place.
@@ -76,19 +111,28 @@ Cons: high drift risk against runtime registrations and plugin loading, addition
 
 ### D. Hybrid runtime contract (chosen)
 Pros: reflects actual loaded components; keeps short metadata explicit at registration point; reuses docstrings
-for detailed guidance; automatable and stable for tooling.  
+for function/validator parameter guidance; keeps action guidance explicitly workflow-oriented; automatable and
+stable for tooling.  
 Cost: registry metadata extension, metadata backfill for internal components, and CI contract checks.
+
+### E. CLI-coupled direct introspection in command handlers
+Pros: fewer modules, fastest initial coding.
+Cons: mixes CLI concerns with contract-building logic, harder to reuse for future workflow-creation commands,
+and fragile for test coverage of contract semantics.
 
 ## Consequences
 
 - A guard catalog abstraction is required for operator-facing descriptions.
-- Internal component metadata quality (`summary` + docstring details) becomes release-relevant.
+- Internal component metadata quality becomes release-relevant, with action help modeled as workflow authoring
+  contract rather than implementation docs.
 - External module registrations remain visible through the same interface, with explicit missing-metadata reporting.
 - Acceptance tests for this ADR must avoid test-only component registrations to keep the contract aligned with
   production core surfaces.
 - Existing core components require metadata backfill work before freeze.
 - Promoting test-only helpers into core requires API design discipline and at least one additional realistic
   usage scenario to prove reusability.
+- A dedicated help-contract module adds one extra layer now, but becomes the reusable foundation for future
+  operator commands that generate workflow nodes and transitions.
 
 ## Related ADRs
 
@@ -106,10 +150,36 @@ Minimum v1 implementation:
 - at least one test with external module registration visibility.
 - metadata quality gate test for internal components:
   - non-empty `summary`;
-  - non-empty detailed docstring;
-  - parameter names from signature covered in detailed description.
+  - non-empty detailed operator usage description;
+  - for functions/validators: parameter names from signature covered in detailed description;
+  - for actions: required/optional node parameters documented as workflow-authoring contract.
 - replace test-local helper registrations used by operator/e2e acceptance tests with reusable core helpers,
   validated by at least two realistic workflow scenarios.
+
+CLI wiring options:
+1. Thin-command wiring (recommended for v1):
+   - `help-components` and `help-component` call use-case functions that invoke the help-contract builder;
+   - command handlers only parse args and render DTO output.
+2. Shared service wiring:
+   - bootstrap builds a reusable `HelpContractService` and injects it into CLI use-cases;
+   - better for future command expansion, slightly larger refactor.
+3. Inline command wiring:
+   - command handlers build payloads directly from registries;
+   - not recommended because it violates the CLI coupling boundary in this ADR.
+
+Acceptance boundaries for moving ADR 009 to Accepted:
+1. Architecture boundary:
+   - help payload assembly exists in the dedicated help-contract module; CLI handlers do not own contract logic.
+2. Contract boundary:
+   - list/detail payloads satisfy stable key names and nesting defined in this ADR, including `contract_version`.
+3. Documentation boundary:
+   - all internal actions expose workflow-node authoring metadata (not implementation-only text);
+   - internal functions/validators expose parameter documentation derived from signature + Args mapping.
+4. Testing boundary:
+   - contract tests validate payload shape and required metadata presence for internal components;
+   - operator/e2e acceptance coverage uses core registrations only, without test-local helper registration.
+5. Reusability boundary:
+   - core helpers promoted from tests are proven by at least two realistic scenarios.
 
 ## Change log
 
@@ -120,3 +190,7 @@ Minimum v1 implementation:
 - Added a core-component generality policy for migrating test-local helpers into reusable production
   registrations, with required validation by at least two realistic scenarios.
 - Status changed from `Draft` to `Implementing`; implementation branch assigned.
+- Corrected the documentation domain model: action operator help must describe workflow-node usage contract,
+  not class implementation docstrings; function/validator help keeps signature plus Args-oriented documentation.
+- Added explicit help-contract module structure, WorkflowNode-oriented detail schema, CLI wiring options, and
+  acceptance boundaries for ADR 009 freeze.

@@ -1,9 +1,9 @@
 import shutil
-from collections import deque
-from pathlib import Path
 
-from workflow_engine.models.state import StateModel
-from workflow_engine.output import ActionNodeOutput
+from pathlib import Path
+from typing import Annotated
+
+from workflow_engine.output import ActionNodeOutput, ParamWrite
 from workflow_engine.registry.function_registry import (
     register_function,
 )
@@ -17,9 +17,14 @@ from workflow_engine.validators.functions_validators import (
 @register_function(
     decorators=[
         file_exists_arg_validator({"path_source": 0}),
-    ]
+    ],
+    summary="Copy a file",
 )
-def copy_file(path_source: str, path_target: str) -> ActionNodeOutput:
+def copy_file(
+        path_source: Annotated[str, "Path to the source file"],
+        path_target: Annotated[str, "Path to the target file"]
+) -> ActionNodeOutput:
+    """Copy a file from source to target."""
     source = Path(path_source)
     if not source.is_file():
         return ActionNodeOutput(
@@ -43,9 +48,14 @@ def copy_file(path_source: str, path_target: str) -> ActionNodeOutput:
 
 
 @register_function(
-    decorators=[folder_exists_arg_validator({"path_target": 0}), not_empty_str_arg_validator({"folder_name": 1})]
+    decorators=[folder_exists_arg_validator({"path_target": 0}), not_empty_str_arg_validator({"folder_name": 1})],
+    summary="Create a folder",
 )
-def create_folder(path_target: str, folder_name: str) -> ActionNodeOutput:
+def create_folder(
+        path_target: Annotated[str, "Path to the target folder"],
+        folder_name: Annotated[str, "Name of the folder to create"]
+) -> ActionNodeOutput:
+    """Create a folder at the specified target path with the given folder name."""
     folder = Path(path_target) / folder_name
     try:
         folder.mkdir(parents=True, exist_ok=True)
@@ -58,8 +68,12 @@ def create_folder(path_target: str, folder_name: str) -> ActionNodeOutput:
     return ActionNodeOutput(output_text=folder.absolute().as_posix())
 
 
-@register_function(decorators=[file_exists_arg_validator({"file_path": 0})])
-def file_delete(file_path: str) -> ActionNodeOutput:
+@register_function(
+    decorators=[file_exists_arg_validator({"file_path": 0})],
+    summary="Delete a file"
+)
+def file_delete(file_path: Annotated[str, "Path to the file to delete"]) -> ActionNodeOutput:
+    """Delete a file at the specified path."""
     file = Path(file_path)
     try:
         file.unlink()
@@ -70,20 +84,3 @@ def file_delete(file_path: str) -> ActionNodeOutput:
             error_msg=f"Failed to delete file '{file.absolute().as_posix()}': {e!s}",
         )
     return ActionNodeOutput(output_text=f"File '{file.absolute().as_posix()}' deleted successfully")
-
-
-@register_function(
-    decorators=[folder_exists_arg_validator({"folder_path": 0}), not_empty_str_arg_validator({"param_name": 1})]
-)
-def save_paths_to_deque(folder_path: str, deque_param_name: str, state: StateModel) -> ActionNodeOutput:
-    folder = Path(folder_path)
-    list_of_paths = [item.absolute().as_posix() for item in folder.iterdir()]
-    e_dq = state.get_param(deque_param_name, deque)
-    if e_dq is None:
-        state.add_parameter(deque_param_name, deque(list_of_paths))
-    else:
-        for item in list_of_paths:
-            e_dq.append(item)
-    return ActionNodeOutput(
-        output_text=folder.absolute().as_posix(),
-    )

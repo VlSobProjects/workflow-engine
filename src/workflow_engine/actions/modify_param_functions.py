@@ -1,5 +1,6 @@
 from collections import deque
 from pathlib import Path
+from typing import Annotated
 
 from workflow_engine.collection_param_handlers import WriteParamMode
 from workflow_engine.models.state import StateReadOnlyView
@@ -34,31 +35,19 @@ def set_items(
     decorators=[
         folder_exists_arg_validator({"path_target": 0}),
         not_empty_str_arg_validator({"folder_deque_name": 1, "file_deque_name": 2}),
-    ]
+    ],
+    summary="Reads the paths in a folder into two deques",
 )
 def read_folder_items_to_deque(
-    path_target: str,
-    folder_deque_name: str,
-    file_deque_name: str,
-    state: StateReadOnlyView,
-    on_empty_items: str | None = "empty",
+    path_target: Annotated[str, "Path to the target directory to scan"],
+    folder_deque_name: Annotated[str, "Name of the state parameter that stores folder paths in a deque"],
+    file_deque_name: Annotated[str, "Name of the state parameter that stores file paths in a deque"],
+    state: Annotated[StateReadOnlyView, "Read-only state view used to check whether deque parameters already exist"],
+    on_empty_items: Annotated[str | None, "Value to return if the deque is empty default 'empty'"] = "empty",
 ) -> ActionNodeOutput:
-    """
-    Read directory items and prepare state updates for file and folder.
+    """Read directory paths and prepare state updates for files and folders.
     Set cur_file and cur_folder parameters - first item from list with allow_overwrite=True if lists is not empty.
     Set folder deque and file deque with the remaining items.
-
-    Args:
-        path_target: Path to the target directory to scan.
-        folder_deque_name: Name of the state parameter that stores folder paths in a deque.
-        file_deque_name: Name of the state parameter that stores file paths in a deque.
-        state: Read-only state view used to check whether deque parameters already exist.
-        on_empty_items: Value to return if the deque is empty.
-
-    Returns:
-        ActionNodeOutput containing:
-        - output_text: Absolute POSIX path of the scanned directory.
-        - param_writes: Updates for file/folder deques and current file/folder parameters.
     """
     folder = Path(path_target)
     list_of_paths = [item.absolute() for item in folder.iterdir() if item.is_dir() or item.is_file()]
@@ -86,30 +75,17 @@ def read_folder_items_to_deque(
     return ActionNodeOutput(output_text=folder.absolute().as_posix(), param_writes=param_writes)
 
 
-@register_function()
+@register_function(summary="Pops an item from the front of a deque.")
 def set_param_from_deque(
-    deque_param_name: str,
-    param_name: str,
-    state: StateReadOnlyView,
-    on_empty: str = "empty",
-    on_set: str = "popleft_from_deque",
-    error_not_found: str = "deque_not_found",
+    deque_param_name: Annotated[str, "Name of the deque parameter to pop from"],
+    param_name: Annotated[str, "Name of the parameter to set with the popped value"],
+    state: Annotated[StateReadOnlyView, "Read-only state view used to access the deque parameter"],
+    on_empty: Annotated[str, "Value to return if the deque is empty default 'empty'"] = "empty",
+    on_set: Annotated[str, "Value to return when a parameter is successfully set from the deque default 'popleft_from_deque'"] = "popleft_from_deque",
+    error_not_found: Annotated[str, "Error code to return if the deque parameter is not found default 'deque_not_found'"] = "deque_not_found",
 ) -> ActionNodeOutput:
-    """
-    Set a parameter from the front of a deque parameter.
-
-        :param on_set: Value to return when a parameter is successfully set from the deque.
-        :param deque_param_name: Name of the deque parameter to pop from.
-        :param param_name: Name of the parameter to set with the popped value.
-        :param on_empty: Value to return if the deque is empty.
-        :param state: Read-only state view used to access the deque parameter.
-        :param error_not_found: Error code to return if the deque parameter is not found.
-
-    :returns: ActionNodeOutput containing:
-        - output_text: Value popped from the deque.
-        - param_writes: Updates for the parameter set from the deque.
-        - error_not_found: Error code to return if the deque parameter is not found.
-    """
+    """Pops an item from the front of a deque parameter and sets it to another parameter.
+    If the deque is empty, sets the target parameter to a specified value. Returns an error if the deque parameter is not found."""
     deque_obj = state.get_param(deque_param_name, deque)
     if isinstance(deque_obj, deque):
         if len(deque_obj) == 0:
