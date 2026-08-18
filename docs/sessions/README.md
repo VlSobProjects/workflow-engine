@@ -85,6 +85,7 @@ missing from the registry is effectively lost. Add the row when the branch is me
 | 2026-08-18 | architecture | Froze ADR 009 as Accepted after merge to development and synchronized the registry and session note | completed | development | [2026-08-18-architecture-1_handoff.md](2026-08-18-architecture-1_handoff.md) |
 | 2026-08-18 | implementation | Implemented ADR 010: a global hard safety cap (`hard_max_nodes_visited`, default 1000) that bounds every run and resume including soft-limit-0 sessions with a dedicated pause event | completed | feature/adr_010-session-safety-cap-and-unbounded-run-policy | [2026-08-18-implementation-4_handoff.md](2026-08-18-implementation-4_handoff.md) |
 | 2026-08-18 | architecture | Reviewed ADR 010 implementation against requirements, merged to development, froze ADR 010 as Accepted, and synchronized documentation | completed | development | [2026-08-18-architecture-2_handoff.md](2026-08-18-architecture-2_handoff.md) |
+| 2026-08-18 | investigation | Dogfooded the folder-to-CSV scenario as an operator; confirmed the artifact-access gap, the empty-root failure, and a broken CLI param-injection path; validated ADR 010 recovery; cleaned `examples/` to two validated templates | completed | docs/operator-scan-experiment | [2026-08-18-investigation-1_handoff.md](2026-08-18-investigation-1_handoff.md) |
 
 `Summary` states what the session was about, in one line.
 `Status` is `completed` or `interrupted`.

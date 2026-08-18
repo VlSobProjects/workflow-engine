@@ -1,0 +1,118 @@
+{
+  "schema_version": "1",
+  "flow_id": "flatten-copy-tree",
+  "start_node_id": "INIT_QUEUE",
+  "nodes": [
+    {
+      "id": "INIT_QUEUE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "init_deque_param",
+        "function_parameters": {
+          "param_name": "walk_queue",
+          "items": ["__SOURCE_ROOT__"]
+        }
+      },
+      "transitions": [{ "next": "INIT_ROWS" }]
+    },
+    {
+      "id": "INIT_ROWS",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "init_list_param",
+        "function_parameters": { "param_name": "copy_rows" }
+      },
+      "transitions": [{ "next": "POP_NEXT" }]
+    },
+    {
+      "id": "POP_NEXT",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "set_param_from_deque",
+        "function_parameters": {
+          "deque_param_name": "walk_queue",
+          "param_name": "cur_path",
+          "on_empty": "empty",
+          "on_set": "has_item"
+        }
+      },
+      "transitions": [
+        { "validator": { "equals": "empty" }, "next": "WRITE_REPORT" },
+        { "next": "EMIT_CUR_PATH" }
+      ]
+    },
+    {
+      "id": "EMIT_CUR_PATH",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "echo_value",
+        "function_parameters": { "value": "param.cur_path" }
+      },
+      "transitions": [
+        { "validator": { "function_name": "is_output_exist_file" }, "next": "COPY_FILE" },
+        { "next": "ENQUEUE" }
+      ]
+    },
+    {
+      "id": "COPY_FILE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "copy_file",
+        "function_parameters": {
+          "path_source": "param.cur_path",
+          "path_target": "__TARGET_DIR__"
+        }
+      },
+      "save_as": "copied_path",
+      "transitions": [{ "next": "COLLECT_ROW" }]
+    },
+    {
+      "id": "COLLECT_ROW",
+      "action_type": "functions",
+      "action_parameters": {
+        "save_to_list": "copy_rows",
+        "functions": {
+          "Source": {
+            "function_name": "echo_value",
+            "function_parameters": { "value": "param.cur_path" }
+          },
+          "Copied": {
+            "function_name": "echo_value",
+            "function_parameters": { "value": "param.copied_path" }
+          },
+          "MD5": {
+            "function_name": "md5_check_sum_file",
+            "function_parameters": { "file_path": "param.copied_path" }
+          }
+        }
+      },
+      "transitions": [{ "next": "POP_NEXT" }]
+    },
+    {
+      "id": "ENQUEUE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "enqueue_folder_entries",
+        "function_parameters": {
+          "folder_path": "param.cur_path",
+          "deque_param_name": "walk_queue"
+        }
+      },
+      "transitions": [{ "next": "POP_NEXT" }]
+    },
+    {
+      "id": "WRITE_REPORT",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "dict_list_to_pretty_table",
+        "function_parameters": {
+          "artifact_name": "copy_report",
+          "dict_param_name": "copy_rows",
+          "artifact_path": "reports/copy_report.csv",
+          "table_format": "csv"
+        }
+      },
+      "transitions": [{ "stop": true }]
+    }
+  ]
+}
