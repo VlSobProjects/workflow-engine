@@ -53,7 +53,8 @@ All five completion criteria are met; 241 tests and `ruff check .` pass from the
 
 Behaviour note: with `newline=""` a plain-text (non-CSV) artifact now ends lines with `
 ` on Windows
-instead of `
+instead of `
+
 `, and non-ASCII table content is written as UTF-8 rather than in the platform default
 encoding. Both follow the platform-independent persistence direction of ADR 008.
 
@@ -67,9 +68,10 @@ encoding. Both follow the platform-independent persistence direction of ADR 008.
    (ADR 007 CLI contract, ADR 008 path/encoding portability, ADR 011 artifacts).
 
 ## Open questions
-1. Should the default `hard_max_nodes_visited` stay at 1000, or is a higher default better for folder-scan
-   workloads? Carried unchanged from `2026-08-18-investigation-1`; still undecided and not captured as an
-   architecture note yet.
+1. Should the default `hard_max_nodes_visited` stay at 1000, and does the cap belong to the host, to the
+   workflow definition or to a workflow type? Carried from `2026-08-18-investigation-1` and moved to the
+   architecture notes channel (`2026-08-19-hard-node-cap-scoping.md`); phase 1 keeps the current
+   behaviour.
 2. The repository is not `ruff format` clean at baseline (11 files would be reformatted on `development`,
    untouched by this session). Whether to run a one-off formatting pass is a separate maintenance decision.
 
@@ -77,10 +79,13 @@ encoding. Both follow the platform-independent persistence direction of ADR 008.
 1. Add the run/retrieve how-to for `examples/folder-inventory-to-csv.json` and
    `examples/flatten-copy-tree.json` to the top-level `README.md` (the remaining half of next step 3 of
    `2026-08-18-investigation-1`).
-2. Capture the `hard_max_nodes_visited` default question as an architecture note, or decide it.
+2. Done after the session: the `hard_max_nodes_visited` question is captured as the architecture note
+   `docs/architecture/notes/2026-08-19-hard-node-cap-scoping.md`. Phase 1 keeps the current global field
+   and default; the README session documents the cap, the `workflow_paused_safety_limit` stop and the
+   config-edit recovery.
 3. Decide whether to make the repository `ruff format` clean in a `chore/` session.
-4. Remove the scratch operator folder `C:/Users/Vladimir/we-op-demo` (outside the repository) when no
-   longer needed for inspection.
+4. The scratch operator folder `C:/Users/Vladimir/we-op-demo` is kept deliberately as the operator
+   experiment sandbox outside the repository; it is not removed.
 
 ## References
 - Branch: `fix/minor-operator-findings`
