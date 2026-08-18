@@ -63,7 +63,8 @@ in one call.
 ## Retrieving the result
 
 A completed `run`/`resume` reports the declared deliverables and every registered artifact by
-absolute path in its `data`:
+absolute path in its `data`. By default the file stays where the engine wrote it, inside the
+session's own sandbox — nothing is copied anywhere on completion unless you ask for it:
 
 ```json
 "deliverables": ["file_scan_table"],
@@ -76,8 +77,10 @@ absolute path in its `data`:
 ```
 
 Three ways to get the file itself:
-- Read the absolute `path` directly from that output.
-- Pass `--export-dir <dir>` to `run` or `resume`, exporting the deliverables on completion.
+- Read the absolute `path` directly from that output — it points inside the session sandbox, not
+  into the directory you ran the command from.
+- Pass `--export-dir <dir>` to `run` or `resume`: on completion the engine copies every declared
+  deliverable into `<dir>`, preserving its relative artifact path.
 - Run `export-artifact --session-id <SESSION_ID> --target-dir <dir> --all` (or `--artifact-name
   <name>` for one artifact) after the fact. Works for completed, paused and failed sessions.
 
