@@ -205,3 +205,8 @@ Acceptance boundaries for moving ADR 009 to Accepted:
   (`type`, `description`, `required`), extended the guard catalog with the `reversed` modifier and the
   `validators` shorthand as explicit `kind` entries, and settled action metadata declaration at the
   registration point (`register_action(metadata=...)`).
+- Closed the testing and reusability boundaries: the test-local `adr006_*` registrations were replaced by
+  the core components `echo_value`, `init_deque_param`, `init_list_param` and `enqueue_folder_entries`,
+  proven by two realistic scenarios (the recursive scan/resume e2e and a new recursive copy-tree e2e);
+  `copy_file` additionally accepts an existing folder as `path_target`, copying into it under the source
+  file name.
