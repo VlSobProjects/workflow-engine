@@ -18,6 +18,7 @@ from workflow_engine.help_contract.adapters.functions import adapt_function
 from workflow_engine.help_contract.adapters.validators import adapt_validator
 from workflow_engine.help_contract.builder import (
     build_component_payload,
+    build_component_type_payload,
     build_components_payload,
     collect_help_components,
     external_names_from_report,
@@ -96,10 +97,25 @@ class TestContractShape:
         for example in component["examples"]:
             assert set(example.keys()) == {"title", "node"}
 
+    def test_component_type_payload_shape(self, load_engine):
+        for type_key in NORMALIZED_TYPE_KEYS:
+            payload = build_component_type_payload(type_key)
+            assert payload is not None
+            assert payload["contract_version"] == CONTRACT_VERSION
+            block = payload["component_type"]
+            assert set(block.keys()) == {"type", "description", "components"}
+            assert block["type"] == type_key
+            assert block["description"]
+            assert block["components"]
+            for item in block["components"]:
+                assert set(item.keys()) == {"name", "summary", "source"}
+            json.dumps(payload)
+
     def test_unknown_component_is_none(self, load_engine):
         assert find_help_component("actions", "no-such-action") is None
         assert find_help_component("no-such-type", "function") is None
         assert build_component_payload("actions", "no-such-action") is None
+        assert build_component_type_payload("no-such-type") is None
 
 
 def _is_internal(obj: object) -> bool:

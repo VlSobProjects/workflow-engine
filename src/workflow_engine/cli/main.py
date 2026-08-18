@@ -204,7 +204,8 @@ def _get_commend(command_name: CommandName) -> Command:
                     ),
                     CommandArgs(
                         key="--component-name",
-                        help="Name of the component",
+                        help="Name of the component; when omitted, shows the type description and its components",
+                        required=False,
                     ),
                 ],
             )

@@ -77,3 +77,17 @@ def render_components_list_text(components: dict[ComponentType, list[HelpCompone
             marker = "" if component.source.value == "core" else f" [{component.source.value}]"
             lines.append(f"{_INDENT}{component.name}{marker}: {component.summary}")
     return "\n".join(lines)
+
+
+def render_component_type_text(component_type: ComponentType, components: list[HelpComponent]) -> str:
+    """Renders one component type for the operator terminal: its description and its components."""
+    lines = [
+        f"Type: {COLLECTION_KEYS[component_type]}",
+        "Description:",
+        *_wrap(get_component_type_description(component_type), _INDENT),
+        "Components:",
+    ]
+    for component in components:
+        marker = "" if component.source.value == "core" else f" [{component.source.value}]"
+        lines.append(f"{_INDENT}{component.name}{marker}: {component.summary}")
+    return "\n".join(lines)

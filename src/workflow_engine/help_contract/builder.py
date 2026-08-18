@@ -15,6 +15,7 @@ from workflow_engine.help_contract.models import (
     ComponentSource,
     ComponentType,
     HelpComponent,
+    get_component_type_description,
 )
 from workflow_engine.registry.action_registry import ACTION_REGISTRY
 from workflow_engine.registry.function_registry import FUNCTION_REGISTRY, VALIDATOR_REGISTRY
@@ -106,3 +107,23 @@ def build_component_payload(
     if component is None:
         return None
     return {"contract_version": CONTRACT_VERSION, "component": component.to_payload()}
+
+
+def build_component_type_payload(type_key: str, external: ExternalNames | None = None) -> dict[str, object] | None:
+    """The stable ``help-component`` payload for one component type, or None when the key is unknown.
+
+    This is the type-level mode of ``help-component``: the operator description of the type and
+    the list of its components, each entry in the same shape as the ``help-components`` list.
+    """
+    component_type = COMPONENT_TYPE_BY_KEY.get(type_key)
+    if component_type is None:
+        return None
+    components = collect_help_components(external)[component_type]
+    return {
+        "contract_version": CONTRACT_VERSION,
+        "component_type": {
+            "type": type_key,
+            "description": get_component_type_description(component_type),
+            "components": [component.to_list_payload() for component in components],
+        },
+    }

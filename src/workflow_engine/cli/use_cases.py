@@ -7,13 +7,19 @@ from workflow_engine.bootstrap.config_loader import load_config_file
 from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
 from workflow_engine.collection_param_handlers import WriteParamMode
 from workflow_engine.help_contract.builder import (
+    ExternalNames,
+    build_component_type_payload,
     build_components_payload,
     collect_help_components,
     external_names_from_report,
     find_help_component,
 )
-from workflow_engine.help_contract.models import CONTRACT_VERSION
-from workflow_engine.help_contract.renderers import TextComponentRenderer, render_components_list_text
+from workflow_engine.help_contract.models import COMPONENT_TYPE_BY_KEY, CONTRACT_VERSION
+from workflow_engine.help_contract.renderers import (
+    TextComponentRenderer,
+    render_component_type_text,
+    render_components_list_text,
+)
 from workflow_engine.models.state import StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput, ParamWrite, WorkflowArtifact
 
@@ -151,9 +157,29 @@ def help_components(command_name: CommandName, args: Namespace) -> CommandResult
     )
 
 
+def _help_component_type(command_name: CommandName, args: Namespace, external: ExternalNames) -> CommandResult:
+    """The type-level mode of ``help-component``: the type description and its component list."""
+    if args.json:
+        return CommandResult(
+            command=command_name,
+            command_status=CommandStatus.COMPLETED,
+            data=build_component_type_payload(args.component_type, external),
+        )
+    component_type = COMPONENT_TYPE_BY_KEY[args.component_type]
+    components = collect_help_components(external)[component_type]
+    return CommandResult(
+        command=command_name,
+        command_status=CommandStatus.COMPLETED,
+        message=render_component_type_text(component_type, components),
+        data=None,
+    )
+
+
 def help_component(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     external = external_names_from_report(engine.components)
+    if args.component_name is None:
+        return _help_component_type(command_name, args, external)
     component = find_help_component(args.component_type, args.component_name, external)
     if component is None:
         return CommandResult(
