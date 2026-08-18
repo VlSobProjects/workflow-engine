@@ -30,7 +30,10 @@ Define one help/introspection contract for CLI v1:
 
 1. Surfaces:
    - `help-components` list by type: `actions`, `functions`, `validators`, `guards`, `codecs`;
-   - `help-component --type <type> --name <component>` for detailed view.
+   - `help-component --type <type> --name <component>` for detailed view;
+   - `help-component --type <type>` without a component name for the type-level view: the operator
+     description of the component type and the list of its components. `help-components` remains the
+     full-list surface for automation and is not changed by this mode.
 2. Two-level description model:
    - `summary`: short one-line operator description for list output;
    - `description`: detailed operator usage description for detail output.
@@ -61,6 +64,9 @@ Define one help/introspection contract for CLI v1:
    - `help-components` JSON response includes top-level `contract_version` and `components`, where
      `components` contains normalized type keys (`actions`, `functions`, `validators`, `guards`, `codecs`);
    - `help-component` JSON response includes top-level `contract_version` and `component`;
+   - the type-level `help-component` JSON response includes top-level `contract_version` and
+     `component_type` carrying `type`, `description` and `components`, where each `components` entry
+     reuses the list entry shape (`name`, `summary`, `source`);
    - detailed component object keeps stable key names: `name`, `type`, `summary`, `description`,
      `parameters`, `source`, `notes`;
    - `parameters` is an object keyed by parameter name; each entry carries `type` (a display string),
@@ -210,3 +216,7 @@ Acceptance boundaries for moving ADR 009 to Accepted:
   proven by two realistic scenarios (the recursive scan/resume e2e and a new recursive copy-tree e2e);
   `copy_file` additionally accepts an existing folder as `path_target`, copying into it under the source
   file name.
+- Added the type-level `help-component` mode as an outcome of operator e2e review: `--component-name`
+  became optional, and without it the command returns the type description with the list of its
+  components under the new top-level `component_type` key. The `help-components` contract is unchanged
+  and remains the automation surface.

@@ -117,3 +117,6 @@ pip-selfcheck.json
 
 ### AI assistant plugin local data
 .proxyai/
+
+### Local workflow-engine runtime root (default work_dir of CLI runs)
+.workflow-engine/
