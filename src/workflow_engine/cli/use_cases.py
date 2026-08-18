@@ -1,11 +1,9 @@
 from argparse import Namespace
-from datetime import datetime
 from pathlib import Path
 
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import load_config_file
 from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
-from workflow_engine.collection_param_handlers import WriteParamMode
 from workflow_engine.help_contract.builder import (
     ExternalNames,
     build_component_type_payload,
@@ -20,8 +18,8 @@ from workflow_engine.help_contract.renderers import (
     render_component_type_text,
     render_components_list_text,
 )
+from workflow_engine.inputs import parse_input_assignment
 from workflow_engine.models.state import StateReadOnlyView
-from workflow_engine.output import ActionNodeOutput, ParamWrite, WorkflowArtifact
 
 
 def _get_config(args: Namespace):
@@ -39,38 +37,8 @@ def _get_engine(args: Namespace):
     return bootstrap.build_engine()
 
 
-def _get_artifacts(args: Namespace) -> dict[str, WorkflowArtifact]:
-    artifacts = {}
-    if args.artifact_name is not None and args.artifact_path is not None:
-        artifacts[args.artifact_name] = WorkflowArtifact(
-            relative_path=Path(args.artifact_path), created_at=datetime.now(), description=args.artifact_description
-        )
-    return artifacts
-
-
-def _get_parameters(args: Namespace) -> dict[str, ParamWrite]:
-    parameters = {}
-    if args.param_name is not None and args.param_value is not None and args.write_mode is not None:
-        write_mode = (
-            WriteParamMode(args.write_mode)
-            if any(mode for mode in WriteParamMode if mode.name == args.write_mode)
-            else None
-        )
-        if args.param_name is not None and args.param_value is not None and write_mode is not None:
-            parameters[args.param_name] = ParamWrite(value=args.param_value, mode=write_mode)
-    return parameters
-
-
-def _output_node(args: Namespace) -> ActionNodeOutput | None:
-    if args.input is not None or args.error_code is not None:
-        return ActionNodeOutput(
-            output_text=getattr(args, "input", ""),
-            error_code=getattr(args, "error_code", None),
-            error_msg=getattr(args, "error_msg", None),
-            param_writes=_get_parameters(args),
-            artifacts=_get_artifacts(args),
-        )
-    return None
+def _parse_input_assignments(args: Namespace) -> list:
+    return [parse_input_assignment(raw) for raw in (getattr(args, "input", None) or [])]
 
 
 def init_session(command_name: CommandName, args: Namespace) -> CommandResult:
@@ -89,6 +57,9 @@ def init_session(command_name: CommandName, args: Namespace) -> CommandResult:
 def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     session_id = engine.init_new_session(workflow_path=Path(args.workflow_file))
+    assignments = _parse_input_assignments(args)
+    if assignments:
+        engine.set_inputs(session_id=session_id, assignments=assignments)
     res, state = engine.start_workflow(session_id=session_id, export_dir=getattr(args, "export_dir", None))
     result = CommandResult.from_state(
         command=command_name,
@@ -97,15 +68,30 @@ def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
         message=res.description,
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
+    result.data["inputs"] = engine.get_inputs(session_id)
+    return result
+
+
+def set_input(command_name: CommandName, args: Namespace) -> CommandResult:
+    engine = _get_engine(args)
+    session_id = args.session_id
+    assignments = _parse_input_assignments(args)
+    state = engine.set_inputs(session_id=session_id, assignments=assignments)
+    result = CommandResult.from_state(
+        command=command_name,
+        command_status=CommandStatus.COMPLETED,
+        state=state,
+        message=f"Bound {len(assignments)} input(s) to session {session_id}",
+    )
+    result.data["inputs_set"] = [assignment.name for assignment in assignments]
+    result.data["inputs"] = engine.get_inputs(session_id)
     return result
 
 
 def resume_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     session_id = args.session_id
-    res, state = engine.start_workflow(
-        session_id=session_id, output=_output_node(args), export_dir=getattr(args, "export_dir", None)
-    )
+    res, state = engine.start_workflow(session_id=session_id, export_dir=getattr(args, "export_dir", None))
     result = CommandResult.from_state(
         command=command_name,
         command_status=CommandStatus.COMPLETED,
@@ -113,6 +99,7 @@ def resume_workflow(command_name: CommandName, args: Namespace) -> CommandResult
         message=res.description,
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
+    result.data["inputs"] = engine.get_inputs(session_id)
     return result
 
 
@@ -163,6 +150,7 @@ def show_state(command_name: CommandName, args: Namespace) -> CommandResult:
         message=f"State for session {session_id}",
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
+    result.data["inputs"] = engine.get_inputs(session_id)
     return result
 
 

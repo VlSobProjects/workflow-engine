@@ -13,6 +13,14 @@ class WorkflowRuntimeError(WorkflowEngineError):
     """Exception raised for errors in runtime."""
 
 
+class WorkflowInputError(WorkflowEngineError):
+    """Raised when binding or requiring a workflow input fails as a command/setup error. See ADR 012.
+
+    Covers assignment parsing, codec resolution/decoding, undeclared or duplicate names, binding after
+    the run has started, and unbound required inputs at start. The CLI maps it to exit code 4.
+    """
+
+
 class ActionConfigurationError(WorkflowConfigurationError):
     """Exception raised for errors in action configuration."""
 

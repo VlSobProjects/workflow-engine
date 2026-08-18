@@ -243,3 +243,16 @@ Closes off:
   unambiguous; duplicate-in-invocation is an error while pre-start re-binding overwrites and is
   journaled. Input names restricted to `[A-Za-z_][A-Za-z0-9_]*` at build time. The one-shot `run`
   form confirmed.
+- Implemented on `feature/adr_012-workflow-input-parameters`: `inputs` declaration and validation on
+  `WorkflowModel`; `resolve_codec_by_type_name` (full or unambiguous bare name) on the codec registry;
+  `INPUTS_SET` operator event; engine `set_inputs`/`get_inputs` and the first-start required-input
+  check; the `set-input` command and the `run --input` one-shot; removal of the uncontracted `resume`
+  flags. Refinements to the notes: the pure assignment parser and codec decoding live in a domain
+  module `workflow_engine/inputs.py` (imported by both the engine and the CLI use case) rather than in
+  `cli/`, so the engine does not depend on the CLI. The required-unbound start error journals
+  `workflow_setup_failed` and then raises `WorkflowInputError`, which the CLI maps to exit `4`
+  (the return-path setup error keeps its exit `3`). The registered full codec name is Python-version
+  dependent (`pathlib._local.Path` on 3.13); operators use the stable bare name (`Path`). The shipped
+  `folder-inventory-to-csv` and `flatten-copy-tree` examples were migrated to declared `inputs` (their
+  queue seeding restructured to reference the bound path at a resolvable top-level position) and given
+  a `deliverables` block so a single `run --input … --export-dir` is a full scenario.

@@ -8,6 +8,7 @@ class CommandName(Enum):
     INIT_NEW_SESSION = "init-new-session"
     RUN = "run"
     RESUME = "resume"
+    SET_INPUT = "set-input"
     SET_LIMIT = "set-limit"
     SHOW_STATE = "show-state"
     LIST_SESSIONS = "list-sessions"
@@ -26,6 +27,7 @@ INFO_COMMANDS = (
     CommandName.HELP_COMPONENTS,
     CommandName.HELP_COMPONENT,
     CommandName.SHOW_STATE,
+    CommandName.SET_INPUT,
     CommandName.SET_LIMIT,
     CommandName.EXPORT_ARTIFACT,
 )

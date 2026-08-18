@@ -126,6 +126,22 @@ in status derivation so they never corrupt the session status.
 from an existing one (copy-promote pattern). Move/delete semantics are out of scope; the source
 artifact stays registered.
 
+### Input parameters (see ADR 012)
+
+A workflow definition may declare an optional `inputs` block — the input-side mirror of
+`deliverables`: an ordered list of declarations, each with a `name`, an optional codec `type`, a
+`required` flag (default true) and an optional description. Validated at build time for shape only
+(unique names matching `[A-Za-z_][A-Za-z0-9_]*`; a declared `type` must name a registered codec).
+
+An operator binds typed values before the first node runs, either with `set-input` on a prepared
+session or the one-shot `run --input`. Each `--input NAME[:TYPE]=VALUE` is decoded through the codec
+(JSON-parsed with a raw-string fallback for typed values; an untyped value stays a literal string)
+and written to `state.params` as a `SET` write through the normal path, journaled as an `inputs_set`
+operator event that records the bound names and codecs, not the values. Binding is allowed only while
+the session has not started; a started run rejects it. Starting a session with an unbound `required`
+input fails at setup with the missing names before any node executes (exit code `4`). The declared
+inputs surface in the `run`/`resume`/`show-state` result data next to `deliverables`.
+
 ## Storage
 
 `Storage` is an abstract class over a state source and a workflow source. `JsonStorage` is its only
@@ -187,8 +203,11 @@ remain in POSIX form regardless of OS (ADR 008).
 ### Public commands
 
 - `init-new-session` to create a session without starting execution;
-- `run` to create and execute a session;
+- `run` to create and execute a session; accepts repeatable `--input NAME[:TYPE]=VALUE` to bind
+  declared inputs before execution (ADR 012);
 - `resume` to continue an existing session;
+- `set-input` to bind typed values to declared workflow inputs of an unstarted session, one or more
+  `--input NAME[:TYPE]=VALUE` per call (ADR 012);
 - `set-limit` to update the per-session `max_nodes_visited` soft limit (`0` disables it, but the
   run stays bounded by the global hard safety cap);
 - `show-state` to render persisted session state;

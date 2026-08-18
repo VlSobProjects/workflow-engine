@@ -11,10 +11,17 @@ from workflow_engine.artifacts_export import ExportedArtifact, copy_named_artifa
 from workflow_engine.bootstrap.config_loader import CONFIG_FILE_NAME
 from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowSessionsFactory
 from workflow_engine.bootstrap.storage_fatcory import StorageFactory
-from workflow_engine.exceptions import WorkflowEngineError, WorkflowParameterError, WorkflowRuntimeError
+from workflow_engine.collection_param_handlers import WriteParamMode
+from workflow_engine.exceptions import (
+    WorkflowEngineError,
+    WorkflowInputError,
+    WorkflowParameterError,
+    WorkflowRuntimeError,
+)
+from workflow_engine.inputs import InputAssignment, decode_input_value
 from workflow_engine.models.state import GuardRecord, SessionEvent, SessionEventCode, StateModel, StateReadOnlyView
 from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
-from workflow_engine.output import ActionNodeOutput
+from workflow_engine.output import ActionNodeOutput, ParamWrite
 from workflow_engine.storage.storage import Storage
 from workflow_engine.tools import dict_to_text_lv3
 from workflow_engine.transition.base import EndTarget, FailTarget, NodeTarget, Transition
@@ -474,6 +481,8 @@ class WorkflowEngine:
             self._commit(runtime)
             return runtime.setup_error, runtime.state
 
+        self._require_bound_inputs(runtime, session_id)
+
         runtime.state.record_session_event(_run_entry_event(runtime.state))
         self._commit(runtime)
         response = _start_engine(runtime.nodes, runtime.storage, runtime.state, output, self.hard_max_nodes_visited)
@@ -530,6 +539,74 @@ class WorkflowEngine:
         runtime = self._acquire(session_id)
         return list(runtime.workflow.deliverables)
 
+    def get_inputs(self, session_id: str) -> list[dict[str, object]]:
+        """The declared input interface of a session's workflow, for introspection. See ADR 012."""
+        runtime = self._acquire(session_id)
+        return [declaration.to_dict() for declaration in runtime.workflow.inputs]
+
+    def set_inputs(self, session_id: str, assignments: list[InputAssignment]) -> StateReadOnlyView:
+        """Bind typed input values to an unstarted session and journal the binding. See ADR 012.
+
+        Only names declared in the workflow's ``inputs`` are accepted; a duplicate name in one call, an
+        undeclared name, a decode failure, or binding after the run has started is a command error. Values
+        land in ``state.params`` as ``SET`` writes through the normal write path; the recorded event carries
+        the bound names and resolved codec names, never the values.
+        """
+        runtime = self._acquire(session_id)
+        state = runtime.state
+        if state.has_session_event(SessionEventCode.WORKFLOW_STARTED):
+            raise WorkflowInputError(f"Cannot set inputs on session {session_id}: the run has already started")
+        declared = {declaration.name: declaration for declaration in runtime.workflow.inputs}
+        seen: set[str] = set()
+        names: list[str] = []
+        codecs: dict[str, str | None] = {}
+        for assignment in assignments:
+            declaration = declared.get(assignment.name)
+            if declaration is None:
+                raise WorkflowInputError(f"Undeclared input '{assignment.name}'. Declared inputs: {sorted(declared)}")
+            if assignment.name in seen:
+                raise WorkflowInputError(f"Duplicate input '{assignment.name}' in one invocation")
+            seen.add(assignment.name)
+            value, codec_name = decode_input_value(assignment, declaration)
+            error = state._param_write(
+                assignment.name, ParamWrite(mode=WriteParamMode.SET, value=value, allow_overwrite=True)
+            )
+            if error is not None:
+                raise WorkflowInputError(f"Cannot bind input '{assignment.name}': [{error[0]}] {error[1]}")
+            names.append(assignment.name)
+            codecs[assignment.name] = codec_name
+        state.record_session_event(
+            SessionEvent.operator_event(SessionEventCode.INPUTS_SET, {"names": names, "codecs": codecs})
+        )
+        self._commit(runtime)
+        return StateReadOnlyView.from_state(state)
+
+    @staticmethod
+    def _require_bound_inputs(runtime: SessionRuntime, session_id: str) -> None:
+        """Fail the first start of a session when a ``required`` input is unbound. See ADR 012.
+
+        Journaled as ``workflow_setup_failed`` with the missing names, then raised so the CLI reports a
+        command error (exit code 4). Runs only on the first execution, keyed off the journal, not counters.
+        """
+        state = runtime.state
+        if state.has_session_event(SessionEventCode.WORKFLOW_STARTED):
+            return
+        missing = [
+            declaration.name
+            for declaration in runtime.workflow.inputs
+            if declaration.required and declaration.name not in state.params
+        ]
+        if not missing:
+            return
+        state.record_session_event(
+            SessionEvent.engine_event(
+                SessionEventCode.WORKFLOW_SETUP_FAILED,
+                {"node_id": state.current_node_id, "missing_inputs": missing},
+            )
+        )
+        WorkflowEngine._commit(runtime)
+        raise WorkflowInputError(f"Cannot start session {session_id}: required inputs not bound: {missing}")
+
     def export_artifact(
         self,
         session_id: str,
@@ -547,9 +624,7 @@ class WorkflowEngine:
         if all_deliverables:
             names = runtime.workflow.deliverables
             if not names:
-                raise WorkflowEngineError(
-                    f"Session {session_id} declares no deliverables to export with --all"
-                )
+                raise WorkflowEngineError(f"Session {session_id} declares no deliverables to export with --all")
         else:
             if artifact_name is None:
                 raise WorkflowEngineError("An artifact name or --all is required")
