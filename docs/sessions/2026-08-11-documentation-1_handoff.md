@@ -26,5 +26,12 @@ completed
 1. Add the accepted CLI contract as a top-level architecture section.
 2. Keep open items as short references to ADR 008, ADR 009, and ADR 010.
 
+## Open questions
+None.
+
 ## Next steps
 1. No follow-up work is required for this documentation session.
+
+## References
+- `docs/architecture/overview.md`
+- ADR: `docs/adr/adr-007-cli-contract-and-session-lifecycle-for-v1.md`

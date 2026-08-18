@@ -10,6 +10,7 @@ Only the documents listed below may exist:
 | `README.md` | What the project is, what it is for, how to run it |
 | `AGENTS.md` | Agent entrypoint, routing only |
 | `.github/copilot-instructions.md` | Copilot entrypoint, routing only |
+| `CLAUDE.md` | Claude Code entrypoint; routes like `AGENTS.md`, plus a condensed non-negotiable-rules/commands summary for Claude Code's own use (stated exception to §4, kept in sync with the documents it summarizes) |
 | `docs/README.md` | Documentation index |
 | `docs/rules/` | General and task specific rules |
 | `docs/architecture/overview.md` | The architecture as it currently is |
@@ -33,6 +34,9 @@ Do not copy content between documents.
 ## 4. Entrypoints stay thin
 `AGENTS.md` and `.github/copilot-instructions.md` route to the relevant documents by task type.
 They must not carry rule content of their own.
+`CLAUDE.md` routes the same way but is exempt from this rule: it may also carry a condensed
+non-negotiable-rules/commands summary for Claude Code's own use, per the map entry in §1. Keep that
+summary in sync with the documents it draws from; it does not replace them as the source of truth.
 
 ## 5. Format
 - Markdown, English, short declarative sentences.

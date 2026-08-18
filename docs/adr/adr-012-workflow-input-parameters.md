@@ -3,6 +3,9 @@
 ## Status
 Accepted
 
+## Active branch
+—
+
 ## Context
 
 Phase 1 is defined by the criterion "the engine core is usable in different user scenarios". Today
@@ -253,3 +256,5 @@ Closes off:
   `folder-inventory-to-csv` and `flatten-copy-tree` examples were migrated to declared `inputs` (their
   queue seeding restructured to reference the bound path at a resolvable top-level position) and given
   a `deliverables` block so a single `run --input … --export-dir` is a full scenario.
+- Frozen as Accepted (2026-08-18): merged into `development`; no ADR text change was needed, the
+  delivered result matches the Decision section.

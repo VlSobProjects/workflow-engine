@@ -43,6 +43,13 @@ ADR-008 is implemented on the feature branch. The CLI now accepts shared runtime
 - `python -m pytest -q` → 112 passed
 - `python -m ruff check .` → passed
 
+## Decisions
+No decisions beyond those already recorded in `2026-08-11-architecture-3_handoff.md`; this session
+implemented them as decided.
+
+## Open questions
+None.
+
 ## Next steps for the next session
 1. Review the ADR text against the implemented behavior and prepare the acceptance/freeze gate.
 2. Update the ADR registry and change ADR-008 to Accepted on `development` once the branch is merged.

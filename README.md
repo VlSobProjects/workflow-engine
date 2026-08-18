@@ -76,16 +76,19 @@ workflow-engine run --workflow-file examples/folder-inventory-to-csv.json \
 
 Walks a folder tree and copies every file into a flat target directory, writing a copy report
 (source, copied path, MD5) as the `copy_report` deliverable. Requires `source_root` and `target_dir`
-(both `Path`).
+(both `Path`); **`target_dir` must already exist.** If it does not, every source file is instead
+copied to that non-existent path itself as a single file (each source overwriting the last), the copy
+report lists that same path for every row, and the run still completes with exit code `0`.
 
 ```
 workflow-engine run --workflow-file examples/flatten-copy-tree.json \
   --input "source_root:Path=<folder-to-copy>" --input "target_dir:Path=<destination-folder>" --json
 ```
 
-`--input NAME[:TYPE]=VALUE` is repeatable; `TYPE` names a registered codec (`help-components` lists
-them). `set-input` only binds to a session that has not started yet; `run --input` binds and starts
-in one call.
+`--input NAME[:TYPE]=VALUE` is repeatable; `TYPE` names a registered codec. `help-components` lists
+codecs under their Python module path (e.g. `pathlib._local.Path` for `Path` on this Python version);
+the bare name shown above (`Path`) also resolves and is what the examples use. `set-input` only binds
+to a session that has not started yet; `run --input` binds and starts in one call.
 
 ## Retrieving the result
 
@@ -199,7 +202,7 @@ importable, either:
 Run tests from the repository root:
 
 ```
-pytest
+uv run pytest
 ```
 
 ## Working on this project

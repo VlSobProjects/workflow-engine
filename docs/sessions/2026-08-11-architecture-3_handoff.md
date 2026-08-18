@@ -30,6 +30,13 @@ ADR-008 now defines a concrete v1 policy for the runtime root, work directory, J
 5. Give CLI options `--work-dir` and `--storage-dir` the highest precedence, followed by environment variables `WE_WORK_DIR` and `WE_STORAGE_DIR`, then config values.
 6. Raise `WorkflowConfigurationError` for config lookup, config creation and directory-creation failures so the CLI can report them consistently.
 
+## Open questions
+None.
+
 ## Next steps
 1. Implement ADR-008 in the feature branch once the work begins.
 2. Add command-level tests for defaults, overrides, config precedence and setup failures.
+
+## References
+- ADR: `docs/adr/adr-008-runtime-directory-and-default-path-policy-for-v1.md`
+- Branch: `development`

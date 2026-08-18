@@ -14,6 +14,10 @@ development, and freeze ADR 012 as Accepted.
 - ADR registry and session registry updated; architecture overview left as-is (already describes
   the input-parameter subsystem accurately).
 
+## Scope boundaries
+- ADR 012 conformance review, freeze, and the merge that carries it, plus the related registries.
+- No new contract decisions.
+
 ## Status
 completed
 

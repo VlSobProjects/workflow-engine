@@ -43,6 +43,9 @@ Ruff and the full pytest suite pass (129 tests).
    (`workflow_engine.*`), so global-registry pollution from test or external modules cannot skew it.
 5. The component loader report labels validators as `Validators` (previously mislabeled `Guards`).
 
+## Open questions
+None.
+
 ## Next steps
 1. Replace the test-local `adr006_*` helper registrations in the ADR 006 e2e tests with reusable
    core components (ADR 009 testing/reusability boundaries; the quality gate surfaced them).

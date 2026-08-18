@@ -71,17 +71,6 @@ Cons: requires configuration maintenance for external modules.
 - Operational cost: maintain external module paths in configuration.
 - External packages are still supported when installed and referenced explicitly in `external_modules`.
 
-## Deferred extension: entry-point discovery
-
-Entry-point discovery is explicitly deferred and is not part of this ADR implementation freeze.
-
-Before implementing entry points, a separate ADR must define:
-
-- registration conflict policy for same-name components from different modules/packages;
-- whether registries stay name-only or move to module-qualified identifiers;
-- deterministic precedence and override rules;
-- operator visibility/auditability of auto-discovered components.
-
 ## Related ADRs
 
 - ADR 004 session bootstrap and configuration snapshot (Accepted): defines bootstrap boundary where this loader belongs.

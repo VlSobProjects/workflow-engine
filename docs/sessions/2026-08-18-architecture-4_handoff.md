@@ -19,6 +19,11 @@ synchronize the documentation.
   row.
 - `docs/architecture/overview.md` updated with the artifact addressing and export section.
 
+## Scope boundaries
+- ADR 011 conformance review, freeze, and the merge that carries it, plus the related registries and
+  the architecture overview section it adds.
+- No new contract decisions beyond the Decision §1 wording correction described below.
+
 ## Status
 completed
 
@@ -50,6 +55,9 @@ Feature branch merged into `development`; ADR 011 frozen as Accepted.
   unknown artifact name) is unchanged. The correction removes a misleading mechanism analogy.
 - The architecture overview gains a new "Artifacts and deliverables" subsection under State, as the
   contract is now stable enough to document.
+
+## Open questions
+None.
 
 ## Next steps
 1. Consider an `examples/` workflow that declares a deliverable, as an operator-facing template

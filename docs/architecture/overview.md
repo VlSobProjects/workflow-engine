@@ -42,7 +42,10 @@ A node is **one action and an ordered list of guarded transitions**. See ADR 002
 | Transition | A guard and a static target. The first transition whose guard holds is taken. |
 
 An action is either automatic, and the engine continues, or interactive, and the engine returns a
-`PresentResponse` to its caller and stops until it is called again with a result.
+`PresentResponse` to its caller and stops until it is called again with a result. The engine supports
+this exchange (`ActionNodeOutput.from_args` decodes the resumed result), but no core action currently
+subclasses `BaseInteractiveAction` and no CLI command passes an output on `resume`, so today the
+exchange is exercised by the engine only, unreachable by an operator through the current CLI.
 
 A target is one of:
 
@@ -52,24 +55,27 @@ A target is one of:
 
 If a node declares no routing target, the workflow ends after it. If it declares one and no guard
 holds, the node fails. A transition whose target is the node itself, or one carrying `attempts`,
-retries the node within the allowance of `max_attempts`.
+retries the node within the allowance of `max_attempts`. A failure target's code is optional: when the
+transition configuration omits `fail`, the node fails under the error code the action already
+produced instead of a new one.
 
 ## Guards
 
-A guard is the only predicate concept. It receives the whole action result, returns a boolean, and
-exposes a name identifying the rule. It never receives the state and never writes anything: the
-caller passes a list of records and each guard appends its answer, which the engine then stores under
-the node. The name of a guard is the error code of a node that fails it.
+A guard is the only predicate concept. Its `check` method receives the action result, a read-only
+state view, and a trace list; it returns a boolean, appends its answer to the trace, and never writes
+anything to the state. The name of a guard is the error code of a node that fails it.
 
-Guards read the state only through the parameter references the engine resolves before calling them,
-so `param.`, `output.`, and `artifact.` in a guard configuration keep working.
+The state view exists so the engine can resolve `param.`, `output.`, and `artifact.` references in a
+guard's configuration before it runs; the registered predicate function behind a function guard never
+receives the state itself, only the values already resolved into it.
 
 Kinds: comparison against a value, a registered function returning a boolean, a match on the error
 code, the absence of an error, and the nested groups `all_of` and `any_of`. Any guard may be negated.
 
 The configuration key `validators` is a short form for a post-condition. When a node is built, each
 entry becomes a leading transition `all_of(no_error, not P)` targeting failure under the name of `P`.
-Nothing of it survives into the runtime node.
+The transitions built from it no longer reference `validators`, but the raw list stays on
+`WorkflowNode.config` as part of the node's own definition.
 
 ## Registries
 
@@ -89,8 +95,10 @@ Guards and transitions are not registries: their classes are listed in their own
 
 ## State
 
-`StateModel` carries everything a resumed run needs: the current node, counters of visits and
-attempts, the output and error of each node, the guard results of the latest attempt of each node,
+`StateModel` carries everything a resumed run needs: session identity (`session_id`, `flow_id`,
+`schema_version`, `timestamp`), the current node, the node visit/attempt counters and the
+`max_nodes_visited`/`nodes_visited` soft-limit budget (see ADR 010), the output and error of each
+node plus the latest `error_code`/`error_msg`, the guard results of the latest attempt of each node,
 the parameters saved through `save_as`, and the working directory.
 
 Values in parameters are serialized through codecs, so a parameter keeps its Python type across a
@@ -98,13 +106,14 @@ save and a load.
 
 `state.params` is an engine-managed flat bus: actions return typed `param_writes`, and the engine
 applies and persists them on each turn. Session-level control outcomes are stored in
-`state.session_events` as a persisted append-only journal.
+`state.session_events` as a persisted append-only journal, and artifact-registration outcomes
+(`artifact_overwritten`, `artifact_path_conflict`) are stored the same way in `state.artifact_events`.
 
 ### Artifacts and deliverables (see ADR 011)
 
 `state.artifacts` holds registered artifacts as a map of logical name to `WorkflowArtifact`
-(relative path, description). Artifacts always live under `work_dir/artifacts`; only relative paths
-are stored.
+(relative path, creation timestamp, description). Artifacts always live under `work_dir/artifacts`;
+only relative paths are stored.
 
 A workflow definition may declare an optional `deliverables` block: an ordered list of logical
 artifact names that constitute the product of the workflow. Validated at build time for shape only;
@@ -122,9 +131,9 @@ Export is non-fatal: missing or unwritable deliverables record session events
 Successful export records an `artifacts_exported` event. All three event codes map to `COMPLETED`
 in status derivation so they never corrupt the session status.
 
-`copy_artifact(source, target, target_path, allow_overwrite)` copies and registers a new artifact
-from an existing one (copy-promote pattern). Move/delete semantics are out of scope; the source
-artifact stays registered.
+`copy_artifact(source_artifact_name, target_artifact_name, state, target_path=None,
+allow_overwrite=False)` copies and registers a new artifact from an existing one (copy-promote
+pattern). Move/delete semantics are out of scope; the source artifact stays registered.
 
 ### Input parameters (see ADR 012)
 
@@ -195,21 +204,35 @@ explicit precedence rules. See ADR 008 for the full policy.
 3. Config file values (if found)
 4. Defaults: `<cwd>/.workflow-engine/`
 
+`--work-dir`/`WE_WORK_DIR` and `--storage-dir`/`WE_STORAGE_DIR` resolve independently of each other's
+config value: giving only `--storage-dir` does not read `work_dir` from the config file (the runtime
+root falls back to the default), and giving only `--work-dir` (or `WE_WORK_DIR`) does not read
+`storage.storage_dir` from the config file (storage falls back to `<work_dir>/json-storage/`) — an
+explicit `--storage-dir` is required to use a storage location the config file names independently of
+`work_dir`.
+
+**Config discovery**, in order: the explicit `--config` path; `<cwd>/.workflow-engine/
+workflow_engine_config.json`; `<user_config_dir>/.workflow-engine/workflow_engine_config.json`
+(`platformdirs.user_config_dir()`); otherwise a default config file is created at
+`<runtime_root>/workflow_engine_config.json`.
+
 **Default paths**: when no explicit path is provided, the runtime root defaults to `<cwd>/.workflow-engine/`,
-which holds sessions under `<work_dir>/sessions/<session_id>/`, storage under `<storage_dir>/`, and config
-at the runtime root. Relative paths are resolved against the current working directory. Stored paths
-remain in POSIX form regardless of OS (ADR 008).
+which holds sessions under `<work_dir>/sessions/<session_id>/`, storage under `<work_dir>/json-storage/`,
+and config at the runtime root. Relative paths are resolved against the current working directory. Stored
+paths remain in POSIX form regardless of OS (ADR 008).
 
 ### Public commands
 
-- `init-new-session` to create a session without starting execution;
+- `init-new-session` to create a session without starting execution; accepts `--max-nodes-visited` to
+  set its initial soft limit;
 - `run` to create and execute a session; accepts repeatable `--input NAME[:TYPE]=VALUE` to bind
   declared inputs before execution (ADR 012);
 - `resume` to continue an existing session;
 - `set-input` to bind typed values to declared workflow inputs of an unstarted session, one or more
   `--input NAME[:TYPE]=VALUE` per call (ADR 012);
-- `set-limit` to update the per-session `max_nodes_visited` soft limit (`0` disables it, but the
-  run stays bounded by the global hard safety cap);
+- `set-limit` to update the per-session `max_nodes_visited` soft limit; refuses to lower it below the
+  current node count unless the new value is `0` (which disables the soft limit, but the run stays
+  bounded by the global hard safety cap);
 - `show-state` to render persisted session state;
 - `list-sessions` to list sessions discoverable under the configured `work_dir`;
 - `help-components` to list registered components;
@@ -240,9 +263,10 @@ and the list of its components. `help-components` is the full-list automation su
 JSON payloads carry a top-level `contract_version`. The list groups components under the normalized
 type keys `actions`, `functions`, `validators`, `guards`, `codecs`; a detail payload keeps the stable
 keys `name`, `type`, `summary`, `description`, `parameters`, `source`, `notes`, and an action detail
-adds the node-authoring sections (`node_template`, `action_parameters.required/optional`,
-`transition_hints`, `examples`); a type-level payload carries `component_type` with `type`,
-`description` and `components` entries in the list shape (`name`, `summary`, `source`). Existing keys and nesting are stable; extension is additive only.
+adds `execution_mode` and the node-authoring sections (`node_template`,
+`action_parameters.required/optional`, `transition_hints`, `examples`); a type-level payload carries
+`component_type` with `type`, `description` and `components` entries in the list shape (`name`,
+`summary`, `source`). Existing keys and nesting are stable; extension is additive only.
 
 Metadata sources per type: actions and codecs declare explicit metadata at the registration point;
 functions and validators combine the signature with `Annotated`/`Args` parameter documentation;

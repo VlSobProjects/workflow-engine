@@ -8,8 +8,9 @@ This document defines the branch structure and the rules for working with git in
 - `development` — the integration line. Feature branches are merged here, and this is where an ADR is frozen.
 
 Never commit directly to `main`.
-Direct commits to `development` are allowed only for ADR status changes, the ADR registry, architecture
-notes and their registry (`docs/architecture/notes/`), and trivial corrections such as typos.
+Direct commits to `development` are allowed only for opening or editing a Draft ADR together with its
+registry row, other ADR status changes, the ADR registry, architecture notes and their registry
+(`docs/architecture/notes/`), and trivial corrections such as typos.
 
 ## Branch categories
 
@@ -26,7 +27,7 @@ Every branch is created from `development` and lives in a category folder:
 ## Naming
 
 - Format: `<category>/<short-name>`
-- ADR driven work: `<category>/adr_<number>-<short-name>`, for example `feature/adr_007-state-codecs`
+- ADR driven work: `<category>/adr_<number>-<short-name>`, for example `feature/adr_002-node-composition`
 - Use lowercase ASCII and hyphens inside the short name.
 - The name states what the branch does, not who works on it.
 

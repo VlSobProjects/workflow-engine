@@ -4,7 +4,7 @@
 Accepted
 
 ## Active branch
-None
+—
 
 ## Context
 

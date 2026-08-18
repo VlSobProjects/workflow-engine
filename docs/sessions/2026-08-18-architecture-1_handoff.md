@@ -17,6 +17,10 @@ ADR registry and session records with the delivered operator help contract.
 - Only ADR 009 freeze metadata, the ADR registry, and the session registry note.
 - No code changes and no new contract decisions.
 
+## Scope boundaries
+- ADR 009 freeze metadata, the ADR registry, and the session registry only.
+- No new contract decisions and no implementation code changes.
+
 ## Status
 completed
 
@@ -28,6 +32,9 @@ freeze outcome.
 ## Decisions
 1. The freeze target is the delivered contract as implemented on the feature branch.
 2. The only content correction beyond status and branch metadata is the related ADR 007 status reference.
+
+## Open questions
+None.
 
 ## Next steps
 1. No follow-up from this session; any further architecture changes should open a new architecture session.
