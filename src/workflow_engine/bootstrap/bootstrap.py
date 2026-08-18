@@ -15,4 +15,6 @@ class Bootstrap:
         result = ComponentLoader(self.config).load_all()
         storage_factory = StorageFactory(self.config)
         s_factory = WorkflowSessionsFactory(self.config)
-        return WorkflowEngine(storage_factory, s_factory, result, self.config.hard_max_nodes_visited)
+        return WorkflowEngine(
+            storage_factory, s_factory, result, self.config.hard_max_nodes_visited, self.config.export_dir
+        )

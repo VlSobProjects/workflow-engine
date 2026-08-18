@@ -32,6 +32,7 @@ class WorkflowEngineConfiguration:
     external_modules: tuple[str] = field(default_factory=tuple)
     storage: MappingProxyType[str, str] = field(default_factory=lambda: MappingProxyType({}))
     hard_max_nodes_visited: int = field(default=DEFAULT_HARD_MAX_NODES_VISITED)
+    export_dir: str | None = field(default=None)
 
     def __post_init__(self) -> None:
         _validated_hard_max_nodes_visited(self.hard_max_nodes_visited)
@@ -45,6 +46,7 @@ class WorkflowEngineConfiguration:
             hard_max_nodes_visited=parameter_from_dict_default(
                 data, "hard_max_nodes_visited", int, DEFAULT_HARD_MAX_NODES_VISITED
             ),
+            export_dir=parameter_from_dict_default(data, "export_dir", str, None),
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -53,6 +55,7 @@ class WorkflowEngineConfiguration:
             "external_modules": list(self.external_modules),
             "storage": dict(self.storage),
             "hard_max_nodes_visited": self.hard_max_nodes_visited,
+            "export_dir": self.export_dir,
         }
 
 
@@ -186,6 +189,9 @@ def load_config_file(
         _resolve_storage_dir(base_dir, work_dir_value, work_dir_override, storage_dir_override, config_data)
     )
 
+    export_dir_config = parameter_from_dict_default(config_data, "export_dir", str, None)
+    export_dir_value = _to_posix_string(export_dir_config, base_dir) if export_dir_config else None
+
     config = WorkflowEngineConfiguration(
         work_dir=work_dir_value.as_posix(),
         external_modules=tuple(parameter_from_dict_default(config_data, "external_modules", list, [])),
@@ -193,6 +199,7 @@ def load_config_file(
         hard_max_nodes_visited=parameter_from_dict_default(
             config_data, "hard_max_nodes_visited", int, DEFAULT_HARD_MAX_NODES_VISITED
         ),
+        export_dir=export_dir_value,
     )
 
     if not resolved_config_path.exists():

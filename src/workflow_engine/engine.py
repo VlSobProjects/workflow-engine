@@ -7,6 +7,7 @@ from workflow_engine.actions.base_actions import (
     BaseAutomaticAction,
     BaseInteractiveAction,
 )
+from workflow_engine.artifacts_export import export_deliverables_on_completion
 from workflow_engine.bootstrap.config_loader import CONFIG_FILE_NAME
 from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowSessionsFactory
 from workflow_engine.bootstrap.storage_fatcory import StorageFactory
@@ -370,6 +371,7 @@ class WorkflowEngine:
     session_factory: WorkflowSessionsFactory
     components: dict[str, dict[str, dict[str, str]]]
     hard_max_nodes_visited: int
+    export_dir: str | None
     runtime: SessionRuntime | None
 
     def __init__(
@@ -378,11 +380,13 @@ class WorkflowEngine:
         session_factory: WorkflowSessionsFactory,
         components: dict[str, dict[str, dict[str, str]]],
         hard_max_nodes_visited: int,
+        export_dir: str | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.storage_factory = storage_factory
         self.components = components
         self.hard_max_nodes_visited = hard_max_nodes_visited
+        self.export_dir = export_dir
         self.runtime = None
 
     @property
@@ -452,7 +456,7 @@ class WorkflowEngine:
         return dict_to_text_lv3("Workflow Engine Components", self.components, 0, 4)
 
     def start_workflow(
-        self, session_id: str, output: ActionNodeOutput | None = None
+        self, session_id: str, output: ActionNodeOutput | None = None, export_dir: str | None = None
     ) -> tuple[PresentResponse, StateModel]:
         """Start or continue a workflow session."""
         runtime = self._acquire(session_id)
@@ -474,7 +478,23 @@ class WorkflowEngine:
         self._commit(runtime)
         response = _start_engine(runtime.nodes, runtime.storage, runtime.state, output, self.hard_max_nodes_visited)
         self._commit(runtime)
+        self._export_on_completion(runtime, export_dir)
         return response, runtime.state
+
+    def _export_on_completion(self, runtime: SessionRuntime, export_dir_override: str | None) -> None:
+        """Export declared deliverables when the run completed and a destination is resolved.
+
+        Precedence: the per-call override (the CLI option), then the configured ``export_dir``. Only
+        a terminal ``workflow_completed`` triggers export; paused and failed runs never auto-export.
+        See ADR 011.
+        """
+        if runtime.state.get_last_event_code() != SessionEventCode.WORKFLOW_COMPLETED:
+            return
+        destination = export_dir_override or self.export_dir
+        if not destination or not runtime.workflow.deliverables:
+            return
+        export_deliverables_on_completion(runtime.state, runtime.workflow.deliverables, Path(destination))
+        self._commit(runtime)
 
     def set_session_limits(self, session_id: str, max_nodes_visited: int) -> StateReadOnlyView:
         runtime = self._acquire(session_id)

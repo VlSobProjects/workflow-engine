@@ -58,6 +58,9 @@ class SessionEventCode(Enum):
     WORKFLOW_PAUSED_SAFETY_LIMIT = "workflow_paused_safety_limit"
     WORKFLOW_COMPLETED = "workflow_completed"
     WORKFLOW_FAILED = "workflow_failed"
+    DELIVERABLE_MISSING = "deliverable_missing"
+    ARTIFACT_EXPORT_FAILED = "artifact_export_failed"
+    ARTIFACTS_EXPORTED = "artifacts_exported"
 
 
 OPERATOR_CODES = (
@@ -73,6 +76,9 @@ ENGINE_CODES = (
     SessionEventCode.WORKFLOW_PAUSED_SAFETY_LIMIT,
     SessionEventCode.WORKFLOW_COMPLETED,
     SessionEventCode.WORKFLOW_FAILED,
+    SessionEventCode.DELIVERABLE_MISSING,
+    SessionEventCode.ARTIFACT_EXPORT_FAILED,
+    SessionEventCode.ARTIFACTS_EXPORTED,
 )
 
 
@@ -577,7 +583,14 @@ class StateModel:
             raise WorkflowRuntimeError("Unexpected - No session events recorded, cannot determine workflow status code")
         last_event = self.session_events[-1]
         match last_event.code:
-            case SessionEventCode.WORKFLOW_COMPLETED:
+            case (
+                SessionEventCode.WORKFLOW_COMPLETED
+                # Export events are appended after workflow_completed, so a completed-and-exported
+                # session must still derive COMPLETED from its last event. See ADR 011.
+                | SessionEventCode.DELIVERABLE_MISSING
+                | SessionEventCode.ARTIFACT_EXPORT_FAILED
+                | SessionEventCode.ARTIFACTS_EXPORTED
+            ):
                 return WorkflowStatusCode.COMPLETED
             case (
                 SessionEventCode.WORKFLOW_PAUSED_LIMIT
