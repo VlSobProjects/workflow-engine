@@ -8,7 +8,8 @@ This document defines the branch structure and the rules for working with git in
 - `development` — the integration line. Feature branches are merged here, and this is where an ADR is frozen.
 
 Never commit directly to `main`.
-Direct commits to `development` are allowed only for ADR status changes, the ADR registry, and trivial corrections such as typos.
+Direct commits to `development` are allowed only for ADR status changes, the ADR registry, architecture
+notes and their registry (`docs/architecture/notes/`), and trivial corrections such as typos.
 
 ## Branch categories
 
@@ -44,6 +45,9 @@ The `adr_` token is what marks a branch as ADR driven. There are no separate ADR
 - `development` is merged into `main` when the state is stable and worth marking as such.
 - A `poc/` branch is never merged into `development`.
 - Before merging into `development`, the required tests and the linter must pass.
+- When merging into `development`, update every registry the branch touched: the ADR registry
+  (`docs/adr/README.md`), the sessions registry (`docs/sessions/README.md`), and the architecture notes
+  registry (`docs/architecture/notes/README.md`).
 
 ## Working tree hygiene
 
