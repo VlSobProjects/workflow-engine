@@ -13,7 +13,8 @@ current task needs:
 - Documentation work: `docs/rules/documentation-rules.md`
 - Git and branches: `docs/processes/git-workflow.md`
 - Current architecture: `docs/architecture/overview.md`
-- Session notes: `docs/sessions/README.md` — every new session follows the lifecycle protocol there
+- Session notes: `docs/sessions/README.md` — every new session follows the lifecycle protocol there;
+  every session note copies the structure of `docs/sessions/template.md`
 
 Do not read unrelated docs, and create documents only inside the map defined in
 `docs/rules/documentation-rules.md`. Ad hoc documents and summaries are forbidden.
