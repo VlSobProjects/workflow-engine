@@ -201,9 +201,11 @@ def _get_registered_executor[T](
 #     return FUNCTION_REGISTRY.get(name)
 #     return _get_registered_executor(FUNCTION_REGISTRY, name, None)
 
-def get_function_registered(name:str) -> RegisteredFunction:
+
+def get_function_registered(name: str) -> RegisteredFunction:
     """Get a registered function executor based on the function name."""
     return FUNCTION_REGISTRY[name]
+
 
 def get_registered_function[T](
     requested_class: type,
@@ -256,16 +258,17 @@ def get_registered_function_info() -> dict[str, str]:
 def get_registered_validator_info() -> dict[str, str]:
     return {key: ex.function.__doc__ or "N/A" for key, ex in VALIDATOR_REGISTRY.items()}
 
+
 def _get_docstring(registry: dict[str, BaseRegisteredFunction], function_name: str) -> str:
     obj = registry.get(function_name)
     if obj is None:
         return f"function with name '{function_name}' is not registered"
     return inspect.getdoc(obj.function) or "function not documented"
 
+
 def get_function_docstring(function_name: str) -> str:
-    return (f"{_get_docstring(FUNCTION_REGISTRY, function_name)}\n"
-            f"Return: ActionNodeOutput\n")
+    return f"{_get_docstring(FUNCTION_REGISTRY, function_name)}\nReturn: ActionNodeOutput\n"
+
 
 def get_validator_docstring(function_name: str) -> str:
-    return (f"{_get_docstring(VALIDATOR_REGISTRY, function_name)}\n"
-            f"Return: bool\n")
+    return f"{_get_docstring(VALIDATOR_REGISTRY, function_name)}\nReturn: bool\n"

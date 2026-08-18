@@ -227,9 +227,7 @@ def test_show_state_surfaces_absolute_artifacts_and_deliverables(tmp_path, capsy
     _, run_response = _run(tmp_path, config, capsys)
     session_id = cast(str, run_response["session_id"])
 
-    code, response = run_json_cli(
-        ["show-state", "--session-id", session_id, "--config", config.as_posix()], capsys
-    )
+    code, response = run_json_cli(["show-state", "--session-id", session_id, "--config", config.as_posix()], capsys)
 
     assert code == 0
     data = cast(dict[str, object], response["data"])

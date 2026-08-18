@@ -8,6 +8,7 @@ from workflow_engine.tools import parameter_from_dict, parameter_from_dict_defau
 ACTION_TYPE_KEY: Final[str] = "action_type"
 ACTION_PARAMS_KEY: Final[str] = "action_parameters"
 
+
 @dataclass(frozen=True)
 class WorkflowNodeModel:
     id: str

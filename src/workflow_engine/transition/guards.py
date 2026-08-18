@@ -94,6 +94,7 @@ class ValueGuard(BaseGuard, ABC):
 
 class ContainsGuard(ValueGuard):
     """Output contains only the configured value."""
+
     @classmethod
     def data_keys(cls) -> list[str]:
         return ["contains"]
@@ -104,6 +105,7 @@ class ContainsGuard(ValueGuard):
 
 class EqualsGuard(ValueGuard):
     """Output equal to the configured value."""
+
     @classmethod
     def data_keys(cls) -> list[str]:
         return ["equals"]
@@ -114,6 +116,7 @@ class EqualsGuard(ValueGuard):
 
 class StartsWithGuard(ValueGuard):
     """Output starts with the configured value."""
+
     @classmethod
     def data_keys(cls) -> list[str]:
         return ["starts_with"]
@@ -124,6 +127,7 @@ class StartsWithGuard(ValueGuard):
 
 class EndsWithGuard(ValueGuard):
     """Output ends with the configured value."""
+
     @classmethod
     def data_keys(cls) -> list[str]:
         return ["ends_with"]
@@ -242,6 +246,7 @@ class GroupGuard(BaseGuard, ABC):
 
 class AllOfGuard(GroupGuard):
     """All guards must pass for this guard to pass."""
+
     @classmethod
     def data_keys(cls) -> list[str]:
         return [ALL_OF_KEY]
@@ -252,6 +257,7 @@ class AllOfGuard(GroupGuard):
 
 class AnyOfGuard(GroupGuard):
     """At least one guard must pass for this guard to pass."""
+
     @classmethod
     def data_keys(cls) -> list[str]:
         return [ANY_OF_KEY]

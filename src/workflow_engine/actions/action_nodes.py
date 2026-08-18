@@ -76,6 +76,7 @@ _FUNCTION_PARAMETERS_DOC = ActionParameterDoc(
 )
 class FunctionAction(ActionWithFunction):
     """Executes a single registered function and returns its ActionNodeOutput"""
+
     ACTION_TYPE: ClassVar[str] = "function"
 
     def __init__(self, data: dict[str, object]):
@@ -117,9 +118,7 @@ class FunctionAction(ActionWithFunction):
             },
             "transitions": [{"next": "<next-node-id>"}],
         },
-        transition_hints=(
-            "The node output text does not carry the results; read them from the list parameter.",
-        ),
+        transition_hints=("The node output text does not carry the results; read them from the list parameter.",),
         examples=(
             ActionExample(
                 title="Collect file metadata into a report list",
@@ -150,11 +149,12 @@ class FunctionsAction(BaseAutomaticAction):
 
     Each function output text is stored under its configured key, and the dictionary is appended to a list.
     """
+
     ACTION_TYPE: ClassVar[str] = "functions"
     functions: Annotated[
         dict[str, FunctionAction],
         """Dictionary of functions to execute. key is the parameter name to save the function output text
-        value is the function configuration parameters:"""
+        value is the function configuration parameters:""",
     ]
     save_to_list: str
 
@@ -205,9 +205,7 @@ class FunctionsAction(BaseAutomaticAction):
             "action_type": "stop",
             "action_parameters": {},
         },
-        transition_hints=(
-            "A stop node usually declares no routing transitions; the workflow ends after it.",
-        ),
+        transition_hints=("A stop node usually declares no routing transitions; the workflow ends after it.",),
         examples=(
             ActionExample(
                 title="End the workflow after the last step",
@@ -256,9 +254,7 @@ class StopAction(BaseAutomaticAction):
             "action_type": "stop_on_error",
             "action_parameters": {"error_code": "<error-code>"},
         },
-        transition_hints=(
-            "Route this node from an 'errors' transition of the failing node to end the run cleanly.",
-        ),
+        transition_hints=("Route this node from an 'errors' transition of the failing node to end the run cleanly.",),
         examples=(
             ActionExample(
                 title="Stop the workflow when a copy failed",
@@ -275,6 +271,7 @@ class StopOnError(StopAction):
     """Stops the workflow execution on specific error_code from output.
     - If function is provided - check error code in function output.
     - if function is not provided - check error code in previous output"""
+
     ACTION_TYPE: ClassVar[str] = "stop_on_error"
     error_code: Annotated[str, "Error code to stop the workflow on"]
 

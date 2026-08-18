@@ -35,8 +35,8 @@ def echo_value(
     summary="Copy a file",
 )
 def copy_file(
-        path_source: Annotated[str, "Path to the source file"],
-        path_target: Annotated[str, "Path to the target file, or an existing folder to copy into under the source name"]
+    path_source: Annotated[str, "Path to the source file"],
+    path_target: Annotated[str, "Path to the target file, or an existing folder to copy into under the source name"],
 ) -> ActionNodeOutput:
     """Copy a file from source to target.
 
@@ -72,8 +72,8 @@ def copy_file(
     summary="Create a folder",
 )
 def create_folder(
-        path_target: Annotated[str, "Path to the target folder"],
-        folder_name: Annotated[str, "Name of the folder to create"]
+    path_target: Annotated[str, "Path to the target folder"],
+    folder_name: Annotated[str, "Name of the folder to create"],
 ) -> ActionNodeOutput:
     """Create a folder at the specified target path with the given folder name."""
     folder = Path(path_target) / folder_name
@@ -88,10 +88,7 @@ def create_folder(
     return ActionNodeOutput(output_text=folder.absolute().as_posix())
 
 
-@register_function(
-    decorators=[file_exists_arg_validator({"file_path": 0})],
-    summary="Delete a file"
-)
+@register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="Delete a file")
 def file_delete(file_path: Annotated[str, "Path to the file to delete"]) -> ActionNodeOutput:
     """Delete a file at the specified path."""
     file = Path(file_path)
