@@ -19,11 +19,38 @@ be resumed.
 
 Python 3.13 or newer. Dependencies are declared in `pyproject.toml`.
 
+## Configuration file
+
+Every command reads a JSON config file, so the options you'd otherwise repeat on every call
+(`--work-dir`, `--storage-dir`, `--export-dir`) can be set once instead. Search order, first match
+wins:
+1. `--config <path>`, if given.
+2. `<cwd>/.workflow-engine/workflow_engine_config.json`, if it exists.
+3. the OS user config directory (`platformdirs.user_config_dir()`, e.g. `%LOCALAPPDATA%` on Windows,
+   `~/.config` on Linux) under `.workflow-engine/workflow_engine_config.json`, if it exists — a place
+   for settings shared across every project on the machine.
+4. none of the above exists: the engine creates one with resolved defaults at the runtime root
+   (`<cwd>/.workflow-engine/` unless `--work-dir`/`WE_WORK_DIR` says otherwise) and uses it.
+
+So the first command run in a fresh directory writes a starter config there, ready to edit:
+
+| Key | Meaning | Default |
+| --- | --- | --- |
+| `work_dir` | Runtime root; sessions live under `<work_dir>/sessions/<session_id>/` | `<cwd>/.workflow-engine` |
+| `storage.storage_dir` | Where session state and workflow files are kept | `<work_dir>/json-storage` |
+| `export_dir` | Destination deliverables are copied to on workflow completion; `--export-dir` on `run`/`resume` overrides it per call, and if neither is set nothing is exported | `null` |
+| `hard_max_nodes_visited` | Global safety cap on nodes visited per run/resume; config-only, no CLI flag (see "Hitting the hard node cap") | `1000` |
+| `external_modules` | Extra Python module names imported at bootstrap to register plugin components | `[]` |
+
+`work_dir` and `storage.storage_dir` are also overridable per call with `--work-dir`/`--storage-dir`
+or the `WE_WORK_DIR`/`WE_STORAGE_DIR` environment variables, which win over the config file. Full
+precedence and path resolution: `docs/architecture/overview.md`.
+
 ## Running the examples
 
 `examples/` ships two validated templates. Each declares its `inputs` and its deliverable, and runs
 from any working directory with `uv run workflow-engine ...`. Session data lands under
-`<cwd>/.workflow-engine/` unless overridden with `--work-dir`.
+`<cwd>/.workflow-engine/` unless the config file or `--work-dir` says otherwise.
 
 ### folder-inventory-to-csv
 
@@ -79,8 +106,9 @@ session's own sandbox — nothing is copied anywhere on completion unless you as
 Three ways to get the file itself:
 - Read the absolute `path` directly from that output — it points inside the session sandbox, not
   into the directory you ran the command from.
-- Pass `--export-dir <dir>` to `run` or `resume`: on completion the engine copies every declared
-  deliverable into `<dir>`, preserving its relative artifact path.
+- Pass `--export-dir <dir>` to `run` or `resume` (or set `export_dir` once in the config file — see
+  "Configuration file"): on completion the engine copies every declared deliverable into `<dir>`,
+  preserving its relative artifact path.
 - Run `export-artifact --session-id <SESSION_ID> --target-dir <dir> --all` (or `--artifact-name
   <name>` for one artifact) after the fact. Works for completed, paused and failed sessions.
 
@@ -95,10 +123,9 @@ resolution error. Full CLI and artifact contracts: `docs/architecture/overview.m
 A recursive scan over a large tree can pause with `event_code: "workflow_paused_safety_limit"` (exit
 code `2`) well before a short task flow would, because the hard node cap
 (`docs/architecture/overview.md`, "Shape of a run") is one global number. Recovery: raise
-`hard_max_nodes_visited` in the engine configuration file
-(default `<cwd>/.workflow-engine/workflow_engine_config.json`) and `resume` the session — the run
-continues from where it paused. The cap's long-term scope (host vs. workflow vs. workflow class) is
-open, tracked in
+`hard_max_nodes_visited` in the config file (see "Configuration file") and `resume` the session — the
+run continues from where it paused. The cap's long-term scope (host vs. workflow vs. workflow class)
+is open, tracked in
 [`docs/architecture/notes/2026-08-19-hard-node-cap-scoping.md`](docs/architecture/notes/2026-08-19-hard-node-cap-scoping.md).
 
 ## Running the tests
