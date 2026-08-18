@@ -2,8 +2,8 @@
 
 This document describes the architecture of the project as it currently is.
 
-It is incomplete. Only the parts settled by an accepted decision are described. The decisions that
-are still open are listed at the end.
+It is incomplete. Only the parts settled by an accepted decision are described. Open architectural
+questions and ideas that are not yet decisions live in `docs/architecture/notes/`.
 
 Scope rules for this document:
 - Describe structure, components and their relations.
