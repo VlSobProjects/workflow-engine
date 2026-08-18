@@ -83,6 +83,8 @@ missing from the registry is effectively lost. Add the row when the branch is me
 | 2026-08-11 | architecture | Finalized ADR 009 contract decisions for metadata ownership, JSON stability and acceptance-test policy | completed | development | [2026-08-11-architecture-4_handoff.md](2026-08-11-architecture-4_handoff.md) |
 | 2026-08-11 | architecture | Moved ADR 009 to Implementing and opened its implementation branch | completed | development | [2026-08-11-architecture-5_handoff.md](2026-08-11-architecture-5_handoff.md) |
 | 2026-08-18 | architecture | Froze ADR 009 as Accepted after merge to development and synchronized the registry and session note | completed | development | [2026-08-18-architecture-1_handoff.md](2026-08-18-architecture-1_handoff.md) |
+| 2026-08-18 | implementation | Implemented ADR 010: a global hard safety cap (`hard_max_nodes_visited`, default 1000) that bounds every run and resume including soft-limit-0 sessions with a dedicated pause event | completed | feature/adr_010-session-safety-cap-and-unbounded-run-policy | [2026-08-18-implementation-4_handoff.md](2026-08-18-implementation-4_handoff.md) |
+| 2026-08-18 | architecture | Reviewed ADR 010 implementation against requirements, merged to development, froze ADR 010 as Accepted, and synchronized documentation | completed | development | [2026-08-18-architecture-2_handoff.md](2026-08-18-architecture-2_handoff.md) |
 
 `Summary` states what the session was about, in one line.
 `Status` is `completed` or `interrupted`.

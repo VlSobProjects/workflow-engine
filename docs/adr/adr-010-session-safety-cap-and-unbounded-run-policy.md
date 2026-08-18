@@ -1,10 +1,10 @@
 # ADR 010: Session safety cap and unbounded run policy
 
 ## Status
-Implementing
+Accepted
 
-## Active branch
-`feature/adr_010-session-safety-cap-and-unbounded-run-policy`
+## Implementation
+Merged into `development` on 2026-08-18. Feature branch deleted.
 
 ## Context
 

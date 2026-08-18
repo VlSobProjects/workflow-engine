@@ -142,7 +142,23 @@ from another.
 The public CLI entry point is the installed `workflow-engine` console script. It uses a thin `argparse`
 transport layer and dispatches into command use cases.
 
-Public commands are:
+### Path resolution (see ADR 008)
+
+The runtime root, work directory, storage directory, and config file use deterministic defaults with
+explicit precedence rules. See ADR 008 for the full policy.
+
+**Precedence** (highest to lowest):
+1. Explicit CLI options: `--work-dir`, `--storage-dir`, `--config`
+2. Environment variables: `WE_WORK_DIR`, `WE_STORAGE_DIR`
+3. Config file values (if found)
+4. Defaults: `<cwd>/.workflow-engine/`
+
+**Default paths**: when no explicit path is provided, the runtime root defaults to `<cwd>/.workflow-engine/`,
+which holds sessions under `<work_dir>/sessions/<session_id>/`, storage under `<storage_dir>/`, and config
+at the runtime root. Relative paths are resolved against the current working directory. Stored paths
+remain in POSIX form regardless of OS (ADR 008).
+
+### Public commands
 
 - `init-new-session` to create a session without starting execution;
 - `run` to create and execute a session;
@@ -190,5 +206,4 @@ missing metadata explicitly.
 
 ## What is not settled yet
 
-- Default runtime and storage path policy for CLI calls remains open. See ADR 008.
 - The error and retry policy beyond the allowance a transition declares.
