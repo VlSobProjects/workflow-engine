@@ -130,9 +130,16 @@ is open, tracked in
 
 ## Writing a custom function
 
-A `function`/`functions` action node calls a Python function registered with `@register_function`
-(see `docs/architecture/overview.md`, "Registries"). Two ways to make one available, both verified
-against a real run:
+A `function`/`functions` action node calls a Python function registered with `@register_function`.
+The same import-time decorator mechanism registers every kind of pluggable component (see
+`docs/architecture/overview.md`, "Registries"): `@register_action`
+(`workflow_engine.registry.action_registry`) for actions, `@register_validator`
+(`workflow_engine.registry.function_registry`) for guard validators, and `@register_type`
+(`workflow_engine.registry.type_registry`) for codecs. Everything below — the launcher-script path,
+`external_modules`, and the importability requirement — applies the same way to all four; a function
+is the concrete example.
+
+Two ways to make one available, both verified against a real run:
 
 ### Fastest: register it in your own launcher script
 
