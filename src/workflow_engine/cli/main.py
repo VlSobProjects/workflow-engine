@@ -15,10 +15,10 @@ from workflow_engine.cli.use_cases import (
     list_of_sessions,
     resume_workflow,
     run_workflow,
+    set_input,
     set_limit,
     show_state,
 )
-from workflow_engine.collection_param_handlers import WriteParamMode, get_all_modes_help
 from workflow_engine.exceptions import WorkflowEngineError
 from workflow_engine.help_contract.models import COMPONENT_TYPE_BY_KEY
 
@@ -91,6 +91,15 @@ def _session_id_arg() -> CommandArgs:
     )
 
 
+def _input_arg(required: bool) -> CommandArgs:
+    return CommandArgs(
+        key="--input",
+        help="Bind an input value: NAME[:TYPE]=VALUE (repeatable). TYPE is a codec name (see help-components)",
+        required=required,
+        action="append",
+    )
+
+
 def _export_dir_arg() -> CommandArgs:
     return CommandArgs(
         key="--export-dir",
@@ -129,7 +138,18 @@ def _get_commend(command_name: CommandName) -> Command:
                         key="--workflow-file",
                         help="Path to the workflow file",
                     ),
+                    _input_arg(required=False),
                     _export_dir_arg(),
+                ],
+            )
+        case CommandName.SET_INPUT:
+            return Command(
+                command=CommandName.SET_INPUT,
+                help="Bind input values to an unstarted session",
+                runner=set_input,
+                args=[
+                    _session_id_arg(),
+                    _input_arg(required=True),
                 ],
             )
         case CommandName.RESUME:
@@ -139,33 +159,6 @@ def _get_commend(command_name: CommandName) -> Command:
                 runner=resume_workflow,
                 args=[
                     _session_id_arg(),
-                    CommandArgs(key="--input", help="Input from operator to the workflow", required=False),
-                    CommandArgs(key="--error-code", help="Error code from operator to the workflow", required=False),
-                    CommandArgs(key="--error-msg", help="Error message from operator to the workflow", required=False),
-                    CommandArgs(
-                        key="--param-name", help="Parameter name from operator to the workflow", required=False
-                    ),
-                    CommandArgs(
-                        key="--param-value", help="Parameter value from operator to the workflow", required=False
-                    ),
-                    CommandArgs(
-                        key="--write-mode",
-                        help="Write mode for the parameter",
-                        required=False,
-                        choices=[mode.name for mode in WriteParamMode],
-                        choices_help=get_all_modes_help(),
-                    ),
-                    CommandArgs(
-                        key="--artifact-name", help="Artifact name from operator to the workflow", required=False
-                    ),
-                    CommandArgs(
-                        key="--artifact-path", help="Artifact path from operator to the workflow", required=False
-                    ),
-                    CommandArgs(
-                        key="--artifact-description",
-                        help="Artifact description from operator to the workflow",
-                        required=False,
-                    ),
                     _export_dir_arg(),
                 ],
             )

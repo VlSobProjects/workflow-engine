@@ -5,7 +5,7 @@ from pathlib import Path
 from workflow_engine.exceptions import StateLoadError, WorkflowConfigurationError, WorkflowParameterError
 from workflow_engine.models.node import WorkflowNodeModel
 from workflow_engine.models.state import ActionParameter, ArtifactEvent, GuardRecord, SessionEvent, StateModel
-from workflow_engine.models.workflow import WorkflowModel
+from workflow_engine.models.workflow import InputDeclaration, WorkflowModel
 from workflow_engine.output import WorkflowArtifact
 from workflow_engine.storage.storage import Storage
 from workflow_engine.tools import common_encoder
@@ -17,6 +17,8 @@ WORKFLOW_FILE = "workflow.json"
 def workflow_encoder(obj):
     if isinstance(obj, WorkflowNodeModel):
         return {**dataclasses.asdict(obj)}
+    if isinstance(obj, InputDeclaration):
+        return obj.to_dict()
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 

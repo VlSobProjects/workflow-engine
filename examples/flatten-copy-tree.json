@@ -2,6 +2,21 @@
   "schema_version": "1",
   "flow_id": "flatten-copy-tree",
   "start_node_id": "INIT_QUEUE",
+  "inputs": [
+    {
+      "name": "source_root",
+      "type": "Path",
+      "required": true,
+      "description": "Root folder whose files are copied out of the tree"
+    },
+    {
+      "name": "target_dir",
+      "type": "Path",
+      "required": true,
+      "description": "Directory the files are copied into"
+    }
+  ],
+  "deliverables": ["copy_report"],
   "nodes": [
     {
       "id": "INIT_QUEUE",
@@ -9,8 +24,7 @@
       "action_parameters": {
         "function_name": "init_deque_param",
         "function_parameters": {
-          "param_name": "walk_queue",
-          "items": ["__SOURCE_ROOT__"]
+          "param_name": "walk_queue"
         }
       },
       "transitions": [{ "next": "INIT_ROWS" }]
@@ -21,6 +35,18 @@
       "action_parameters": {
         "function_name": "init_list_param",
         "function_parameters": { "param_name": "copy_rows" }
+      },
+      "transitions": [{ "next": "SEED_QUEUE" }]
+    },
+    {
+      "id": "SEED_QUEUE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "enqueue_folder_entries",
+        "function_parameters": {
+          "folder_path": "param.source_root",
+          "deque_param_name": "walk_queue"
+        }
       },
       "transitions": [{ "next": "POP_NEXT" }]
     },
@@ -60,7 +86,7 @@
         "function_name": "copy_file",
         "function_parameters": {
           "path_source": "param.cur_path",
-          "path_target": "__TARGET_DIR__"
+          "path_target": "param.target_dir"
         }
       },
       "save_as": "copied_path",

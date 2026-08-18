@@ -2,6 +2,15 @@
   "schema_version": "1",
   "flow_id": "folder-inventory-to-csv",
   "start_node_id": "INIT_QUEUE",
+  "inputs": [
+    {
+      "name": "scan_root",
+      "type": "Path",
+      "required": true,
+      "description": "Root folder whose files are inventoried into the CSV report"
+    }
+  ],
+  "deliverables": ["file_scan_table"],
   "nodes": [
     {
       "id": "INIT_QUEUE",
@@ -9,8 +18,7 @@
       "action_parameters": {
         "function_name": "init_deque_param",
         "function_parameters": {
-          "param_name": "scan_queue",
-          "items": ["__SCAN_ROOT__"]
+          "param_name": "scan_queue"
         }
       },
       "transitions": [{ "next": "INIT_ROWS" }]
@@ -21,6 +29,18 @@
       "action_parameters": {
         "function_name": "init_list_param",
         "function_parameters": { "param_name": "table_rows" }
+      },
+      "transitions": [{ "next": "SEED_QUEUE" }]
+    },
+    {
+      "id": "SEED_QUEUE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "enqueue_folder_entries",
+        "function_parameters": {
+          "folder_path": "param.scan_root",
+          "deque_param_name": "scan_queue"
+        }
       },
       "transitions": [{ "next": "POP_NEXT" }]
     },

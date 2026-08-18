@@ -101,6 +101,29 @@ def get_codec_by_type_name(type_name: str) -> type[Codec] | None:
     return CODEC_REGISTRY.get(type_name)
 
 
+def resolve_codec_by_type_name(type_name: str) -> type[Codec]:
+    """Resolve a codec from a full registered name or an unambiguous bare class name.
+
+    An exact full name (``pathlib.Path``, ``builtins.int``) wins. Otherwise the bare class name
+    (``Path``, ``int``) is matched against the live registry: exactly one match resolves, none is
+    unknown, and more than one is ambiguous. The bare index is built per call because plugins may
+    register codecs after import. See ADR 012.
+    """
+    codec = CODEC_REGISTRY.get(type_name)
+    if codec is not None:
+        return codec
+    matches = {key: cls for key, cls in CODEC_REGISTRY.items() if key.rsplit(".", 1)[-1] == type_name}
+    if len(matches) == 1:
+        return next(iter(matches.values()))
+    if len(matches) == 0:
+        raise WorkflowConfigurationError(
+            f"Unknown codec type '{type_name}'. Known types: {', '.join(sorted(CODEC_REGISTRY))}"
+        )
+    raise WorkflowConfigurationError(
+        f"Ambiguous codec type '{type_name}'; use the full name (one of: {', '.join(sorted(matches))})"
+    )
+
+
 class IterableCodec(Codec, ABC):
     @classmethod
     def value_to_dict_obj(cls, values: object) -> object:
