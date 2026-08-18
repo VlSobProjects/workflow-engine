@@ -94,4 +94,5 @@ actions return a `PresentResponse` to the caller and the engine stops until call
   4 setup/resolution error.
 - Paths are persisted in POSIX form regardless of OS (ADR 008).
 
-Architecture decisions live in `docs/adr/`; open questions are listed at the end of the overview.
+Architecture decisions live in `docs/adr/`; open architectural questions and ideas not yet decided live
+in `docs/architecture/notes/`.

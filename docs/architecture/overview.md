@@ -251,6 +251,7 @@ including the `reversed` modifier and the `validators` shorthand. Internal compo
 complete metadata, enforced by a test quality gate; external registrations stay visible and report
 missing metadata explicitly.
 
-## What is not settled yet
+## Open questions
 
-- The error and retry policy beyond the allowance a transition declares.
+Open architectural questions and ideas that are not yet decisions are tracked in
+`docs/architecture/notes/`, not here — the overview is the architecture as built.

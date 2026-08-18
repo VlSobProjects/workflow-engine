@@ -23,7 +23,8 @@ recovery must reintroduce its own surface deliberately, not widen `set-input`.
   intact. It is the phase-2 interactive-answer mechanism (ADR 007 §4). Cost: medium.
 - **(b) Retry with backoff by error class.** Partly exists (`max_attempts` / `attempt_counters`, a
   self-loop transition). Missing: delay/backoff and distinguishing transient (500 → retry) from
-  permanent (400 → fail). Central for API-driven agents. Cost: low.
+  permanent (400 → fail). Central for API-driven agents. Cost: low. This subsumes the former overview
+  "what is not settled yet" item — the error and retry policy beyond a transition's declared allowance.
 - **(c) Crash-safe state write.** `state.json` is overwritten in place each turn; a crash mid-write
   could corrupt it. Cheap insurance: atomic write (temp + rename). Hardening, not a new model. Cost:
   very low.
