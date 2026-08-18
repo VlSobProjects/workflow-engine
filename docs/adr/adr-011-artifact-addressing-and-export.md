@@ -3,6 +3,9 @@
 ## Status
 Accepted
 
+## Active branch
+—
+
 ## Context
 
 ADR 006 made artifacts first-class state: a function writes a file under `work_dir/artifacts`,

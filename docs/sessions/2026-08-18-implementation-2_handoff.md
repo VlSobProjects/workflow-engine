@@ -50,6 +50,9 @@ merge that freezes the ADR. Verified by command-line runs: `uv run pytest` (130 
 4. Registrations inside registry/guard unit tests stay: the ADR 009 testing boundary covers
    operator-contract and e2e acceptance coverage, not unit tests of the registration machinery.
 
+## Open questions
+None.
+
 ## Next steps
 1. Follow-up architecture session: review the ADR 009 acceptance boundaries, merge the feature
    branch into `development`, flip the ADR to Accepted, and update the ADR and sessions registries

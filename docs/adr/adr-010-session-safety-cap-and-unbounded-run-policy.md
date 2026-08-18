@@ -3,8 +3,8 @@
 ## Status
 Accepted
 
-## Implementation
-Merged into `development` on 2026-08-18. Feature branch deleted.
+## Active branch
+—
 
 ## Context
 
@@ -66,8 +66,8 @@ Cost: one new config field, event code, and command/UI messaging.
 
 ## Implementation notes
 
-Planned branch when status moves beyond Draft:
-- `feature/adr_010-session-safety-cap-and-unbounded-run-policy`
+Implementation branch: `feature/adr_010-session-safety-cap-and-unbounded-run-policy` (merged, deleted
+after merge).
 
 Minimum implementation slice:
 - config parsing for `hard_max_nodes_visited`;
@@ -85,3 +85,4 @@ Minimum implementation slice:
   `set-limit 0`. The cap is read from the current configuration on every run and resume and is not
   persisted per session; a `storage_dir` change in the edited configuration does not affect an
   existing session (ADR 004), which is fixed by a regression test.
+- Frozen as Accepted (2026-08-18): merged into `development`; feature branch deleted.

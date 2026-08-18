@@ -107,14 +107,13 @@ Cost: more explicit boilerplate in parser wiring in exchange for long-term porta
 - ADR 004 session bootstrap and configuration snapshot (Accepted).
 - ADR 005 component loading and plugin registration model (Accepted).
 - ADR 006 data flow between nodes (Accepted).
-- ADR 008 runtime directory and default path policy for v1 (Draft).
-- ADR 009 operator help and component introspection contract (Draft).
-- ADR 010 session safety cap and unbounded run policy (Draft, optional for v1).
+- ADR 008 runtime directory and default path policy for v1 (Accepted).
+- ADR 009 operator help and component introspection contract (Accepted).
+- ADR 010 session safety cap and unbounded run policy (Accepted, optional for v1).
 
 ## Implementation notes
 
-Planned branch when status moves beyond Draft:
-- `feature/adr_007-cli-contract-and-session-lifecycle-for-v1`
+Implementation branch: `feature/adr_007-cli-contract-and-session-lifecycle-for-v1` (merged).
 
 Implementation entrypoint target:
 - `workflow_engine.cli.main:main` exported through `[project.scripts]`.

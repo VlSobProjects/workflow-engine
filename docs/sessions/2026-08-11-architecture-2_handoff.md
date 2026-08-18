@@ -29,5 +29,13 @@ ADR-007 was accepted after the feature branch was merged to `development`. The p
 2. Treat the installed `workflow-engine` console script as the process-level acceptance target.
 3. Freeze ADR-007 as `Accepted` on `development` and update the registry in the same change.
 
+## Open questions
+None.
+
 ## Next steps
 1. Proceed with ADR-008, ADR-009, and ADR-010 as separate architecture work.
+
+## References
+- ADR: `docs/adr/adr-007-cli-contract-and-session-lifecycle-for-v1.md`
+- Branch: `feature/adr_007-cli-contract-and-session-lifecycle-for-v1` (merged)
+- Preceding session: `2026-08-11-architecture-1_handoff.md`

@@ -3,6 +3,9 @@
 ## Status
 Accepted
 
+## Active branch
+—
+
 ## Context
 
 Phase 1 requires a predictable operator experience when no paths are provided in CLI arguments.
@@ -72,12 +75,11 @@ Cost: duplicate roots across multiple project folders by design.
 
 - ADR 003 persistence boundary and run workspace (Accepted).
 - ADR 004 session bootstrap and configuration snapshot (Accepted).
-- ADR 007 CLI contract and session lifecycle for v1 (Draft).
+- ADR 007 CLI contract and session lifecycle for v1 (Accepted).
 
 ## Implementation notes
 
-Planned branch when status moves beyond Draft:
-- `feature/adr_008-runtime-directory-and-default-path-policy-for-v1`
+Implementation branch: `feature/adr_008-runtime-directory-and-default-path-policy-for-v1` (merged).
 
 Implementation clarifications:
 - `--work-dir` and `--storage-dir` are process-level options and should be accepted on the shared CLI surface, not only on a subset of commands.

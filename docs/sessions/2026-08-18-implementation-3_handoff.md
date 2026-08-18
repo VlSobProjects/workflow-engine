@@ -39,6 +39,9 @@ and ruff, plus a manual CLI run of the text mode.
 2. The type-level JSON payload uses a distinct top-level `component_type` key so the two command
    modes are distinguishable by key, not by field composition.
 
+## Open questions
+None.
+
 ## Next steps
 1. Unchanged from the previous session: follow-up architecture session to merge into `development`,
    flip ADR 009 to Accepted, and update the ADR and sessions registries on `development`.

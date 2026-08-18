@@ -154,8 +154,7 @@ and fragile for test coverage of contract semantics.
 
 ## Implementation notes
 
-Planned branch when status moves beyond Draft:
-- `feature/adr_009-operator-help-and-component-introspection-contract`
+Implementation branch: `feature/adr_009-operator-help-and-component-introspection-contract` (merged).
 
 Minimum v1 implementation:
 - list and detail commands for all component types via `help-components` and `help-component`;
