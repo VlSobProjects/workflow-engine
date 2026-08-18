@@ -1,15 +1,17 @@
-from abc import ABC
+"""Canonical DTOs of the operator help contract. See ADR 009.
+
+The payload shapes produced here are a stable contract: key names and structural
+nesting must not change; extension is allowed only through new optional fields.
+"""
+
 from dataclasses import dataclass
 from enum import Enum
-from types import MappingProxyType, NoneType
-from typing import Final, ClassVar, get_origin
+from types import MappingProxyType
+from typing import ClassVar, Final
 
-from workflow_engine.actions.base_actions import ExecutionMode, BaseAction
-from workflow_engine.output import ActionNodeOutput
-from workflow_engine.registry.function_registry import FUNCTION_NAME_KEY, FUNCTION_PARAMETERS_KEY, \
-    RegisteredFunctionExecutor
-from workflow_engine.registry.type_registry import Codec
-from workflow_engine.transition.guards import BaseGuard
+CONTRACT_VERSION: Final[str] = "1.0"
+
+MISSING_METADATA_TEXT: Final[str] = "Description is not provided by the external component."
 
 
 class ComponentSource(Enum):
@@ -20,148 +22,151 @@ class ComponentSource(Enum):
 class ComponentType(Enum):
     ACTION = "action"
     FUNCTION = "function"
-    VALIDATION_FUNCTION = "validation function"
+    VALIDATOR = "validator"
     GUARD = "guard"
     CODEC = "codec"
 
 
+COLLECTION_KEYS: Final[MappingProxyType[ComponentType, str]] = MappingProxyType(
+    {
+        ComponentType.ACTION: "actions",
+        ComponentType.FUNCTION: "functions",
+        ComponentType.VALIDATOR: "validators",
+        ComponentType.GUARD: "guards",
+        ComponentType.CODEC: "codecs",
+    }
+)
+
+COMPONENT_TYPE_BY_KEY: Final[MappingProxyType[str, ComponentType]] = MappingProxyType(
+    {key: c_type for c_type, key in COLLECTION_KEYS.items()}
+)
+
+COMPONENT_TYPE_DESCRIPTION: Final[MappingProxyType[ComponentType, str]] = MappingProxyType(
+    {
+        ComponentType.ACTION: (
+            "An action performs the work of one workflow node. A node selects it by 'action_type' "
+            "and configures it through 'action_parameters'. An automatic action runs and the engine "
+            "continues; an interactive action returns instructions and waits for operator input."
+        ),
+        ComponentType.FUNCTION: (
+            "A registered function executed by a function-running action. A node selects it by "
+            "'function_name' and passes 'function_parameters'. Parameter values support "
+            "'param.<name>' and 'output.<node_id>' references resolved from the workflow state."
+        ),
+        ComponentType.VALIDATOR: (
+            "A registered function returning a boolean, used by the 'function_name' guard and by "
+            "the 'validators' post-condition shorthand of a node."
+        ),
+        ComponentType.GUARD: (
+            "A guard is the predicate of a transition. It is declared inside a transition under the "
+            "'guard' or 'validator' key, and the first transition whose guard holds is taken. "
+            "The name of a guard is the error code of a node that fails it."
+        ),
+        ComponentType.CODEC: (
+            "A codec persists a typed value in the workflow state, so a parameter keeps its Python "
+            "type across a save and a load. Codecs are selected by value type automatically; "
+            "workflow definitions do not reference them directly."
+        ),
+    }
+)
 
 
-COMPONENT_BY_TYPE: Final[MappingProxyType[type,ComponentType]] = MappingProxyType({
-    BaseAction: ComponentType.ACTION,
-    Codec: ComponentType.CODEC,
-    RegisteredFunctionExecutor[ActionNodeOutput]: ComponentType.FUNCTION,
-    RegisteredFunctionExecutor[bool]: ComponentType.VALIDATION_FUNCTION,
-})
+def get_component_type_description(component_type: ComponentType) -> str:
+    return COMPONENT_TYPE_DESCRIPTION[component_type]
 
-
-
-COMPONENT_DESCRIPTION: Final[MappingProxyType[ComponentType, str]] = MappingProxyType({
-    ComponentType.ACTION:
-        """
-        Action is class which represent node action performing during workflow execution.
-        Action must be registered in action registry and can be used by workflow node.
-        Can be 2 types: automatic and interactive. 
-        Automatic action will be executed without user interaction an return output.
-        Interactive action will require user input to proceed workflow execution to the next node by transition,
-        Interactive action return instruction how to proceed workflow execution to the next node.
-        Transition to the next can be strate, based on action or user output as result of guard function.
-        """,
-    ComponentType.FUNCTION:
-    f"""
-    {FUNCTION_NAME_KEY}: $function_name$ must be registered in function registry.
-    {FUNCTION_PARAMETERS_KEY}: parameters of the function. 
-    Automatically provided parameters:
-        - 'state': StateReadOnlyView object which provide read-only access to the workflow state
-        - 'output': ActionNodeOutput object which provide access to the previous action output
-    Parameter value can be evaluated from the state parameters with prefix param.$param_name$ 
-    or from the node output with prefix output.$node_id$.
-    Function can save parameters to the state via parameters write channel.
-    Function can return output_text, error code and error message which can be used in transitions to the next node or stop workflow execution.
-    Function can rise exception which will stop workflow execution and return error code and error message.        
-    """,
-    ComponentType.VALIDATION_FUNCTION:
-        """
-        Guard function is used to validate transitions path to another node.
-        Guard function must be registered in function registry and can be used by action node.
-        Guard function can use StateReadOnlyView to read workflow state and action output ActionNodeOutput to perform its task.
-        Guard function can have any number of parameters but return type must be bool.
-        """,
-    ComponentType.CODEC:
-        """
-        Codec is class which is used to encode/decode parameter in state 
-        which can be used by actions and functions via StateReadOnlyView parameters.
-        Codec registered by full python type name and use methods to convert value to dict and from dict.
-        Codec covert value recursively and can be used to convert complex data structures to dict and from dict.
-        Codec must be registered in codec registry.
-        Codec must implement encode and decode methods.
-        """,
-    ComponentType.GUARD:
-        """
-        Node.
-        Guard is class which is used to validate transitions path to another node.
-        Guard must be registered in guard registry and can be used by action node.
-        Guard can use StateReadOnlyView to read workflow state and action output ActionNodeOutput to perform its task.
-        Guard can have any number of parameters but return type must be bool.
-        """,
-})
-
-def get_component_description(component_type: ComponentType) -> str:
-    return COMPONENT_DESCRIPTION.get(component_type, "")
 
 @dataclass(frozen=True)
-class HelpComponent(ABC):
+class HelpParameter:
+    """Documentation of one configuration parameter: display type, description, requiredness."""
+
+    type: str
+    description: str
+    required: bool = True
+
+    def to_payload(self) -> dict[str, object]:
+        return {"type": self.type, "description": self.description, "required": self.required}
+
+
+@dataclass(frozen=True)
+class HelpComponent:
     name: str
     source: ComponentSource
     summary: str
-    description:str
-    parameters: dict[str,tuple[type,str]] | None
-    notes: list[str] | None
+    description: str
+    parameters: dict[str, HelpParameter] | None
+    notes: tuple[str, ...] | None
     component_type: ClassVar[ComponentType]
 
-    def get_component_description(self) -> str:
-        return COMPONENT_DESCRIPTION[self.component_type]
+    def to_payload(self) -> dict[str, object]:
+        """The stable detail payload: name, type, summary, description, parameters, source, notes."""
+        parameters: dict[str, object] | None = None
+        if self.parameters is not None:
+            parameters = {name: parameter.to_payload() for name, parameter in self.parameters.items()}
+        return {
+            "name": self.name,
+            "type": self.component_type.value,
+            "summary": self.summary,
+            "description": self.description,
+            "parameters": parameters,
+            "source": self.source.value,
+            "notes": list(self.notes) if self.notes else None,
+        }
+
+    def to_list_payload(self) -> dict[str, object]:
+        """The stable list payload: one line per component."""
+        return {"name": self.name, "summary": self.summary, "source": self.source.value}
+
 
 @dataclass(frozen=True)
 class ActionComponent(HelpComponent):
     component_type: ClassVar[ComponentType] = ComponentType.ACTION
-    action_type: ExecutionMode
+    execution_mode: str
+    node_template: dict[str, object]
+    action_parameters: dict[str, list[str]]
+    transition_hints: tuple[str, ...]
+    examples: tuple[dict[str, object], ...]
 
+    def to_payload(self) -> dict[str, object]:
+        payload = super().to_payload()
+        payload.update(
+            {
+                "execution_mode": self.execution_mode,
+                "node_template": self.node_template,
+                "action_parameters": self.action_parameters,
+                "transition_hints": list(self.transition_hints),
+                "examples": list(self.examples),
+            }
+        )
+        return payload
 
 
 @dataclass(frozen=True)
 class FunctionComponent(HelpComponent):
     component_type: ClassVar[ComponentType] = ComponentType.FUNCTION
 
+
 @dataclass(frozen=True)
-class ValidationComponent(HelpComponent):
-    component_type: ClassVar[ComponentType] = ComponentType.VALIDATION_FUNCTION
+class ValidatorComponent(HelpComponent):
+    component_type: ClassVar[ComponentType] = ComponentType.VALIDATOR
+
 
 @dataclass(frozen=True)
 class GuardComponent(HelpComponent):
     component_type: ClassVar[ComponentType] = ComponentType.GUARD
+    kind: str = "guard"
+
+    def to_payload(self) -> dict[str, object]:
+        payload = super().to_payload()
+        payload["kind"] = self.kind
+        return payload
+
 
 @dataclass(frozen=True)
 class CodecComponent(HelpComponent):
     component_type: ClassVar[ComponentType] = ComponentType.CODEC
+    python_type: str = ""
 
-@dataclass
-class HelpComponents:
-    components: dict[ComponentType, HelpComponent]
-
-def _component_by_type(field_type:type) -> ComponentType | None:
-    if field_type in COMPONENT_BY_TYPE:
-        return COMPONENT_BY_TYPE[field_type]
-    if isinstance(field_type, type):
-        for type_ in COMPONENT_BY_TYPE:
-            if issubclass(field_type, get_origin(type_) or type_):
-                return COMPONENT_BY_TYPE[type_]
-    if hasattr(field_type, "__args__"):
-        for f_type in field_type.__args__:
-            if f_type is NoneType:
-                continue
-            elif f_type in COMPONENT_BY_TYPE:
-                return COMPONENT_BY_TYPE[f_type]
-            else:
-                for a_type in f_type.mro():
-                    if a_type in COMPONENT_BY_TYPE:
-                        return COMPONENT_BY_TYPE[a_type]
-    return None
-
-
-
-def get_component_or_description(component_type:type,source:ComponentSource) -> str | HelpComponent | None:
-    from workflow_engine.help_contract.adapters.actions import adapt_action
-    from workflow_engine.help_contract.adapters.codecs import adapt_codec
-    from workflow_engine.help_contract.adapters.guards import adapt_guard
-    c_type = _component_by_type(component_type)
-    if c_type is not None:
-        if isinstance(component_type, type) and issubclass(component_type, BaseAction):
-            return adapt_action(component_type, source)
-        elif isinstance(component_type, type) and issubclass(component_type, Codec):
-            return adapt_codec(component_type, source)
-        elif isinstance(component_type, type) and issubclass(component_type, BaseGuard):
-            return adapt_guard(component_type, source)
-        else:
-            return COMPONENT_DESCRIPTION[c_type]
-    return None
+    def to_payload(self) -> dict[str, object]:
+        payload = super().to_payload()
+        payload["python_type"] = self.python_type
+        return payload

@@ -1,20 +1,21 @@
 from __future__ import annotations
-import inspect
 
+import inspect
 from abc import ABC, abstractmethod
 from dataclasses import field
 from datetime import UTC, datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import cast, ClassVar, Annotated
+from typing import Annotated, ClassVar, cast
 
 from workflow_engine.actions.action_present import PresentResponse
 from workflow_engine.exceptions import ActionConfigurationError, ArtifactPathError, WorkflowConfigurationError
 from workflow_engine.models.state import StateModel, StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
+    FUNCTION_NAME_KEY,
     RegisteredFunctionExecutor,
-    get_registered_function, FUNCTION_NAME_KEY,
+    get_registered_function,
 )
 
 

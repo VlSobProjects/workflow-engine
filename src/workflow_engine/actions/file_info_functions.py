@@ -43,7 +43,10 @@ def file_size(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput
     decorators=[file_exists_arg_validator({"file_path": 0})],
     summary="File last modification time"
 )
-def file_modify_time(file_path: Annotated[str, "Path to the file"], formater: Annotated[str, "Format for the date and time default: %Y-%m-%d %H:%M:%S"] = "%Y-%m-%d %H:%M:%S") -> ActionNodeOutput:
+def file_modify_time(
+    file_path: Annotated[str, "Path to the file"],
+    formater: Annotated[str, "Format for the date and time default: %Y-%m-%d %H:%M:%S"] = "%Y-%m-%d %H:%M:%S",
+) -> ActionNodeOutput:
     """Get the last modification time of a file."""
     time = Path(file_path).stat().st_mtime
     return ActionNodeOutput(output_text=datetime.fromtimestamp(time, tz=UTC).strftime(formater))
@@ -53,7 +56,10 @@ def file_modify_time(file_path: Annotated[str, "Path to the file"], formater: An
     decorators=[file_exists_arg_validator({"file_path": 0})],
     summary="File creation time"
 )
-def file_create_time(file_path: Annotated[str, "Path to the file"], formater: Annotated[str, "Format for the date and time default: %Y-%m-%d %H:%M:%S"] = "%Y-%m-%d %H:%M:%S") -> ActionNodeOutput:
+def file_create_time(
+    file_path: Annotated[str, "Path to the file"],
+    formater: Annotated[str, "Format for the date and time default: %Y-%m-%d %H:%M:%S"] = "%Y-%m-%d %H:%M:%S",
+) -> ActionNodeOutput:
     """Get the creation time of a file."""
     time = Path(file_path).stat().st_ctime
     return ActionNodeOutput(output_text=datetime.fromtimestamp(time, tz=UTC).strftime(formater))
@@ -96,7 +102,8 @@ def file_mime_type(file_path: Annotated[str, "Path to the file"]) -> ActionNodeO
     summary="File encoding"
 )
 def file_encoding(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
-    """Get the encoding of a file. Tries several common encodings and returns the first one that successfully reads the file.
+    """Get the encoding of a file. Tries several common encodings and returns the first one that
+    successfully reads the file.
     If none of the encodings work, returns an empty string.
     utf-8/utf-8-sig/utf-16/cp1251/latin-1 are checked in order.
     """
@@ -170,7 +177,8 @@ def access_time(
     formater: Annotated[str, "Datetime format, default is '%Y-%m-%d %H:%M:%S'"] = "%Y-%m-%d %H:%M:%S",
 ) -> ActionNodeOutput:
     """Get the last access time of a file."""
-    return ActionNodeOutput(output_text=datetime.fromtimestamp(Path(file_path).stat().st_atime, tz=UTC).strftime(formater))
+    access = datetime.fromtimestamp(Path(file_path).stat().st_atime, tz=UTC)
+    return ActionNodeOutput(output_text=access.strftime(formater))
 
 
 @register_function(

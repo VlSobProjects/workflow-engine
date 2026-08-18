@@ -1,9 +1,8 @@
 import shutil
-
 from pathlib import Path
 from typing import Annotated
 
-from workflow_engine.output import ActionNodeOutput, ParamWrite
+from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
     register_function,
 )

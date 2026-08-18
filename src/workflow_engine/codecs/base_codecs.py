@@ -4,28 +4,47 @@ from pathlib import Path
 from workflow_engine.registry.type_registry import Codec, IterableCodec, register_type
 
 
-@register_type(set)
+@register_type(
+    set,
+    summary="Persists set parameters.",
+    description="Keeps a set state parameter a set across a save and a load. "
+    "Items are converted recursively through their own codecs.",
+)
 class SetCodec(IterableCodec):
     @classmethod
     def list_to_collection(cls, value: list[object]) -> object:
         return set(value)
 
 
-@register_type(deque)
+@register_type(
+    deque,
+    summary="Persists deque parameters.",
+    description="Keeps a deque state parameter a deque across a save and a load. "
+    "Items are converted recursively through their own codecs.",
+)
 class DequeCodec(IterableCodec):
     @classmethod
     def list_to_collection(cls, value: list[object]) -> object:
         return deque(value)
 
 
-@register_type(list)
+@register_type(
+    list,
+    summary="Persists list parameters.",
+    description="Keeps a list state parameter a list across a save and a load. "
+    "Items are converted recursively through their own codecs.",
+)
 class ListCodec(IterableCodec):
     @classmethod
     def list_to_collection(cls, value: list[object]) -> object:
         return value
 
 
-@register_type(dict)
+@register_type(
+    dict,
+    summary="Persists dictionary parameters.",
+    description="Keeps a dictionary state parameter a dictionary across a save and a load.",
+)
 class DictCodec(Codec):
     @classmethod
     def value_to_dict_obj(cls, value: dict) -> object:
@@ -38,7 +57,11 @@ class DictCodec(Codec):
         return dict(value)
 
 
-@register_type(str)
+@register_type(
+    str,
+    summary="Persists string parameters.",
+    description="Keeps a string state parameter a string across a save and a load.",
+)
 class StringCodec(Codec):
     @classmethod
     def value_to_dict_obj(cls, value: str) -> object:
@@ -51,7 +74,12 @@ class StringCodec(Codec):
         return value
 
 
-@register_type(Path)
+@register_type(
+    Path,
+    summary="Persists filesystem path parameters.",
+    description="Keeps a Path state parameter a Path across a save and a load. "
+    "The value is stored in POSIX form, so it reads back identically from any shell.",
+)
 class PathCodec(Codec):
     @classmethod
     def value_to_dict_obj(cls, value: Path) -> object:
@@ -64,7 +92,11 @@ class PathCodec(Codec):
         return Path(value)
 
 
-@register_type(float)
+@register_type(
+    float,
+    summary="Persists float parameters.",
+    description="Keeps a float state parameter a float across a save and a load.",
+)
 class NumberCodec(Codec):
     @classmethod
     def value_to_dict_obj(cls, value: float) -> object:
@@ -77,7 +109,11 @@ class NumberCodec(Codec):
         return float(value)
 
 
-@register_type(int)
+@register_type(
+    int,
+    summary="Persists integer parameters.",
+    description="Keeps an integer state parameter an integer across a save and a load.",
+)
 class IntCodec(Codec):
     @classmethod
     def value_to_dict_obj(cls, value: int) -> object:

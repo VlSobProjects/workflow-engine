@@ -19,6 +19,7 @@ from workflow_engine.cli.use_cases import (
 )
 from workflow_engine.collection_param_handlers import WriteParamMode, get_all_modes_help
 from workflow_engine.exceptions import WorkflowEngineError
+from workflow_engine.help_contract.models import COMPONENT_TYPE_BY_KEY
 
 
 class CustomArgumentParser(argparse.ArgumentParser):
@@ -199,6 +200,7 @@ def _get_commend(command_name: CommandName) -> Command:
                     CommandArgs(
                         key="--component-type",
                         help="Type of the component",
+                        choices=sorted(COMPONENT_TYPE_BY_KEY),
                     ),
                     CommandArgs(
                         key="--component-name",

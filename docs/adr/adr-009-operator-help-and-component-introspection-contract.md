@@ -36,13 +36,17 @@ Define one help/introspection contract for CLI v1:
    - `description`: detailed operator usage description for detail output.
 3. Source of truth:
    - registries for actions/functions/validators/codecs;
-   - explicit static catalog for guard kinds that are not registry-backed (`equals`, `contains`, groups, etc.).
+   - explicit static catalog for guard kinds that are not registry-backed (`equals`, `contains`, groups, etc.);
+   - catalog entries are named by the configuration key an operator writes, and the catalog also covers
+     the `reversed` negation modifier and the `validators` post-condition shorthand, marked by an
+     explicit `kind` (`guard`, `modifier`, `shorthand`).
 4. Operator-help domain rule:
    - `help-component` describes workflow authoring contract, not implementation/inheritance guidance.
    - Developer-oriented implementation details remain in code-level docs and are not the primary operator-help source.
 5. Per-type detail source policy:
    - `actions`: detailed help comes from explicit action metadata focused on node authoring
      (`action_type`, required/optional `action_parameters`, behavior notes, example shape), not from class `__doc__`;
+     the metadata is declared at the registration point (`register_action(metadata=...)`);
    - `functions` and `validators`: detailed help combines registry signature with doc-derived parameter descriptions;
      `Args` are consumed for operator help, while `Returns` is optional and not required for v1 operator contract;
    - `guards`: detailed help comes from explicit guard catalog entries;
@@ -59,6 +63,9 @@ Define one help/introspection contract for CLI v1:
    - `help-component` JSON response includes top-level `contract_version` and `component`;
    - detailed component object keeps stable key names: `name`, `type`, `summary`, `description`,
      `parameters`, `source`, `notes`;
+   - `parameters` is an object keyed by parameter name; each entry carries `type` (a display string),
+     `description`, and `required` (boolean); for actions the additional `action_parameters` object
+     lists `required` and `optional` parameter names;
    - `returns` is optional and type-specific; v1 function/validator operator help does not require it;
    - additive extension is allowed only via new optional fields; existing key names and structural nesting are stable.
 8. Scope:
@@ -194,3 +201,7 @@ Acceptance boundaries for moving ADR 009 to Accepted:
   not class implementation docstrings; function/validator help keeps signature plus Args-oriented documentation.
 - Added explicit help-contract module structure, WorkflowNode-oriented detail schema, CLI wiring options, and
   acceptance boundaries for ADR 009 freeze.
+- Implementation-stage refinements agreed in architecture discussion: fixed the `parameters` entry schema
+  (`type`, `description`, `required`), extended the guard catalog with the `reversed` modifier and the
+  `validators` shorthand as explicit `kind` entries, and settled action metadata declaration at the
+  registration point (`register_action(metadata=...)`).

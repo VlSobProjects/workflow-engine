@@ -59,7 +59,12 @@ class BaseRegisteredFunction[T](ABC):
 
     @classmethod
     def factory(
-        cls, name: str, signature: inspect.Signature, hints: dict[str, object], function: Callable[..., T], summary: str | None
+        cls,
+        name: str,
+        signature: inspect.Signature,
+        hints: dict[str, object],
+        function: Callable[..., T],
+        summary: str | None,
     ) -> Self:
         if cls == BaseRegisteredFunction:
             raise TypeError("BaseRegisteredFunction cannot be instantiated directly. Use a subclass.")
@@ -147,9 +152,10 @@ def register_function(
 def register_validator(
     func: TFunc[bool] | None = None,
     *,
+    summary: str | None = None,
     decorators: Sequence[TDecorator[bool]] = (),
 ):
-    return _reg(func, VALIDATOR_REGISTRY, RegisteredValidator, decorators)
+    return _reg(func, VALIDATOR_REGISTRY, RegisteredValidator, decorators, summary=summary)
 
 
 @dataclass(slots=True)

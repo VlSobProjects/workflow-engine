@@ -355,8 +355,8 @@ class TestHelpComponentsCommand:
         assert response["command_status"] == "completed"
         assert response["command"] == "help-components"
 
-    def test_help_components_returns_components_dict(self, create_config, capsys):
-        """help-components must return data.components as dict."""
+    def test_help_components_returns_contract_payload(self, create_config, capsys):
+        """help-components must return contract_version and normalized component type keys."""
         code, response = run_json_cli(
             ["help-components", "--config", create_config.as_posix()],
             capsys,
@@ -364,9 +364,57 @@ class TestHelpComponentsCommand:
 
         assert code == 0
         data = cast(dict[str, object], response["data"])
-        components = data["components"]
-        assert isinstance(components, dict)
-        assert "Core components" in components or "External components" in components
+        assert data["contract_version"] == "1.0"
+        components = cast(dict[str, object], data["components"])
+        assert set(components.keys()) == {"actions", "functions", "validators", "guards", "codecs"}
+        for items in components.values():
+            assert isinstance(items, list)
+            for item in cast(list[dict[str, object]], items):
+                assert set(item.keys()) == {"name", "summary", "source"}
+
+
+class TestHelpComponentCommand:
+    """Tests for `help-component` command."""
+
+    def test_help_component_returns_detail_payload(self, create_config, capsys):
+        code, response = run_json_cli(
+            [
+                "help-component",
+                "--component-type",
+                "actions",
+                "--component-name",
+                "function",
+                "--config",
+                create_config.as_posix(),
+            ],
+            capsys,
+        )
+
+        assert code == 0
+        data = cast(dict[str, object], response["data"])
+        assert data["contract_version"] == "1.0"
+        component = cast(dict[str, object], data["component"])
+        assert {"name", "type", "summary", "description", "parameters", "source", "notes"} <= set(component.keys())
+        assert component["name"] == "function"
+        assert component["type"] == "action"
+
+    def test_help_component_unknown_name_returns_exit_code_4(self, create_config, capsys):
+        code, response = run_json_cli(
+            [
+                "help-component",
+                "--component-type",
+                "actions",
+                "--component-name",
+                "no-such-action",
+                "--config",
+                create_config.as_posix(),
+            ],
+            capsys,
+        )
+
+        assert code == 4
+        assert response["command_status"] == "error"
+        assert response["errors"]
 
 
 class TestCliOutputSchema:

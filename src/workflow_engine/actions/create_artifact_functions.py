@@ -58,9 +58,12 @@ def dict_list_to_pretty_table(
 ) -> ActionNodeOutput:
     """Convert a list of dictionaries to a pretty table and save it as an artifact.
     Available table formats: 'html', 'csv', 'json', 'latex', 'mediawiki'. Default is plain text.
-    on OsError during file writing, returns an ActionNodeOutput with error_code 'pretty_table_write_error' and the error message.
-    If the artifact already exists in the state, returns an ActionNodeOutput with error_code 'pretty_table_artifact_exists' and the error message.
-    If the parameter does not contain a list of dictionaries, returns an ActionNodeOutput with error_code 'pretty_table_no_data'.
+    On OsError during file writing, returns an ActionNodeOutput with error_code
+    'pretty_table_write_error' and the error message.
+    If the artifact already exists in the state, returns an ActionNodeOutput with error_code
+    'pretty_table_artifact_exists' and the error message.
+    If the parameter does not contain a list of dictionaries, returns an ActionNodeOutput with
+    error_code 'pretty_table_no_data'.
     """
     dict_list = state.get_param(dict_param_name, list)
     if not isinstance(dict_list, list):

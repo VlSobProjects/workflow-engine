@@ -81,11 +81,16 @@ def set_param_from_deque(
     param_name: Annotated[str, "Name of the parameter to set with the popped value"],
     state: Annotated[StateReadOnlyView, "Read-only state view used to access the deque parameter"],
     on_empty: Annotated[str, "Value to return if the deque is empty default 'empty'"] = "empty",
-    on_set: Annotated[str, "Value to return when a parameter is successfully set from the deque default 'popleft_from_deque'"] = "popleft_from_deque",
-    error_not_found: Annotated[str, "Error code to return if the deque parameter is not found default 'deque_not_found'"] = "deque_not_found",
+    on_set: Annotated[
+        str, "Value to return when a parameter is successfully set from the deque default 'popleft_from_deque'"
+    ] = "popleft_from_deque",
+    error_not_found: Annotated[
+        str, "Error code to return if the deque parameter is not found default 'deque_not_found'"
+    ] = "deque_not_found",
 ) -> ActionNodeOutput:
     """Pops an item from the front of a deque parameter and sets it to another parameter.
-    If the deque is empty, sets the target parameter to a specified value. Returns an error if the deque parameter is not found."""
+    If the deque is empty, sets the target parameter to a specified value.
+    Returns an error if the deque parameter is not found."""
     deque_obj = state.get_param(deque_param_name, deque)
     if isinstance(deque_obj, deque):
         if len(deque_obj) == 0:

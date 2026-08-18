@@ -6,10 +6,16 @@ from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import load_config_file
 from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
 from workflow_engine.collection_param_handlers import WriteParamMode
+from workflow_engine.help_contract.builder import (
+    build_components_payload,
+    collect_help_components,
+    external_names_from_report,
+    find_help_component,
+)
+from workflow_engine.help_contract.models import CONTRACT_VERSION
+from workflow_engine.help_contract.renderers import TextComponentRenderer, render_components_list_text
 from workflow_engine.models.state import StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput, ParamWrite, WorkflowArtifact
-
-# def _get_engine():
 
 
 def _get_config(args: Namespace):
@@ -130,13 +136,42 @@ def list_of_sessions(command_name: CommandName, args: Namespace) -> CommandResul
 
 def help_components(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
-    components = engine.components
-    return CommandResult(command=command_name, command_status=CommandStatus.COMPLETED, data={"components": components})
-
-
-def help_component(command_name: CommandName, args: Namespace) -> CommandResult:
+    external = external_names_from_report(engine.components)
+    if args.json:
+        return CommandResult(
+            command=command_name,
+            command_status=CommandStatus.COMPLETED,
+            data=build_components_payload(external),
+        )
     return CommandResult(
         command=command_name,
         command_status=CommandStatus.COMPLETED,
-        data={"component_type": args.component_type, "component_name": args.component_name},
+        message=render_components_list_text(collect_help_components(external)),
+        data=None,
+    )
+
+
+def help_component(command_name: CommandName, args: Namespace) -> CommandResult:
+    engine = _get_engine(args)
+    external = external_names_from_report(engine.components)
+    component = find_help_component(args.component_type, args.component_name, external)
+    if component is None:
+        return CommandResult(
+            command=command_name,
+            command_status=CommandStatus.ERROR,
+            message=f"Component '{args.component_name}' of type '{args.component_type}' is not registered",
+            errors={"component": f"{args.component_type}/{args.component_name} not found"},
+            data=None,
+        )
+    if args.json:
+        return CommandResult(
+            command=command_name,
+            command_status=CommandStatus.COMPLETED,
+            data={"contract_version": CONTRACT_VERSION, "component": component.to_payload()},
+        )
+    return CommandResult(
+        command=command_name,
+        command_status=CommandStatus.COMPLETED,
+        message=TextComponentRenderer(component).render(),
+        data=None,
     )
