@@ -214,6 +214,33 @@ Out of scope:
 - Export failures never change the workflow status and never raise; they end in the event journal
   and in the command result data.
 
+### Artifact function surface: `copy_artifact`
+
+- One registered function ships with this decision, because the deliverables story is incomplete
+  without it: the copy-promote pattern (draft artifacts on working nodes, one final artifact
+  promoted to a declared deliverable when ready) has no vehicle today — `copy_file` copies the
+  file but registers nothing, so the copy cannot be declared or exported.
+- Signature: `copy_artifact(source_artifact_name, target_artifact_name, target_path=None,
+  allow_overwrite=False)`.
+  - `source_artifact_name`: logical name of an existing artifact; unknown name is the function
+    error `artifact_not_found`.
+  - `target_artifact_name`: logical name of the new artifact.
+  - `target_path`: path of the copy, resolved inside `work_dir/artifacts` through the existing
+    artifact path resolution (outside paths stay rejected). When omitted, the copy lands in the
+    artifacts root under the target artifact name with the source file suffix, following the
+    default-path precedent of `dict_list_to_pretty_table`.
+  - `allow_overwrite`: default `False`. When `False`, an existing target logical name or an
+    existing registration of the target path fails early with the function-level error codes
+    `artifact_overwritten` / `artifact_path_conflict` (the ADR 006 responsibility split: strict
+    function pre-checks; engine registration of returned artifacts stays unchanged). When `True`,
+    the copy proceeds and the engine records the ADR 006 conflict events as usual.
+- The function copies only; it never moves. Move/delete would require a deregistration semantic
+  that the ADR 006 registration contract does not have — that is a separate future decision, out
+  of scope here. The source artifact stays registered and on disk inside the session sandbox.
+- Documentation is part of the deliverable: full registration metadata (summary, `Annotated`
+  parameter docs, error codes in the docstring), enforced by the ADR 009 quality gate so the
+  function is complete in `help-component`.
+
 ### CLI surface
 
 - `run`/`resume` gain `--export-dir`; the config file gains `export_dir`. Precedence follows the
@@ -235,7 +262,9 @@ Out of scope:
 ### Test surface
 
 - Unit: prefix resolution (hit, `artifact_not_found`, no caching into params); `deliverables`
-  schema validation errors; status derivation with each new event code as the last event.
+  schema validation errors; status derivation with each new event code as the last event;
+  `copy_artifact` (default target path, overwrite refusal with both error codes, `allow_overwrite`
+  path, unknown source).
 - CLI contract: `export-artifact` argument matrix (name XOR `--all`, exit codes), destination
   precedence CLI-over-config.
 - E2e, the operator flow of the 2026-08-18 investigation: scan a tree, declare the CSV as a
@@ -252,3 +281,7 @@ Out of scope:
   instead of defaulting to all deliverables, so an accidental bulk export is impossible.
   Implementation notes expanded with the concrete resolution point, schema validation, export
   copy semantics, event/status-derivation trap, CLI argument contract and test surface.
+- `copy_artifact` added to the delivered surface: the copy-promote pattern (draft artifacts
+  promoted to a declared deliverable) needs a function that copies and registers, which no
+  existing component does. Copy-only by design — move/delete would need a deregistration
+  semantic absent from ADR 006 and stay a separate future decision.

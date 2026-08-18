@@ -52,6 +52,11 @@ same change.
 5. `export-artifact` requires exactly one of an artifact name or an explicit `--all`; a bulk
    export never happens by default (settled in a session follow-up, recorded in the ADR 011
    change log).
+6. One registered function `copy_artifact` joins the ADR 011 surface to serve the copy-promote
+   pattern (draft artifacts promoted to a declared deliverable): copy-only with
+   `allow_overwrite=False` by default and full help metadata. Move/delete semantics were
+   deliberately excluded — they need a deregistration concept absent from ADR 006 and stay a
+   separate future decision; a broader speculative function set was rejected as YAGNI.
 
 ## Open questions
 None.
