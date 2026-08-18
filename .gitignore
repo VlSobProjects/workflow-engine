@@ -114,3 +114,6 @@ pip-selfcheck.json
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+
+### AI assistant plugin local data
+.proxyai/
