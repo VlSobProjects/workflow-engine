@@ -89,24 +89,48 @@ def init_session(command_name: CommandName, args: Namespace) -> CommandResult:
 def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     session_id = engine.init_new_session(workflow_path=Path(args.workflow_file))
-    res, state = engine.start_workflow(session_id=session_id)
-    return CommandResult.from_state(
+    res, state = engine.start_workflow(session_id=session_id, export_dir=getattr(args, "export_dir", None))
+    result = CommandResult.from_state(
         command=command_name,
         command_status=CommandStatus.COMPLETED,
         state=StateReadOnlyView.from_state(state),
         message=res.description,
     )
+    result.data["deliverables"] = engine.get_deliverables(session_id)
+    return result
 
 
 def resume_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     session_id = args.session_id
-    res, state = engine.start_workflow(session_id=session_id, output=_output_node(args))
-    return CommandResult.from_state(
+    res, state = engine.start_workflow(
+        session_id=session_id, output=_output_node(args), export_dir=getattr(args, "export_dir", None)
+    )
+    result = CommandResult.from_state(
         command=command_name,
         command_status=CommandStatus.COMPLETED,
         state=StateReadOnlyView.from_state(state),
         message=res.description,
+    )
+    result.data["deliverables"] = engine.get_deliverables(session_id)
+    return result
+
+
+def export_artifact(command_name: CommandName, args: Namespace) -> CommandResult:
+    engine = _get_engine(args)
+    target_dir = Path(args.target_dir)
+    exported = engine.export_artifact(
+        session_id=args.session_id,
+        target_dir=target_dir,
+        artifact_name=args.artifact_name,
+        all_deliverables=args.all,
+    )
+    return CommandResult(
+        command=command_name,
+        command_status=CommandStatus.COMPLETED,
+        session_id=args.session_id,
+        message=f"Exported {len(exported)} artifact(s) to {target_dir.as_posix()}",
+        data={"exported": {item.logical_name: item.target_path for item in exported}},
     )
 
 
@@ -132,12 +156,14 @@ def show_state(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     session_id = args.session_id
     state = engine.get_status(session_id=session_id)
-    return CommandResult.from_state_full(
+    result = CommandResult.from_state_full(
         command=command_name,
         command_status=CommandStatus.COMPLETED,
         state=state,
         message=f"State for session {session_id}",
     )
+    result.data["deliverables"] = engine.get_deliverables(session_id)
+    return result
 
 
 def list_of_sessions(command_name: CommandName, args: Namespace) -> CommandResult:

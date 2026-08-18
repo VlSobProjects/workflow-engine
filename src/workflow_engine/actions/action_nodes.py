@@ -22,8 +22,8 @@ _SAVE_AS_DOC = ActionParameterDoc("str", "State parameter name to save the outpu
 _FUNCTION_NAME_DOC = ActionParameterDoc("str", "Name of a registered function to execute.")
 _FUNCTION_PARAMETERS_DOC = ActionParameterDoc(
     "dict",
-    "Parameters passed to the function. Values support 'param.<name>' and 'output.<node_id>' "
-    "references resolved from the workflow state.",
+    "Parameters passed to the function. Values support 'param.<name>', 'output.<node_id>' and "
+    "'artifact.<logical_name>' references resolved from the workflow state.",
 )
 
 

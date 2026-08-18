@@ -7,7 +7,7 @@ from workflow_engine.actions.base_actions import (
     BaseAutomaticAction,
     BaseInteractiveAction,
 )
-from workflow_engine.artifacts_export import export_deliverables_on_completion
+from workflow_engine.artifacts_export import ExportedArtifact, copy_named_artifacts, export_deliverables_on_completion
 from workflow_engine.bootstrap.config_loader import CONFIG_FILE_NAME
 from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowSessionsFactory
 from workflow_engine.bootstrap.storage_fatcory import StorageFactory
@@ -525,3 +525,33 @@ class WorkflowEngine:
     def get_status(self, session_id: str) -> StateReadOnlyView:
         runtime = self._acquire(session_id)
         return StateReadOnlyView.from_state(runtime.state)
+
+    def get_deliverables(self, session_id: str) -> list[str]:
+        runtime = self._acquire(session_id)
+        return list(runtime.workflow.deliverables)
+
+    def export_artifact(
+        self,
+        session_id: str,
+        target_dir: Path,
+        artifact_name: str | None = None,
+        all_deliverables: bool = False,
+    ) -> list[ExportedArtifact]:
+        """Copy one named artifact, or all declared deliverables, of an existing session out.
+
+        The manual salvage path: it works for completed, paused and failed sessions and records no
+        session events. A missing session, unknown name, or an ``--all`` on a definition that
+        declares no deliverables is a resolution error. See ADR 011.
+        """
+        runtime = self._acquire(session_id)
+        if all_deliverables:
+            names = runtime.workflow.deliverables
+            if not names:
+                raise WorkflowEngineError(
+                    f"Session {session_id} declares no deliverables to export with --all"
+                )
+        else:
+            if artifact_name is None:
+                raise WorkflowEngineError("An artifact name or --all is required")
+            names = (artifact_name,)
+        return copy_named_artifacts(runtime.state, names, target_dir)

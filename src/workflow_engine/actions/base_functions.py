@@ -15,7 +15,9 @@ from workflow_engine.validators.functions_validators import (
 
 @register_function(summary="Emit a value as the action output.")
 def echo_value(
-    value: Annotated[str, "Value to emit; supports 'param.<name>' and 'output.<node_id>' references"],
+    value: Annotated[
+        str, "Value to emit; supports 'param.<name>', 'output.<node_id>' and 'artifact.<logical_name>' references"
+    ],
 ) -> ActionNodeOutput:
     """Emit the given value unchanged as the output text of the action.
 

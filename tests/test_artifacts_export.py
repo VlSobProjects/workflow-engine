@@ -123,6 +123,29 @@ def test_engine_exports_declared_deliverable_on_completion(tmp_path):
     assert state.session_events[-1].code == SessionEventCode.ARTIFACTS_EXPORTED
 
 
+def test_export_artifact_command_records_no_session_events(tmp_path):
+    source_root = tmp_path / "source-root"
+    create_source_tree(source_root)
+    target_dir = tmp_path / "copy-target"
+    target_dir.mkdir()
+    workflow = build_workflow(source_root, target_dir)
+    workflow["deliverables"] = ["copy_report"]
+    workflow_path = tmp_path / "workflow.json"
+    workflow_path.write_text(json.dumps(workflow, indent=2))
+
+    engine = create_engine(tmp_path)
+    session_id = engine.init_new_session(workflow_path)
+    _, state = engine.start_workflow(session_id)
+    events_before = list(state.session_events)
+    status_before = state.get_workflow_status_code()
+
+    engine.export_artifact(session_id, tmp_path / "salvage", artifact_name="copy_report")
+
+    assert (tmp_path / "salvage" / "reports" / "copy_report.csv").is_file()
+    assert state.session_events == events_before
+    assert state.get_workflow_status_code() == status_before
+
+
 def test_engine_does_not_export_without_destination(tmp_path):
     source_root = tmp_path / "source-root"
     create_source_tree(source_root)

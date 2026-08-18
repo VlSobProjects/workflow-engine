@@ -4,6 +4,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from workflow_engine.exceptions import ArtifactNotFoundError, WorkflowRuntimeError
 from workflow_engine.models.state import ARTIFACTS_DIR, SessionEvent, SessionEventCode, StateModel
 
 
@@ -62,3 +63,25 @@ def export_deliverables_on_completion(state: StateModel, deliverables: tuple[str
                 {"exported": exported, "destination": destination.resolve().as_posix()},
             )
         )
+
+
+def copy_named_artifacts(state: StateModel, names: tuple[str, ...], destination: Path) -> list[ExportedArtifact]:
+    """Copy named registered artifacts to ``destination``; the manual salvage path.
+
+    Unlike the completion export this records no session events: it is operator-invoked retrieval on
+    a session that may be paused or failed, and appending export events there would corrupt the
+    status derived from the last event. A resolution problem (unknown name, missing file) is raised
+    as a WorkflowEngineError so the CLI reports it as an exit-4 error. See ADR 011.
+    """
+    artifacts_root = state.work_dir / ARTIFACTS_DIR
+    exported: list[ExportedArtifact] = []
+    for name in names:
+        artifact = state.artifacts.get(name)
+        if artifact is None:
+            raise ArtifactNotFoundError(name=name, message="not registered in this session")
+        try:
+            target = _copy_artifact_file(artifacts_root, artifact.relative_path, destination)
+        except OSError as error:
+            raise WorkflowRuntimeError(f"Failed to export artifact '{name}': {error}") from error
+        exported.append(ExportedArtifact(logical_name=name, target_path=target.as_posix()))
+    return exported

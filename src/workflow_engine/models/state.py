@@ -289,6 +289,7 @@ class StateReadOnlyView:
     _get_errors: Final[Callable[[], MappingProxyType[str, str]]]
     _get_parameters: Final[Callable[[], MappingProxyType[str, object]]]
     _get_artifacts: Final[Callable[[], dict[str, str]]]
+    _get_artifacts_detail: Final[Callable[[], dict[str, dict[str, str]]]]
 
     timestamp: datetime
     work_dir: Path
@@ -340,6 +341,16 @@ class StateReadOnlyView:
         def get_artifacts() -> dict[str, str]:
             return {name: artifact.relative_path.as_posix() for name, artifact in state.artifacts.items()}
 
+        def get_artifacts_detail() -> dict[str, dict[str, str]]:
+            root = state.work_dir / ARTIFACTS_DIR
+            return {
+                name: {
+                    "path": (root / artifact.relative_path).resolve().as_posix(),
+                    "description": artifact.description or "",
+                }
+                for name, artifact in state.artifacts.items()
+            }
+
         return cls(
             get_param,
             get_output,
@@ -352,6 +363,7 @@ class StateReadOnlyView:
             get_errors,
             get_parameters,
             get_artifacts,
+            get_artifacts_detail,
             work_dir=state.work_dir,
             timestamp=state.timestamp,
             schema_version=state.schema_version,
@@ -435,6 +447,9 @@ class StateReadOnlyView:
 
     def get_artifacts(self) -> dict[str, str]:
         return self._get_artifacts()
+
+    def get_artifacts_detail(self) -> dict[str, dict[str, str]]:
+        return self._get_artifacts_detail()
 
 
 @dataclass
