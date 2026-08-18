@@ -117,6 +117,8 @@ pip-selfcheck.json
 
 ### AI assistant plugin local data
 .proxyai/
+# Per-machine Claude Code settings (local allowlists etc.); shared .claude/settings.json may be tracked.
+.claude/settings.local.json
 
 ### Local workflow-engine runtime root (default work_dir of CLI runs)
 .workflow-engine/
