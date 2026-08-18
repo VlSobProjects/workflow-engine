@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from workflow_engine.exceptions import WorkflowEngineError
+from workflow_engine.exceptions import WorkflowConfigurationError, WorkflowEngineError
 from workflow_engine.models.node import WorkflowNodeModel
 from workflow_engine.tools import parameter_from_dict, parameter_from_dict_with_checker
 
@@ -49,6 +49,7 @@ class WorkflowModel:
     flow_id: str
     start_node_id: str
     nodes: list[WorkflowNodeModel]
+    deliverables: tuple[str, ...] = ()
 
     def get_node(self, node_id: str) -> WorkflowNodeModel | None:
         """Return the node with the given id, or None if not found."""
@@ -56,6 +57,33 @@ class WorkflowModel:
             if node.id == node_id:
                 return node
         return None
+
+    @staticmethod
+    def _validate_deliverables(raw: object) -> tuple[str, ...]:
+        """Validate the optional ``deliverables`` block for shape only.
+
+        An absent block and an empty list are equivalent. The named artifacts are not checked
+        against the registry: they exist only at runtime. Shape errors are aggregated. See ADR 011.
+        """
+        if raw is None:
+            return ()
+        if not isinstance(raw, list):
+            raise WorkflowConfigurationError("deliverables must be a list of artifact names")
+        errors: list[str] = []
+        seen: set[str] = set()
+        names: list[str] = []
+        for index, item in enumerate(raw):
+            if not isinstance(item, str) or not item.strip():
+                errors.append(f"entry {index} must be a non-empty string")
+                continue
+            if item in seen:
+                errors.append(f"duplicate deliverable '{item}'")
+                continue
+            seen.add(item)
+            names.append(item)
+        if errors:
+            raise WorkflowConfigurationError("Invalid deliverables: " + "; ".join(errors))
+        return tuple(names)
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> WorkflowModel:
@@ -71,4 +99,5 @@ class WorkflowModel:
             flow_id=parameter_from_dict(data, "flow_id", str),
             start_node_id=parameter_from_dict(data, "start_node_id", str),
             nodes=[WorkflowNodeModel.from_dict(node) for node in nodes if isinstance(node, dict)],
+            deliverables=cls._validate_deliverables(data.get("deliverables")),
         )

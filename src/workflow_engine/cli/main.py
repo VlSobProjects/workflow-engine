@@ -8,6 +8,7 @@ from workflow_engine.cli.contract import CommandName, CommandResult, CommandStat
 from workflow_engine.cli.exit_codes import ExitCode, get_exit_code
 from workflow_engine.cli.presenters import render_json, render_text
 from workflow_engine.cli.use_cases import (
+    export_artifact,
     help_component,
     help_components,
     init_session,
@@ -39,24 +40,19 @@ class CommandArgs:
     choices: list[str] | None = field(default=None)
     choices_help: str | None = field(default=None)
 
-    def add_argument(self, command: argparse.ArgumentParser):
-        if self.choices is not None:
-            command.add_argument(
-                self.key,
-                help=self.help,
-                required=self.required,
-                type=self.type,
-                action=self.action,
-                choices=self.choices,
-            )
+    def add_argument(self, command):
+        kwargs: dict[str, object] = {"help": self.help, "action": self.action}
+        if self.action == "store_true":
+            # A boolean flag takes no type or choices; requiredness of a mutually exclusive group
+            # member is owned by the group, so it stays optional here.
+            if self.required:
+                kwargs["required"] = self.required
         else:
-            command.add_argument(
-                self.key,
-                help=self.help,
-                required=self.required,
-                type=self.type,
-                action=self.action,
-            )
+            kwargs["type"] = self.type
+            kwargs["required"] = self.required
+            if self.choices is not None:
+                kwargs["choices"] = self.choices
+        command.add_argument(self.key, **kwargs)
 
 
 @dataclass
@@ -65,11 +61,16 @@ class Command:
     help: str
     runner: Callable[[CommandName, Namespace], CommandResult]
     args: list[CommandArgs] = field(default_factory=list)
+    exclusive_args: list[CommandArgs] = field(default_factory=list)
 
     def add_to_parser(self, parser: argparse._SubParsersAction, shared_parser: argparse.ArgumentParser):
         command_parser = parser.add_parser(self.command.value, help=self.help, parents=[shared_parser])
         for arg in self.args:
             arg.add_argument(command_parser)
+        if self.exclusive_args:
+            group = command_parser.add_mutually_exclusive_group(required=True)
+            for arg in self.exclusive_args:
+                arg.add_argument(group)
 
     def run_command(self, args: Namespace) -> CommandResult:
         try:
@@ -87,6 +88,14 @@ def _session_id_arg() -> CommandArgs:
     return CommandArgs(
         key="--session-id",
         help="Session ID",
+    )
+
+
+def _export_dir_arg() -> CommandArgs:
+    return CommandArgs(
+        key="--export-dir",
+        help="Directory the declared deliverables are exported into on completion (overrides config export_dir)",
+        required=False,
     )
 
 
@@ -119,7 +128,8 @@ def _get_commend(command_name: CommandName) -> Command:
                     CommandArgs(
                         key="--workflow-file",
                         help="Path to the workflow file",
-                    )
+                    ),
+                    _export_dir_arg(),
                 ],
             )
         case CommandName.RESUME:
@@ -156,6 +166,7 @@ def _get_commend(command_name: CommandName) -> Command:
                         help="Artifact description from operator to the workflow",
                         required=False,
                     ),
+                    _export_dir_arg(),
                 ],
             )
         case CommandName.SET_LIMIT:
@@ -178,6 +189,29 @@ def _get_commend(command_name: CommandName) -> Command:
                 help="Show a workflow state",
                 args=[_session_id_arg()],
                 runner=show_state,
+            )
+        case CommandName.EXPORT_ARTIFACT:
+            return Command(
+                command=CommandName.EXPORT_ARTIFACT,
+                help="Export one artifact or all declared deliverables of a session to a directory",
+                runner=export_artifact,
+                args=[
+                    _session_id_arg(),
+                    CommandArgs(key="--target-dir", help="Directory the artifacts are copied into"),
+                ],
+                exclusive_args=[
+                    CommandArgs(
+                        key="--artifact-name",
+                        help="Logical name of the single artifact to export",
+                        required=False,
+                    ),
+                    CommandArgs(
+                        key="--all",
+                        help="Export all declared deliverables of the session",
+                        required=False,
+                        action="store_true",
+                    ),
+                ],
             )
         case CommandName.LIST_SESSIONS:
             return Command(

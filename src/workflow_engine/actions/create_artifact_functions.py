@@ -1,13 +1,21 @@
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
 from prettytable import PrettyTable
 
-from workflow_engine.models.state import ARTIFACT_OVERWRITE, ARTIFACT_PATH_CONFLICT, StateReadOnlyView
+from workflow_engine.models.state import (
+    ARTIFACT_NOT_FOUND,
+    ARTIFACT_OVERWRITE,
+    ARTIFACT_PATH_CONFLICT,
+    StateReadOnlyView,
+)
 from workflow_engine.output import ActionNodeOutput, WorkflowArtifact
 from workflow_engine.registry.function_registry import register_function
 from workflow_engine.validators.functions_validators import not_empty_str_arg_validator
+
+COPY_ARTIFACT_WRITE_ERROR = "copy_artifact_write_error"
 
 
 def check_artifact(artifact_name: str, relative_path: Path, state: StateReadOnlyView) -> ActionNodeOutput | None:
@@ -95,5 +103,71 @@ def dict_list_to_pretty_table(
         output_text="pretty_table_created",
         artifacts={
             artifact_name: WorkflowArtifact(artifact_path, datetime.now(tz=UTC), description=artifact_description)
+        },
+    )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"source_artifact_name": 0, "target_artifact_name": 1})],
+    summary="Copy a registered artifact into a new registered artifact",
+)
+def copy_artifact(
+    source_artifact_name: Annotated[str, "Logical name of an existing artifact to copy from"],
+    target_artifact_name: Annotated[str, "Logical name the copy is registered under"],
+    state: Annotated[StateReadOnlyView, "Read-only state view used to resolve and register artifacts"],
+    target_path: Annotated[
+        str | None,
+        "Path of the copy inside work_dir/artifacts; defaults to the target name with the source file suffix",
+    ] = None,
+    allow_overwrite: Annotated[
+        bool, "When False (default) an existing target name or path is refused; when True the copy proceeds"
+    ] = False,
+) -> ActionNodeOutput:
+    """Copy an existing artifact to a new artifact and register the copy.
+
+    This is the copy-promote vehicle: a draft artifact produced on a working node is copied to the
+    name declared as a deliverable. The copy is resolved inside work_dir/artifacts and a path
+    outside it is rejected. When target_path is omitted the copy lands in the artifacts root under
+    the target name with the source file suffix. The function copies only; the source artifact stays
+    registered and on disk.
+    On an unknown source name returns error_code 'artifact_not_found'.
+    When allow_overwrite is False and the target name already exists returns error_code
+    'artifact_overwritten', and a target path already backing another artifact returns
+    'artifact_path_conflict'.
+    On an OS error while copying returns error_code 'copy_artifact_write_error'.
+    """
+    if not state.is_artifact_exist_by_name(source_artifact_name):
+        return ActionNodeOutput(
+            output_text="",
+            error_code=ARTIFACT_NOT_FOUND,
+            error_msg=f"Source artifact '{source_artifact_name}' is not registered.",
+        )
+
+    source_relative = state.get_artifacts()[source_artifact_name]
+    source_absolute = state.get_artifact_absolute_path(source_relative)
+
+    default_name = target_artifact_name + Path(source_relative).suffix
+    target_relative = state.get_artifact_relative_path(target_path if target_path else default_name)
+
+    if not allow_overwrite:
+        conflict = check_artifact(target_artifact_name, target_relative, state)
+        if conflict is not None:
+            return conflict
+
+    target_absolute = state.get_artifact_absolute_path(target_relative)
+    try:
+        target_absolute.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source_absolute, target_absolute)
+    except OSError as e:
+        return ActionNodeOutput(output_text="", error_code=COPY_ARTIFACT_WRITE_ERROR, error_msg=str(e))
+
+    return ActionNodeOutput(
+        output_text="artifact_copied",
+        artifacts={
+            target_artifact_name: WorkflowArtifact(
+                target_relative,
+                datetime.now(tz=UTC),
+                description=f"Copy of artifact '{source_artifact_name}'",
+            )
         },
     )

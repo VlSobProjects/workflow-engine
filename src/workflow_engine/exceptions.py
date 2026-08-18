@@ -127,6 +127,23 @@ class ArtifactPathError(WorkflowRuntimeError):
         )
 
 
+class ArtifactNotFoundError(WorkflowRuntimeError):
+    """An `artifact.<name>` reference names an artifact absent from the state.
+
+    Carries the node contract error code so an automatic action can turn it into an error value on
+    the node result instead of letting it escape to the caller. See ADR 011.
+    """
+
+    error_code: str = "artifact_not_found"
+
+    def __init__(self, name: str, message: str | None = None) -> None:
+        self.name = name
+        self.message = message
+        super().__init__(
+            f"Artifact reference '{name}' is not registered: {message if message is not None else 'No message'}"
+        )
+
+
 # class StateError(Exception):
 #     """Exception raised for errors in state."""
 #

@@ -13,6 +13,7 @@ class CommandName(Enum):
     LIST_SESSIONS = "list-sessions"
     HELP_COMPONENTS = "help-components"
     HELP_COMPONENT = "help-component"
+    EXPORT_ARTIFACT = "export-artifact"
 
 
 class CommandStatus(Enum):
@@ -26,6 +27,7 @@ INFO_COMMANDS = (
     CommandName.HELP_COMPONENT,
     CommandName.SHOW_STATE,
     CommandName.SET_LIMIT,
+    CommandName.EXPORT_ARTIFACT,
 )
 
 # fields: command, session_id, command_status, workflow_status, event_code, message, errors, data;
@@ -74,14 +76,20 @@ class CommandResult:
             data["error_message"] = state.error_msg
 
         if full:
+            # show-state keeps the stable artifacts_path and relative-path map, and additively gains
+            # the absolute path per artifact. See ADR 011.
             data.update(
                 {
                     "outputs": state.outputs(),
                     "parameters": state.get_parameters(),
                     "artifacts_path": state.get_artifacts_path(),
                     "artifacts": state.get_artifacts(),
+                    "artifacts_absolute": state.get_artifacts_detail(),
                 }
             )
+        else:
+            # Terminal run/resume additively surface each artifact by absolute path plus description.
+            data["artifacts"] = state.get_artifacts_detail()
         return data
 
     @classmethod

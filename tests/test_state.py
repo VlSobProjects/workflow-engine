@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from workflow_engine.exceptions import ArtifactPathError
+from workflow_engine.exceptions import ArtifactNotFoundError, ArtifactPathError
 from workflow_engine.models.state import (
     INVALID_WRITE_MODE,
     PARAM_OVERWRITE_FORBIDDEN,
@@ -154,6 +154,31 @@ def test_artifact_path_conflict(state_base):
     assert len(state_base.artifact_events) == 1
     assert state_base.artifacts["test_artifact_3"].relative_path == Path("test/test2.txt")
     assert "test_artifact_2" not in state_base.artifacts
+
+
+def test_artifact_reference_resolves_to_absolute_posix_path(state_base, tmp_path):
+    resolved = state_base.set_parameters({"src": "artifact.test_artifact"})
+
+    assert resolved["src"] == (tmp_path / "artifacts" / "test" / "test.txt").resolve().as_posix()
+
+
+def test_artifact_reference_is_not_cached_into_params(state_base):
+    state_base.set_parameters({"src": "artifact.test_artifact"})
+
+    assert "src" not in state_base.params
+
+
+def test_unknown_artifact_reference_raises_artifact_not_found(state_base):
+    with pytest.raises(ArtifactNotFoundError):
+        state_base.set_parameters({"src": "artifact.missing"})
+
+
+def test_param_and_output_references_still_resolve(state_base):
+    state_base.outputs["node_a"] = "output-value"
+
+    resolved = state_base.set_parameters({"p": "param.test_param", "o": "output.node_a"})
+
+    assert resolved == {"p": "string", "o": "output-value"}
 
 
 def test_set_write_to_existing_param_without_overwrite_fails(state_base):
