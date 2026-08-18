@@ -53,6 +53,10 @@ checker; adopting one requires an ADR. Never auto-remove "unused" imports — re
 decorators at import time, so an unused-looking import may be the only thing registering a component
 (`__init__.py` files ignore F401 for this reason).
 
+Prefer the Bash tool (Git Bash) for git and general shell work; use PowerShell only for
+Windows-specific tasks, and do not mix the two shells' syntax in one command. For multi-line commit or
+PR messages, write the text to a file and use `git commit -F <file>` to avoid shell-quoting pitfalls.
+
 ## Architecture
 
 Full description: `docs/architecture/overview.md`. The big picture:
