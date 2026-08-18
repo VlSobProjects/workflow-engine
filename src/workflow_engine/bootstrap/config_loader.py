@@ -15,6 +15,15 @@ APPLICATION_DIRECTORY = ".workflow-engine"
 CONFIG_FILE_NAME = "workflow_engine_config.json"
 ENV_WORK_DIR = "WE_WORK_DIR"
 ENV_STORAGE_DIR = "WE_STORAGE_DIR"
+DEFAULT_HARD_MAX_NODES_VISITED = 1000
+
+
+def _validated_hard_max_nodes_visited(value: int) -> int:
+    # The hard cap has no "unlimited" value on purpose: it exists to bound runs whose soft limit
+    # is 0. See ADR 010.
+    if value < 1:
+        raise WorkflowConfigurationError(f"hard_max_nodes_visited must be a positive integer, got: {value}")
+    return value
 
 
 @dataclass(frozen=True)
@@ -22,6 +31,10 @@ class WorkflowEngineConfiguration:
     work_dir: str = field(default=APPLICATION_DIRECTORY)
     external_modules: tuple[str] = field(default_factory=tuple)
     storage: MappingProxyType[str, str] = field(default_factory=lambda: MappingProxyType({}))
+    hard_max_nodes_visited: int = field(default=DEFAULT_HARD_MAX_NODES_VISITED)
+
+    def __post_init__(self) -> None:
+        _validated_hard_max_nodes_visited(self.hard_max_nodes_visited)
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> WorkflowEngineConfiguration:
@@ -29,6 +42,9 @@ class WorkflowEngineConfiguration:
             work_dir=parameter_from_dict_default(data, "work_dir", str, APPLICATION_DIRECTORY),
             external_modules=tuple(parameter_from_dict_default(data, "external_modules", list, [])),
             storage=MappingProxyType(parameter_from_dict_default(data, "storage", dict, {})),
+            hard_max_nodes_visited=parameter_from_dict_default(
+                data, "hard_max_nodes_visited", int, DEFAULT_HARD_MAX_NODES_VISITED
+            ),
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -36,6 +52,7 @@ class WorkflowEngineConfiguration:
             "work_dir": self.work_dir,
             "external_modules": list(self.external_modules),
             "storage": dict(self.storage),
+            "hard_max_nodes_visited": self.hard_max_nodes_visited,
         }
 
 
@@ -173,6 +190,9 @@ def load_config_file(
         work_dir=work_dir_value.as_posix(),
         external_modules=tuple(parameter_from_dict_default(config_data, "external_modules", list, [])),
         storage=MappingProxyType({"storage_dir": storage_dir_value.as_posix()}),
+        hard_max_nodes_visited=parameter_from_dict_default(
+            config_data, "hard_max_nodes_visited", int, DEFAULT_HARD_MAX_NODES_VISITED
+        ),
     )
 
     if not resolved_config_path.exists():

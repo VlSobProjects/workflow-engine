@@ -25,6 +25,13 @@ caller -> engine -> node: action -> transitions -> node ...
 node from the definition, checks that every transition target exists, and then runs until the
 workflow ends, a node fails, or a node needs an exchange with the caller.
 
+Every run is bounded by two node budgets (see ADR 010): the per-session `max_nodes_visited` soft
+limit, operator-controlled via `set-limit` with `0` meaning no soft limit, and the global
+`hard_max_nodes_visited` safety cap from the engine configuration (default `1000`). Reaching the
+soft limit pauses the run with `workflow_paused_limit`; reaching the hard cap pauses it with
+`workflow_paused_safety_limit`. The hard cap cannot be changed by a session command: continuing past
+it requires raising the value in the configuration file before the resume.
+
 ## A node
 
 A node is **one action and an ordered list of guarded transitions**. See ADR 002.
@@ -140,7 +147,8 @@ Public commands are:
 - `init-new-session` to create a session without starting execution;
 - `run` to create and execute a session;
 - `resume` to continue an existing session;
-- `set-limit` to update the per-session `max_nodes_visited` soft limit;
+- `set-limit` to update the per-session `max_nodes_visited` soft limit (`0` disables it, but the
+  run stays bounded by the global hard safety cap);
 - `show-state` to render persisted session state;
 - `list-sessions` to list sessions discoverable under the configured `work_dir`;
 - `help-components` to list registered components;
@@ -183,5 +191,4 @@ missing metadata explicitly.
 ## What is not settled yet
 
 - Default runtime and storage path policy for CLI calls remains open. See ADR 008.
-- The engine-wide hard safety cap for unbounded runs remains open. See ADR 010.
 - The error and retry policy beyond the allowance a transition declares.

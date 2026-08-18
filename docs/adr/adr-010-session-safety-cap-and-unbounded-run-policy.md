@@ -61,8 +61,8 @@ Cost: one new config field, event code, and command/UI messaging.
 ## Related ADRs
 
 - ADR 006 data flow between nodes (Accepted).
-- ADR 007 CLI contract and session lifecycle for v1 (Draft).
-- ADR 008 runtime directory and default path policy for v1 (Draft).
+- ADR 007 CLI contract and session lifecycle for v1 (Accepted).
+- ADR 008 runtime directory and default path policy for v1 (Accepted).
 
 ## Implementation notes
 
@@ -79,3 +79,9 @@ Minimum implementation slice:
 
 - Initial draft opened from phase 1 architecture planning session as optional phase 1 decision.
 - Moved to Implementing and opened the implementation branch.
+- Implemented the minimum slice: `hard_max_nodes_visited` config field (validated as a positive
+  integer, no unlimited value), the engine-loop check after the soft-limit check, the
+  `workflow_paused_safety_limit` engine event mapping to the paused status, and CLI messaging for
+  `set-limit 0`. The cap is read from the current configuration on every run and resume and is not
+  persisted per session; a `storage_dir` change in the edited configuration does not affect an
+  existing session (ADR 004), which is fixed by a regression test.

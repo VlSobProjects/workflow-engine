@@ -114,11 +114,17 @@ def set_limit(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     session_id = args.session_id
     state = engine.set_session_limits(session_id=session_id, max_nodes_visited=args.limit)
+    message = f"Limit set to {args.limit} for session {session_id}"
+    if args.limit == 0:
+        message += (
+            f"; no soft limit, but the run is still bounded by the global hard safety cap "
+            f"hard_max_nodes_visited={engine.hard_max_nodes_visited}"
+        )
     return CommandResult.from_state(
         command=command_name,
         command_status=CommandStatus.COMPLETED,
         state=state,
-        message=f"Limit set to {args.limit} for session {session_id}",
+        message=message,
     )
 
 

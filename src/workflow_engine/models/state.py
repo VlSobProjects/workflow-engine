@@ -51,6 +51,7 @@ class SessionEventCode(Enum):
     WORKFLOW_RESUMED = "workflow_resumed"
     WORKFLOW_SETUP_FAILED = "workflow_setup_failed"
     WORKFLOW_PAUSED_LIMIT = "workflow_paused_limit"
+    WORKFLOW_PAUSED_SAFETY_LIMIT = "workflow_paused_safety_limit"
     WORKFLOW_COMPLETED = "workflow_completed"
     WORKFLOW_FAILED = "workflow_failed"
 
@@ -65,6 +66,7 @@ OPERATOR_CODES = (
 ENGINE_CODES = (
     SessionEventCode.WORKFLOW_SETUP_FAILED,
     SessionEventCode.WORKFLOW_PAUSED_LIMIT,
+    SessionEventCode.WORKFLOW_PAUSED_SAFETY_LIMIT,
     SessionEventCode.WORKFLOW_COMPLETED,
     SessionEventCode.WORKFLOW_FAILED,
 )
@@ -551,6 +553,7 @@ class StateModel:
                 return WorkflowStatusCode.COMPLETED
             case (
                 SessionEventCode.WORKFLOW_PAUSED_LIMIT
+                | SessionEventCode.WORKFLOW_PAUSED_SAFETY_LIMIT
                 | SessionEventCode.WORKFLOW_STARTED
                 | SessionEventCode.WORKFLOW_RESUMED
                 | SessionEventCode.OPERATOR_LIMIT_UPDATED

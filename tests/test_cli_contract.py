@@ -246,6 +246,33 @@ class TestSetLimitCommand:
         assert code == 0
         assert response["command_status"] == "completed"
 
+    def test_set_limit_zero_reports_the_hard_safety_cap(self, tmp_path: Path, create_config, capsys):
+        """Soft unlimited mode must state explicitly that the run stays bounded by the hard cap."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        _, init_response = run_json_cli(
+            [
+                "init-new-session",
+                "--workflow-file",
+                workflow_path.as_posix(),
+                "--config",
+                create_config.as_posix(),
+            ],
+            capsys,
+        )
+        session_id = cast(str, cast(dict[str, object], init_response["data"])["session_id"])
+
+        code, response = run_json_cli(
+            ["set-limit", "--limit", "0", "--session-id", session_id, "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 0
+        assert "hard_max_nodes_visited=1000" in cast(str, response["message"])
+
 
 class TestShowStateCommand:
     """Tests for `show-state` command."""

@@ -7,6 +7,7 @@ from workflow_engine.actions.base_actions import (
     BaseAutomaticAction,
     BaseInteractiveAction,
 )
+from workflow_engine.bootstrap.config_loader import CONFIG_FILE_NAME
 from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowSessionsFactory
 from workflow_engine.bootstrap.storage_fatcory import StorageFactory
 from workflow_engine.exceptions import WorkflowEngineError, WorkflowParameterError, WorkflowRuntimeError
@@ -161,6 +162,7 @@ def _start_engine(
     storage: Storage,
     state: StateModel,
     output: ActionNodeOutput | None,
+    hard_max_nodes_visited: int,
 ) -> PresentResponse:
     cur_node = _get_workflow_node(workflow_nodes, state.current_node_id)
     try:
@@ -184,6 +186,30 @@ def _start_engine(
                     instruction="You can change max node exceeded Workflow engine call set_session_limits",
                     hints=_state_hints(state),
                     errors={cur_node.id: "Workflow max node exceeded"},
+                )
+            if state.nodes_visited >= hard_max_nodes_visited:
+                state.record_session_event(
+                    SessionEvent.engine_event(
+                        SessionEventCode.WORKFLOW_PAUSED_SAFETY_LIMIT,
+                        {
+                            "node_id": cur_node.id,
+                            "nodes_visited": state.nodes_visited,
+                            "max_nodes_visited": state.max_nodes_visited,
+                            "hard_max_nodes_visited": hard_max_nodes_visited,
+                        },
+                    )
+                )
+                storage.save_state(state)
+                return PresentResponse(
+                    title="Workflow safety cap reached",
+                    description=f"The workflow has reached the global hard safety cap: "
+                    f"{state.nodes_visited}/{hard_max_nodes_visited} nodes visited. "
+                    f"A session with no soft limit is still bounded by this cap.",
+                    instruction=f"The cap cannot be raised by a session command. Check the visit counters "
+                    f"in the state for a likely loop. To continue a legitimately long run, raise "
+                    f"'hard_max_nodes_visited' in '{CONFIG_FILE_NAME}' and resume the session.",
+                    hints=_state_hints(state),
+                    errors={cur_node.id: "Workflow hard safety cap reached"},
                 )
             _set_parameters(state, cur_node.set_parameters, cur_node.override_parameters)
             state_read_only = StateReadOnlyView.from_state(state)
@@ -343,6 +369,7 @@ class WorkflowEngine:
     storage_factory: StorageFactory
     session_factory: WorkflowSessionsFactory
     components: dict[str, dict[str, dict[str, str]]]
+    hard_max_nodes_visited: int
     runtime: SessionRuntime | None
 
     def __init__(
@@ -350,10 +377,12 @@ class WorkflowEngine:
         storage_factory: StorageFactory,
         session_factory: WorkflowSessionsFactory,
         components: dict[str, dict[str, dict[str, str]]],
+        hard_max_nodes_visited: int,
     ) -> None:
         self.session_factory = session_factory
         self.storage_factory = storage_factory
         self.components = components
+        self.hard_max_nodes_visited = hard_max_nodes_visited
         self.runtime = None
 
     @property
@@ -443,7 +472,7 @@ class WorkflowEngine:
 
         runtime.state.record_session_event(_run_entry_event(runtime.state))
         self._commit(runtime)
-        response = _start_engine(runtime.nodes, runtime.storage, runtime.state, output)
+        response = _start_engine(runtime.nodes, runtime.storage, runtime.state, output, self.hard_max_nodes_visited)
         self._commit(runtime)
         return response, runtime.state
 
