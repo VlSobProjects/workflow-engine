@@ -71,6 +71,13 @@ The state view exists so the engine can resolve `param.`, `output.`, and `artifa
 guard's configuration before it runs; the registered predicate function behind a function guard never
 receives the state itself, only the values already resolved into it.
 
+**A guard sees the state as it was before its own node wrote to it.** The engine selects the
+transition first and applies the node's `param_writes`, output text and artifacts afterwards, when the
+step is taken. So a guard routing out of a node cannot read what that node just produced through the
+bus — it reads the action result, which is what it is given. A loop that accumulates therefore puts
+its exit check at the head of the loop, on a node that runs after the write has landed, rather than on
+the node that performs the write.
+
 Kinds: comparison against a value, a registered function returning a boolean, a match on the error
 code, the absence of an error, and the nested groups `all_of` and `any_of`. Any guard may be negated.
 
