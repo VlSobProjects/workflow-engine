@@ -227,7 +227,7 @@ class StopAction(BaseAutomaticAction):
     def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         if self.registered_function is not None:
             return self.registered_function.execute(
-                parameters_modified=lambda d: d.update({"output": prev_output, "state": state})
+                parameters_modified=state.set_parameters_with_updater({"output": prev_output, "state": state})
             )
         return ActionNodeOutput(output_text=prev_output.output_text if prev_output else "")
 
