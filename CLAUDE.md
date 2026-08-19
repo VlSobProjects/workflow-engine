@@ -73,8 +73,10 @@ actions return a `PresentResponse` to the caller and the engine stops until call
 - **Actions** (`src/workflow_engine/actions/`) perform work and produce one `ActionNodeOutput`;
   errors are values inside that result, not exceptions.
 - **Guards** (`src/workflow_engine/transition/guards.py`) are the only predicate concept: they read
-  the action result (never the state directly), return a boolean, and their name is the error code
-  on failure. `validators` in config is sugar that expands to leading failure transitions at build
+  the action result and a read-only state view, which exists to resolve `param.`/`output.`/`artifact.`
+  references in their configuration — the predicate function itself gets the resolved values, never
+  the state. They return a boolean, and their name is the error code of a node that a `validators`
+  entry fails. `validators` in config is sugar that expands to leading failure transitions at build
   time.
 - **Registries** (`src/workflow_engine/registry/`): components register at import time via
   decorators — `@register_action`, `@register_function`, `@register_validator`, `@register_type`

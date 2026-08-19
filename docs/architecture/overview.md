@@ -38,7 +38,7 @@ A node is **one action and an ordered list of guarded transitions**. See ADR 002
 
 | Part | Contract |
 | --- | --- |
-| Action | Performs the work and produces one `ActionNodeOutput`. An error is a value in that result. |
+| Action | Performs the work and produces one `ActionNodeOutput`. An error is a value in that result; an exception that escapes the action reaches the engine, which ends the run as failed. |
 | Transition | A guard and a static target. The first transition whose guard holds is taken. |
 
 An action is either automatic, and the engine continues, or interactive, and the engine returns a
@@ -55,15 +55,19 @@ A target is one of:
 
 If a node declares no routing target, the workflow ends after it. If it declares one and no guard
 holds, the node fails. A transition whose target is the node itself, or one carrying `attempts`,
-retries the node within the allowance of `max_attempts`. A failure target's code is optional: when the
-transition configuration omits `fail`, the node fails under the error code the action already
+retries the node while the node's `max_attempts` (default `3`) still allows it. Once the allowance is
+spent, a self-targeting transition fails the node under `max_attempts_exceeded`, and a transition that
+carries `attempts` towards another node finally takes that route. A failure target's code is optional:
+when the transition configuration omits `fail`, the node fails under the error code the action already
 produced instead of a new one.
 
 ## Guards
 
 A guard is the only predicate concept. Its `check` method receives the action result, a read-only
 state view, and a trace list; it returns a boolean, appends its answer to the trace, and never writes
-anything to the state. The name of a guard is the error code of a node that fails it.
+anything to the state. The name of a guard is the error code of a node that fails it through the
+`validators` expansion. A node that declares a routing target and matches no transition fails under the
+error code its action produced, or under `no_transition_matched` when the action produced none.
 
 The state view exists so the engine can resolve `param.`, `output.`, and `artifact.` references in a
 guard's configuration before it runs; the registered predicate function behind a function guard never
@@ -147,9 +151,11 @@ session or the one-shot `run --input`. Each `--input NAME[:TYPE]=VALUE` is decod
 (JSON-parsed with a raw-string fallback for typed values; an untyped value stays a literal string)
 and written to `state.params` as a `SET` write through the normal path, journaled as an `inputs_set`
 operator event that records the bound names and codecs, not the values. Binding is allowed only while
-the session has not started; a started run rejects it. Starting a session with an unbound `required`
-input fails at setup with the missing names before any node executes (exit code `4`). The declared
-inputs surface in the `run`/`resume`/`show-state` result data next to `deliverables`.
+the session has not started; a started run rejects it. When an assignment names a type and the
+declaration names one too, both must resolve to the same codec, otherwise the binding is rejected.
+Starting a session with an unbound `required` input fails at setup with the missing names before any
+node executes (exit code `4`), after journaling a `workflow_setup_failed` event that carries them. The
+declared inputs surface in the `run`/`resume`/`show-state` result data next to `deliverables`.
 
 ## Storage
 
@@ -213,8 +219,9 @@ explicit `--storage-dir` is required to use a storage location the config file n
 
 **Config discovery**, in order: the explicit `--config` path; `<cwd>/.workflow-engine/
 workflow_engine_config.json`; `<user_config_dir>/.workflow-engine/workflow_engine_config.json`
-(`platformdirs.user_config_dir()`); otherwise a default config file is created at
-`<runtime_root>/workflow_engine_config.json`.
+(`platformdirs.user_config_dir()`); otherwise `<runtime_root>/workflow_engine_config.json`. Whichever
+path is resolved, a file that is not there is created with the resolved defaults, and that includes an
+explicit `--config` path that does not exist yet.
 
 **Default paths**: when no explicit path is provided, the runtime root defaults to `<cwd>/.workflow-engine/`,
 which holds sessions under `<work_dir>/sessions/<session_id>/`, storage under `<work_dir>/json-storage/`,
@@ -230,9 +237,9 @@ paths remain in POSIX form regardless of OS (ADR 008).
 - `resume` to continue an existing session;
 - `set-input` to bind typed values to declared workflow inputs of an unstarted session, one or more
   `--input NAME[:TYPE]=VALUE` per call (ADR 012);
-- `set-limit` to update the per-session `max_nodes_visited` soft limit; refuses to lower it below the
-  current node count unless the new value is `0` (which disables the soft limit, but the run stays
-  bounded by the global hard safety cap);
+- `set-limit` to update the per-session `max_nodes_visited` soft limit; it refuses any value below the
+  current limit, and `0` is the one exception, disabling the soft limit while the run stays bounded by
+  the global hard safety cap. The number of nodes already visited does not enter the rule;
 - `show-state` to render persisted session state;
 - `list-sessions` to list sessions discoverable under the configured `work_dir`;
 - `help-components` to list registered components;
@@ -269,9 +276,10 @@ JSON payloads carry a top-level `contract_version`. The list groups components u
 type keys `actions`, `functions`, `validators`, `guards`, `codecs`; a detail payload keeps the stable
 keys `name`, `type`, `summary`, `description`, `parameters`, `source`, `notes`, and an action detail
 adds `execution_mode` and the node-authoring sections (`node_template`,
-`action_parameters.required/optional`, `transition_hints`, `examples`); a type-level payload carries
-`component_type` with `type`, `description` and `components` entries in the list shape (`name`,
-`summary`, `source`). Existing keys and nesting are stable; extension is additive only.
+`action_parameters.required/optional`, `transition_hints`, `examples`), a guard detail adds `kind` and
+a codec detail adds `python_type`; a type-level payload carries `component_type` with `type`,
+`description` and `components` entries in the list shape (`name`, `summary`, `source`). Existing keys
+and nesting are stable; extension is additive only.
 
 Metadata sources per type: actions and codecs declare explicit metadata at the registration point;
 functions and validators combine the signature with `Annotated`/`Args` parameter documentation;
