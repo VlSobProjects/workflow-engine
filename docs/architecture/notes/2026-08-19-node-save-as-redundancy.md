@@ -5,9 +5,9 @@
   `2026-08-19-implementation-3` (the dead `BaseAction.save_as` field), and the user's observation
   that `save_as` predates the typed parameter channel and may have lost its purpose
 - **Status:** open
-- **Affected:** ADR 006 (data flow between nodes), ADR 009 (operator help contract), ADR 013 (Draft;
-  author-chosen parameter naming reappears in the typed answer declaration — session
-  `2026-08-19-architecture-1`)
+- **Affected:** ADR 006 (data flow between nodes), ADR 009 (operator help contract), ADR 013
+  (Implementing; author-chosen parameter naming reappears in the typed answer declaration — session
+  `2026-08-19-architecture-1`, revisited in `2026-08-19-architecture-2`)
 
 ## The observation
 
@@ -45,6 +45,14 @@ state already holds, under a different name. That is the redundancy.
   handled by the engine, or a documented convention that functions whose result is meant to be reused
   declare it through `param_writes`. This keeps the naming and removes the duplication, at the cost of
   designing the replacement.
+
+## What ADR 013 changed here
+
+Nothing, deliberately. An interactive node names its values through the `answer` declaration, so for
+that one action the author-chosen naming of point 1 has a typed channel and `save_as` is not needed.
+ADR 013 still leaves `save_as` working on an `ask` node: its optional `text` becomes the node's output
+text, and `save_as` stores it like anywhere else. The redundancy is unchanged for every automatic node,
+which is where it was observed.
 
 ## What this note does not decide
 

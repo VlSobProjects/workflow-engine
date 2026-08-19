@@ -1,10 +1,10 @@
 # ADR 013: Interactive exchange and typed answer contract
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+`feature/adr_013-interactive-exchange`
 
 ## Context
 
@@ -22,6 +22,8 @@ mechanism and none of the contract:
 - `PresentResponse` describes the question richly (instruction, options, constraints, examples,
   errors) but says nothing machine-readable about the *answer*: `expected_input` is free text.
   `SubmitResult`/`SubmitStatus` exist and are unused.
+- Nothing of the presentation reaches the caller. `run` and `resume` copy its description into the
+  result message and merge its errors; no other field leaves the process.
 - Nothing records who answered. The session journal distinguishes engine events from operator
   commands (ADR 006), but an answer to a paused node has no actor.
 
@@ -42,13 +44,16 @@ Constraints:
 
 ## Decision
 
-Draft. The direction below is proposed; the open points are listed at the end of this section.
-
 ### 1. One contract, whoever answers
 
-The engine does not model "agent" and "operator" as different nodes. There is one interactive
-action and one answer contract. Who answered is data about the answer, recorded in the journal, not
-a property of the node.
+The engine does not model "agent" and "operator" as different kinds of node. There is one
+interactive action and one answer contract. Who answered is data about the answer, recorded in the
+journal, not a property of the node.
+
+A node that asks the operator a prepared question, a node that asks an agent to choose a branch, and
+a node that asks an agent to go away, act, and report back differ only in the text of the
+presentation and in who reads it. The engine treats all three identically, so it needs no taxonomy
+of interactive node types.
 
 ### 2. A core interactive action with a declared answer
 
@@ -63,66 +68,100 @@ carries:
   parameters a valid answer must carry and how they are typed. It is the machine-readable
   replacement of `expected_input`.
 
+The `answer` declaration and the workflow `inputs` block are one shape with one validator, not two
+that happen to look alike.
+
 The declaration is part of the presentation the engine returns, so a caller — agent or human
-tooling — knows the schema of the answer without reading the workflow file.
+tooling — knows the schema of the answer without reading the workflow file. A command that describes
+a workflow definition without running it is therefore not a prerequisite for this decision.
 
 ### 3. Pausing
 
 When the run reaches an `ask` node, the engine returns the presentation, journals an engine event
 (`workflow_paused_interactive`, carrying the node id and the declared answer names), saves state and
-stops. The CLI reports it as a paused workflow (exit code `2`), `data` carrying the presentation and
-the answer declaration.
+stops.
+
+The paused position needs no new state field: `state.current_node_id` names the node, and whether
+its action is interactive is read from the built node.
+
+The CLI reports a paused workflow (exit code `2`) and carries a `question` block in `data`: the node
+id, the presentation, the answer declaration and the error catalogue. That block, and not
+`PresentResponse` itself, is the caller-facing contract. `PresentResponse` is also the engine's
+vehicle for setup errors, budget stops, node failures and completion; publishing it would tie four
+unrelated reports to one frozen shape.
 
 ### 4. Answering
 
-`resume` gains an additive option to submit the answer for the paused node (proposed
-`--answer <json>` and `--answer-file <path>`, mutually exclusive). The answer is a JSON object with:
+`resume` gains two mutually exclusive options: `--answer <json>` and `--answer-file <path>`. The
+answer is a JSON object with:
 
-- `status`: `success` | `failure` | `escalate`;
-- `values`: a mapping of declared answer names to values, decoded through the declared codec by
-  the same rule `--input` uses (JSON-parsed with raw-string fallback; an untyped value stays a
-  string); unknown names and missing `required` names are rejected before anything is applied;
-- `error_code` and `message` when `status` is `failure`; the code must come from the node's
-  declared error catalogue or be the generic `answer_failed`;
+- `status`: `success` | `failure`;
+- `values`: a mapping of declared answer names to values. Each value is decoded by the codec
+  declared for its name; a name declared without a type is bound as given. The JSON-parse-with-raw-
+  string-fallback rule of `--input` belongs to the string transport of a command-line flag and does
+  not apply here: a JSON answer already carries typed values;
+- `text`, optional: the `output_text` of the node, and therefore `state.outputs[<node id>]` and what
+  a `save_as` on that node stores. It defaults to the empty string. Value guards (`equals`,
+  `contains`, `starts_with`, `ends_with`) read it, so a free-form answer can be routed on without
+  declaring a parameter for it;
+- `error_code` and `message` when `status` is `failure`; the code must come from the node's declared
+  error catalogue or be the generic `answer_failed`;
 - `actor`: free label of who answered (e.g. `operator`, `agent:<name>`); optional, defaults to
   `unspecified`.
 
 A `success` answer becomes an `ActionNodeOutput` with `SET` `param_writes` for the values and runs
 through `_proceed_with_output`: the node's guards and transitions decide where the run goes, exactly
-as for a computed output. A `failure` answer becomes an output with the error code, and the normal
-retry machinery applies (a self-loop or an `attempts` transition, bounded by `max_attempts`). The
-engine never writes the answer to the bus directly.
+as for a computed output. `SET` is the only write mode available to an answer: an answer is a value,
+not an operation on the bus. Accumulating answers across a loop is the work of a following node.
 
-The answer is journaled as an operator-side event (`interactive_answered`) carrying the node id,
-status, actor, and the answered names and codecs — never the values, mirroring `inputs_set`.
+A `failure` answer becomes an output with the error code, and the normal retry machinery applies (a
+self-loop or an `attempts` transition, bounded by `max_attempts`). The engine never writes the answer
+to the bus directly.
 
-### 5. Escalation
+### 5. When an answer is refused
 
-`status: escalate` means the far end could not answer and hands the question to someone else
-(typically agent → operator). The node stays paused, no attempt is consumed, the escalation is
-journaled (`interactive_escalated`, with actor and message), and the next `resume` re-presents the
-same node. A node may declare an `audience` hint (`agent` | `operator` | `any`) that the
-presentation carries; the engine does not enforce it — it has no way to know who is reading.
+An answer is accepted only when the action of the current node is interactive and the last session
+event is `workflow_paused_interactive`. A run paused at a limit, a failed run and an automatic node
+are refused: an answer to a node that did not ask is the fabricated node output ADR 012 removed.
 
-### 6. Pause is not failure
+Refused as well, before anything is applied: an undeclared name, a missing `required` name, a value
+the declared codec cannot decode, and an `error_code` outside the node's catalogue.
+
+Every refusal is a command error (exit code `4`) that applies nothing and records no session event.
+The journal holds what happened to the run, and a refused command did not happen to it; this is how
+a refused `set-input` already behaves.
+
+### 6. Re-presenting a question
+
+`resume` without an answer, at a paused interactive node, presents the same node again unchanged. No
+attempt is consumed and no visit counted.
+
+This is all an escalation needs: a far end that cannot answer simply does not answer, and whoever
+calls next — a human, typically — is shown the same question. The engine has no way to know who is
+reading, so it declares nothing about the intended audience.
+
+### 7. Pause is not failure
 
 This ADR covers continuing a paused node. Reopening a session in terminal `FAILED` state to finish
 it by hand is a separate capability and is explicitly out of scope; it stays in the recovery note.
 
-### Open points to settle before leaving Draft
+### 8. Counting
 
-1. Transport form: a JSON object on `resume` (above) versus repeated typed flags
-   (`--answer NAME[:TYPE]=VALUE`, the `--input` grammar) plus `--answer-status`. The flag form is
-   shell-friendly for humans; the JSON form is the natural one for an agent and carries the status
-   and message without inventing more flags. One of them, not both, in phase 2.
-2. Whether `escalate` is an answer status (above) or a third terminal of the presentation the agent
-   simply does not answer; and whether `audience` deserves to exist at all in the first version.
-3. Whether the presentation returned by the CLI is the `PresentResponse` as is, or a reduced
-   stable contract, given that `PresentResponse` is also the engine's vehicle for limit and failure
-   reports.
-4. Whether a paused `ask` node counts in `nodes_visited` once or once per answer attempt.
-5. Which of the existing `PresentResponse` defaults (`default_hints`, `default_submit`) survive
-   once the answer is declared.
+An `ask` node is counted like every other node: a transition that returns to it consumes an attempt
+and is bounded by `max_attempts`, and `nodes_visited` grows only when the run leaves it. A
+re-presented question consumes neither, so the ADR 010 budget does not bound how long a question may
+stay open. That is intended: the budget bounds engine work, and a question waiting for an answer is
+not engine work.
+
+### 9. The answer in the journal
+
+The answer is journaled as an operator-side event (`interactive_answered`) carrying the node id, the
+status, the answered names with their codecs, and the `actor` label in the event details — never the
+values, mirroring `inputs_set`.
+
+The label lives in the details because `SessionEvent.actor` is the engine/operator distinction of
+ADR 006 and stays two-valued. Who supplied an answer is a property of the answer, not a third kind
+of actor.
 
 ## Alternatives considered
 
@@ -148,35 +187,93 @@ An always-on process the agent talks to. Removes the resume round-trip but intro
 the project has deliberately not had, a second public contract, and process-lifetime questions.
 Deferred: the CLI/JSON contract here is what such an adapter would wrap later.
 
+### E. Escalation as a third answer status
+`status: escalate` leaves the node paused, consumes no attempt and is journaled under its own code,
+with an `audience` hint (`agent` | `operator` | `any`) on the node. It reads well beside `success`
+and `failure`, and it names the agent-to-operator handover explicitly. Rejected: it does nothing
+that `resume` without an answer does not already do, and the `audience` hint it invites is a
+declaration the engine can neither check nor enforce. A distinct record for "the far end gave up"
+can be added later if a run needs to tell it apart from "nobody has answered yet".
+
+### F. Typed flags instead of a JSON answer
+`--answer NAME[:TYPE]=VALUE` repeated, in the `--input` grammar, plus `--answer-status`,
+`--answer-error` and `--actor`. Shell-friendly and consistent with `set-input`. Rejected as the
+first form: an answer carries a status, a message and an actor beside its values, so the flag form
+needs five flags and rules about which combine with which; a collection value has to be JSON-parsed
+inside the flag string anyway, reintroducing the second decoding rule §4 removes; and the primary
+caller is a program, not a hand. The flag form stays available later as an additive second transport
+if answering by hand proves painful.
+
+### G. Returning `PresentResponse` as the caller-facing document
+Serialize the dataclass into `data` and be done. The cheapest option today, and it exposes every
+field an author can set. Rejected: the same class carries setup errors, budget stops, node failures
+and completion, so publishing it makes any future change to any of those a breaking change of the
+command contract. §3 exposes a reduced block instead.
+
+### H. A write mode in the answer declaration
+Let a declared name carry `APPEND` or `REPLACE` beside `SET`, so that a loop of questions
+accumulates into one list parameter inside a single node. Saves two nodes in an adaptive-questioning
+flow. Rejected: it makes the answer declaration diverge from the ADR 012 `inputs` shape it is meant
+to be, and it hands bus semantics to whoever answers. The same result is one following node using
+the existing collection-writing functions.
+
 ## Consequences
 
 - Enables: mid-run input from an agent or an operator with schema, validation, audit and routing
   through guards; manual takeover of a step an automated node cannot complete (recovery note (a));
   the answer declaration that ADR 014 reuses for LLM outputs.
-- Costs: a new core action, a `resume` option and result-data extension, three session event codes,
-  and a state marker for "paused at interactive node awaiting answer" if the current node id is not
-  enough to derive it.
-- Closes off: answering a node by writing the bus from outside; per-audience action types.
+- Costs: a new core action with its ADR 009 operator metadata, two `resume` options and a `question`
+  block in the command result, two session event codes, the extraction of the input declaration and
+  of the codec decoding into forms that both `inputs` and `answer` use, and the removal of the two
+  `PresentResponse` defaults (`default_submit`, `default_hints`) that describe the unstructured
+  protocol the declared answer replaces.
+- Costs nothing in the state model: the paused position is `state.current_node_id`, and the actor
+  label rides in the details of an event.
+- Closes off: answering a node by writing the bus from outside; per-audience action types; an answer
+  that chooses its own write mode.
 - Leaves open: reopening failed sessions; workflow-definition introspection without running
-  (ADR 012 deferred §3), which an agent driver will want next.
+  (ADR 012 deferred §3), which this decision does not require; a budget checkpoint routed to a node
+  inside the graph instead of the out-of-graph pause of ADR 010.
 
 ## Related ADRs
 
 - Depends on: ADR 006 (bus and journal), ADR 007 (command contract and exit codes), ADR 012
   (codec-typed binding rule, `inputs` declaration shape).
 - Touches: ADR 002 (the answer runs through guards and transitions), ADR 009 (the action and its
-  answer declaration in the help contract), ADR 011 (artifact references in presentation text).
+  answer declaration in the help contract), ADR 010 (a re-presented question consumes no budget),
+  ADR 011 (artifact references in presentation text).
 - Consumed by: ADR 014 (answer declaration and binding).
 
 ## Implementation notes
 
-Candidate POC question, if the decision cannot be settled on paper: can an external agent (a script
-acting as one) drive the two shipped example workflows extended with one `ask` node through the CLI
-alone — pause, read the schema, answer, escalate, resume — with the journal showing the actor on
-every answer? Existing pieces to reuse: `BaseInteractiveAction`, `PresentResponse`,
-`ActionNodeOutput.from_args`, `_proceed_with_output`, the ADR 012 input decoding.
+No POC: the pause mechanism already exists and is covered by engine tests, and no open question
+remains that only code could answer.
+
+Reuse rather than rebuild:
+- `BaseInteractiveAction` and the interactive branch of `_start_engine` — the pause already works;
+- `_proceed_with_output` — the answer path needs no change to guard or transition handling;
+- `ActionNodeOutput.from_args` — the existing decoding of an externally supplied output;
+- `WorkflowModel._validate_inputs` — extract it so `inputs` and `answer` share one validator;
+- `decode_input_value` — split it so that decoding an already-parsed value by its codec is reachable
+  without the command-line string rule;
+- the collection-writing functions, for accumulating answers across a loop of questions;
+- `_require_bound_inputs` — the shape of a setup-time precondition that refuses a command.
+
+Touched: `models/workflow.py`, `inputs.py`, a new `ask` action module, `actions/action_present.py`,
+a new answer parsing module, `engine.py`, `models/state.py` (event codes, status derivation, actor
+code lists), `cli/main.py`, `cli/use_cases.py`, `cli/contract.py`, `README.md`,
+`docs/architecture/overview.md`, an example workflow, and the test suite.
 
 ## Change log
 
 - 2026-08-19: opened as Draft in session `2026-08-19-architecture-1`, from ADR 007 §4 and the
   recovery roadmap note (a).
+- 2026-08-19: all five open points settled and the ADR moved to Implementing (session
+  `2026-08-19-architecture-2`). The transport is a JSON answer on `resume`, with the flag form kept
+  as alternative F. `escalate` and `audience` are dropped in favour of re-presenting on a plain
+  `resume` (alternative E). The caller-facing presentation is a reduced `question` block rather than
+  `PresentResponse` (alternative G). The counting question was answered by the rule the engine
+  already applies instead of a new one. `default_submit` and `default_hints` are removed. Three gaps
+  the draft had not named were closed in the same pass: what the `output_text` of an answered node
+  is (the new `text` field), when an answer is refused (§5), and that `values` are written with
+  `SET` only (alternative H).
