@@ -7,11 +7,9 @@ from workflow_engine.bootstrap.config_loader import load_config_file
 from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
 from workflow_engine.engine import WorkflowEngine
 from workflow_engine.help_contract.builder import (
-    ExternalNames,
     build_component_type_payload,
     build_components_payload,
     collect_help_components,
-    external_names_from_report,
     find_help_component,
 )
 from workflow_engine.help_contract.models import COMPONENT_TYPE_BY_KEY, CONTRACT_VERSION
@@ -37,6 +35,11 @@ def _get_config(args: Namespace):
 def _get_engine(args: Namespace):
     bootstrap = Bootstrap(_get_config(args))
     return bootstrap.build_engine()
+
+
+def _load_components(args: Namespace) -> None:
+    """Populate the registries the help payloads read: core modules first, then `external_modules`."""
+    _get_engine(args)
 
 
 def _parse_input_assignments(args: Namespace) -> list:
@@ -192,32 +195,31 @@ def list_of_sessions(command_name: CommandName, args: Namespace) -> CommandResul
 
 
 def help_components(command_name: CommandName, args: Namespace) -> CommandResult:
-    engine = _get_engine(args)
-    external = external_names_from_report(engine.components)
+    _load_components(args)
     if args.json:
         return CommandResult(
             command=command_name,
             command_status=CommandStatus.COMPLETED,
-            data=build_components_payload(external),
+            data=build_components_payload(),
         )
     return CommandResult(
         command=command_name,
         command_status=CommandStatus.COMPLETED,
-        message=render_components_list_text(collect_help_components(external)),
+        message=render_components_list_text(collect_help_components()),
         data=None,
     )
 
 
-def _help_component_type(command_name: CommandName, args: Namespace, external: ExternalNames) -> CommandResult:
+def _help_component_type(command_name: CommandName, args: Namespace) -> CommandResult:
     """The type-level mode of ``help-component``: the type description and its component list."""
     if args.json:
         return CommandResult(
             command=command_name,
             command_status=CommandStatus.COMPLETED,
-            data=build_component_type_payload(args.component_type, external),
+            data=build_component_type_payload(args.component_type),
         )
     component_type = COMPONENT_TYPE_BY_KEY[args.component_type]
-    components = collect_help_components(external)[component_type]
+    components = collect_help_components()[component_type]
     return CommandResult(
         command=command_name,
         command_status=CommandStatus.COMPLETED,
@@ -227,11 +229,10 @@ def _help_component_type(command_name: CommandName, args: Namespace, external: E
 
 
 def help_component(command_name: CommandName, args: Namespace) -> CommandResult:
-    engine = _get_engine(args)
-    external = external_names_from_report(engine.components)
+    _load_components(args)
     if args.component_name is None:
-        return _help_component_type(command_name, args, external)
-    component = find_help_component(args.component_type, args.component_name, external)
+        return _help_component_type(command_name, args)
+    component = find_help_component(args.component_type, args.component_name)
     if component is None:
         return CommandResult(
             command=command_name,
