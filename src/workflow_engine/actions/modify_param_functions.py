@@ -179,3 +179,39 @@ def set_param_from_deque(
         error_code=error_not_found,
         error_msg=f"Deque parameter '{deque_param_name}' not found in state.",
     )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"param_name": 0})],
+    summary="Appends a value to an existing collection parameter.",
+)
+def append_to_param(
+    param_name: Annotated[str, "Name of the existing list, deque or set parameter to append to"],
+    value: Annotated[
+        object,
+        "Value to append; supports 'param.<name>', 'output.<node_id>' and 'artifact.<logical_name>' references",
+    ],
+    state: Annotated[StateReadOnlyView, "Read-only state view used to check that the parameter exists"],
+    error_not_found: Annotated[
+        str, "Error code to return if the parameter does not exist default 'param_not_found'"
+    ] = "param_not_found",
+) -> ActionNodeOutput:
+    """Append one value to an existing list, deque or set parameter.
+
+    The accumulating half of the collection family: 'init_list_param' prepares the parameter and this
+    adds to it one value at a time, so a loop can collect what each pass produced — the answer to an
+    interactive question, the output of the previous node — into one parameter a later node reads.
+
+    A parameter that does not exist is the configured error code. A parameter holding something that
+    cannot be appended to fails the write with 'param_type_mismatch'.
+    """
+    if state.get_param(param_name) is None:
+        return ActionNodeOutput(
+            output_text="",
+            error_code=error_not_found,
+            error_msg=f"Parameter '{param_name}' not found in state; create it with 'init_list_param' first.",
+        )
+    return ActionNodeOutput(
+        output_text=param_name,
+        param_writes={param_name: ParamWrite(mode=WriteParamMode.APPEND, value=value)},
+    )

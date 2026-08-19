@@ -11,7 +11,7 @@
   resolution), ADR 013 (Accepted and delivered; the table below was re-verified against the code —
   see "What the implementation changed"), ADR 014 (Draft, decides prompt templating)
 
-The answer is yes for the substance, with one core gap, one shape difference, and two functions to
+The answer is yes for the substance, with one core gap, one shape difference, and one function to
 write. Recorded here because the mapping keeps being re-derived, and because two of the three
 frictions belong to decisions that are still open.
 
@@ -28,7 +28,7 @@ actually be run and checked, not argued about. It was first written while ADR 01
 | `I` — instruction to the agent to act and report | the same `ask` node: the presentation is the instruction, the agent acts outside the engine and answers with the aggregated result; node `validators` already exist | full |
 | `S` — deterministic script with parameters | a `function` node over an external registered function that runs the script; `script_output_match` is several transitions with `contains` guards, whose configured value resolves `param.` references | needs one external function |
 | `STOP` | `stop` / `stop_on_error` and the `EndTarget` / `FailTarget` transition targets; `handoff_ref` is a deliverable (ADR 011); `cleanup_scripts` is a node before the end | full |
-| `FQ` — up to N agent-generated questions | bounding N is a transition to the next node carrying `attempts`: the `ask` node re-presents while attempts remain and routes on when they are spent. Accumulation is the other half: an answer writes `SET` only, and there is no core function that appends a value to a list | N: full. N *and* accumulation: needs one function, unless the agent re-sends the whole list each round (a `list`-typed answer value binds as a real list) |
+| `FQ` — up to N agent-generated questions | a loop `CHECK → ask → COLLECT → CHECK`: `append_to_param` accumulates each answer and the `is_collection_size_at_least` guard on the head node leaves the loop once there are enough. A question repeated in place instead, without collecting, is bounded by `attempts` | full, at the cost of two nodes around the question; covered end to end by `tests/test_bounded_accumulating_loop.py` |
 | typed validators (`non_empty`, `regex`, `enum`, `path_exists`) | node `validators`, value guards, function guards | full |
 | `attempt_counters`, `max_visits`, retry actions | `attempt_counters` / `max_attempts`, `visit_counters` — the same mechanism, which came from there | full |
 | logging: engine-authored vs agent-authored fields per node | `session_events` (the engine/operator actor split), `guard_results`, `outputs`, `errors`; the agent's verbal part is the answer's `text` and `message` | in substance, but the verbal part lives in the state, not in the journal: the journal deliberately never stores values |
@@ -51,13 +51,23 @@ fixed. The mapping held; three cells did not.
    has to be surfaced into a node output first — the documented `echo_value` pattern — or compared by
    a registered validator that takes both sides as arguments. Neither is a gap; it is a choice the
    author has to make knowingly, and the original row hid it.
-3. **`FQ` is better and worse than recorded.** Better: bounding N needs no self-loop that fails at the
-   end — a transition to the next node carrying `attempts` re-presents the question while attempts
-   remain and then routes on gracefully. Worse: accumulation and N cannot be combined on the core as
-   it stands, because an answer writes `SET` only and leaving the node resets the attempt counter, so
-   an intermediate collecting node removes the bound. The core lacks a generic "append a value to a
-   list parameter" function; the collection family has `init_list_param`, `init_deque_param`,
-   `enqueue_folder_entries` and `set_param_from_deque`, and nothing that appends one value.
+3. **`FQ` is better and worse than recorded.** Better: a question repeated in place needs no self-loop
+   that fails at the end — a transition carrying `attempts` re-presents it while attempts remain and
+   then routes on gracefully. Worse: that bound does not survive a loop that collects, because leaving
+   the node resets the attempt counter, and an answer writes `SET` only, so the count has to come from
+   what was collected.
+
+   Closed in session `2026-08-19-implementation-15` by two small components rather than by a change of
+   semantics: `append_to_param` (the accumulating half the collection family was missing next to
+   `init_list_param`) and the `is_collection_size_at_least` guard, which reads the resolved collection
+   because a function guard's arguments are resolved from the state.
+
+   Building it taught the third thing, which is general and was not written down anywhere: **a guard
+   sees the state as it was before its own node wrote to it.** The engine selects the transition and
+   only then applies the node's writes, so the size check cannot live on the node that appends — it
+   belongs at the head of the loop, on a node that runs after the write has landed. The working shape
+   is `CHECK → ask → COLLECT → CHECK`, which is exactly the two extra nodes the "more verbose" verdict
+   predicted. The rule is now stated in the guards section of the architecture overview.
 
 Also confirmed while re-verifying: a `list`-typed answer value binds as a real Python list of
 dictionaries, so the one-node form of `FQ` (the agent returns all question/answer pairs at once) needs
@@ -69,8 +79,8 @@ per-node error taxonomy of ADR-0083, which the first version of this note did no
 The first goal of phase 2 is to run these scenarios for real. Nothing blocks that; this is the order
 the work takes.
 
-1. **`append_to_list_param` in the core.** The one mechanical gap, and the smallest: the bus already
-   has the `APPEND` mode and the collection family already exists around it.
+1. ~~`append_to_param` in the core.~~ Done in session `2026-08-19-implementation-15`, together with
+   the `is_collection_size_at_least` guard the bound turned out to need.
 2. **Build the scenario and run it.** One workflow covering `Q`, `A`, `I`, `FQ`, `STOP`, the counters,
    the validators and the error catalogue, exercised both by a scripted end-to-end test and by a live
    agent. This is the check itself, and it is what turns the remaining questions from predictions into

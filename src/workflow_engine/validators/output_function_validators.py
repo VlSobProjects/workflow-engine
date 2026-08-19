@@ -1,3 +1,4 @@
+from collections.abc import Sized
 from pathlib import Path
 
 from workflow_engine.registry.function_registry import (
@@ -50,3 +51,21 @@ def is_output_number(output: str) -> bool:
     if output[0] in ["+", "-"]:
         return bool(output[1:].isdigit())
     return bool(output.isdigit())
+
+
+@register_validator(summary="A collection parameter holds at least a configured number of items")
+def is_collection_size_at_least(
+    collection: Sized,
+    minimum: int,
+) -> bool:
+    """Holds when the configured collection holds at least 'minimum' items.
+
+    The counting half of an accumulating loop: a node appends to a list and this routes the run out of
+    the loop once enough has been collected. Reversed, it is the transition that keeps the loop going.
+    The engine resolves 'param.<name>' before the check, so the collection arrives as the value itself.
+
+    Args:
+        collection: The collection to measure, normally a 'param.<name>' reference to a list parameter.
+        minimum: The number of items from which the check holds.
+    """
+    return len(collection) >= minimum
