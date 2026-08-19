@@ -32,29 +32,73 @@ def echo_value(
     decorators=[
         file_exists_arg_validator({"path_source": 0}),
     ],
-    summary="Copy a file",
+    summary="Copy a file to a target file path",
 )
 def copy_file(
     path_source: Annotated[str, "Path to the source file"],
-    path_target: Annotated[str, "Path to the target file, or an existing folder to copy into under the source name"],
+    path_target: Annotated[str, "Full path of the copy, including its file name"],
 ) -> ActionNodeOutput:
-    """Copy a file from source to target.
+    """Copy a file to the given target path, which is always the full path of the copy.
 
-    When the target is an existing folder, the file is copied into it under the source file name;
-    otherwise the target is the full path of the copy.
+    The target is never interpreted as a folder: to copy into a folder under the source file name,
+    use 'copy_file_to_folder'. The folder holding the target is not created; it must already exist.
+    If the target path is an existing folder, returns an ActionNodeOutput with error_code
+    'target_is_folder' and the error message.
+    If the folder holding the target does not exist, returns an ActionNodeOutput with error_code
+    'target_folder_not_found' and the error message.
+    On OsError during copying, returns an ActionNodeOutput with error_code 'copy_failed' and the
+    error message.
     """
     source = Path(path_source)
-    if not source.is_file():
-        return ActionNodeOutput(
-            output_text="Can't copy file",
-            error_code="file_not_found",
-            error_msg=f"Source file '{source.absolute()}' is not a file or does not exist.",
-        )
     target = Path(path_target)
     if target.is_dir():
-        target = target / source.name
-    if not target.parent.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
+        return ActionNodeOutput(
+            output_text="Can't copy file",
+            error_code="target_is_folder",
+            error_msg=f"Target '{target.absolute().as_posix()}' is an existing folder; "
+            f"use 'copy_file_to_folder' to copy into a folder under the source file name.",
+        )
+    if not target.parent.is_dir():
+        return ActionNodeOutput(
+            output_text="Can't copy file",
+            error_code="target_folder_not_found",
+            error_msg=f"Target folder '{target.parent.absolute().as_posix()}' does not exist.",
+        )
+    return _copy(source, target)
+
+
+@register_function(
+    decorators=[
+        file_exists_arg_validator({"path_source": 0}),
+    ],
+    summary="Copy a file into an existing folder",
+)
+def copy_file_to_folder(
+    path_source: Annotated[str, "Path to the source file"],
+    path_target_folder: Annotated[str, "Path to an existing folder to copy the file into"],
+) -> ActionNodeOutput:
+    """Copy a file into an existing folder, keeping the source file name.
+
+    The folder is not created; it must already exist. To copy under a different name, use
+    'copy_file' with the full path of the copy.
+    If the target folder does not exist, returns an ActionNodeOutput with error_code
+    'target_folder_not_found' and the error message.
+    On OsError during copying, returns an ActionNodeOutput with error_code 'copy_failed' and the
+    error message.
+    """
+    source = Path(path_source)
+    target_folder = Path(path_target_folder)
+    if not target_folder.is_dir():
+        return ActionNodeOutput(
+            output_text="Can't copy file",
+            error_code="target_folder_not_found",
+            error_msg=f"Target folder '{target_folder.absolute().as_posix()}' does not exist.",
+        )
+    return _copy(source, target_folder / source.name)
+
+
+def _copy(source: Path, target: Path) -> ActionNodeOutput:
+    """Copy the source file to the resolved target path and report the failure as an error code."""
     try:
         shutil.copyfile(source, target)
     except OSError as e:

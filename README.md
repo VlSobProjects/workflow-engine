@@ -76,9 +76,9 @@ workflow-engine run --workflow-file examples/folder-inventory-to-csv.json \
 
 Walks a folder tree and copies every file into a flat target directory, writing a copy report
 (source, copied path, MD5) as the `copy_report` deliverable. Requires `source_root` and `target_dir`
-(both `Path`); **`target_dir` must already exist.** If it does not, every source file is instead
-copied to that non-existent path itself as a single file (each source overwriting the last), the copy
-report lists that same path for every row, and the run still completes with exit code `0`.
+(both `Path`); **`target_dir` must already exist.** If it does not, the first copy fails with the
+error code `target_folder_not_found` and the run stops as a failed workflow (exit code `3`); create
+the directory and start again.
 
 ```
 workflow-engine run --workflow-file examples/flatten-copy-tree.json \

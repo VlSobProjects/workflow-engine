@@ -77,11 +77,13 @@ def build_simple_workflow(root: Path) -> dict:
 
 
 def write_simple_workflow(tmp_path: Path) -> Path:
-    """Create the source file the flow copies and write the workflow definition next to it."""
+    """Create the source file the flow copies, the folders it copies into, and the definition."""
     root = tmp_path / FIXTURE_DIRECTORY
     source_path = root / "source" / SOURCE_FILE_NAME
     source_path.parent.mkdir(parents=True, exist_ok=True)
     source_path.write_text("simple workflow fixture", encoding="utf-8")
+    for copy_directory in ("copy1", "copy2", "copy3"):
+        (root / copy_directory).mkdir(parents=True, exist_ok=True)
 
     workflow_path = root / WORKFLOW_FILE_NAME
     workflow_path.write_text(json.dumps(build_simple_workflow(root), indent=2), encoding="utf-8")

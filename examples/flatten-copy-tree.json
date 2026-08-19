@@ -83,10 +83,10 @@
       "id": "COPY_FILE",
       "action_type": "function",
       "action_parameters": {
-        "function_name": "copy_file",
+        "function_name": "copy_file_to_folder",
         "function_parameters": {
           "path_source": "param.cur_path",
-          "path_target": "param.target_dir"
+          "path_target_folder": "param.target_dir"
         }
       },
       "save_as": "copied_path",
