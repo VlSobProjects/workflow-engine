@@ -234,3 +234,55 @@ def test_show_state_surfaces_absolute_artifacts_and_deliverables(tmp_path, capsy
     assert data["deliverables"] == ["copy_report"]
     assert "copy_report" in cast(dict[str, str], data["artifacts"])
     assert "copy_report" in cast(dict[str, dict[str, str]], data["artifacts_absolute"])
+
+
+def test_run_result_reports_the_export_destination(tmp_path, capsys):
+    """A caller that asked for an export learns from the result where the files went."""
+    cli_dir = tmp_path / "cli-export"
+    config = _write_config(tmp_path)
+
+    _, response = _run(tmp_path, config, capsys, extra_argv=["--export-dir", cli_dir.as_posix()])
+
+    export = cast(dict[str, object], cast(dict[str, object], response["data"])["export"])
+    assert export["destination"] == cli_dir.resolve().as_posix()
+    exported = cast(dict[str, str], export["exported"])
+    assert exported["copy_report"] == (cli_dir / "reports" / "copy_report.csv").resolve().as_posix()
+    assert Path(exported["copy_report"]).is_file()
+
+
+def test_run_without_an_export_reports_no_export_key(tmp_path, capsys):
+    """The key is absent when no completion export ran, rather than reporting an empty destination."""
+    config = _write_config(tmp_path)
+
+    _, response = _run(tmp_path, config, capsys)
+
+    assert "export" not in cast(dict[str, object], response["data"])
+
+
+def test_resume_result_reports_the_export_destination(tmp_path, capsys):
+    """The same reporting on the resume path, which owns its own --export-dir option."""
+    cli_dir = tmp_path / "resume-export"
+    config = _write_config(tmp_path)
+    workflow_path = _artifact_workflow(tmp_path, with_deliverables=True)
+    _, init_response = run_json_cli(
+        ["init-new-session", "--workflow-file", workflow_path.as_posix(), "--config", config.as_posix()],
+        capsys,
+    )
+    session_id = cast(str, init_response["session_id"])
+
+    _, response = run_json_cli(
+        [
+            "resume",
+            "--session-id",
+            session_id,
+            "--config",
+            config.as_posix(),
+            "--export-dir",
+            cli_dir.as_posix(),
+        ],
+        capsys,
+    )
+
+    export = cast(dict[str, object], cast(dict[str, object], response["data"])["export"])
+    assert export["destination"] == cli_dir.resolve().as_posix()
+    assert "copy_report" in cast(dict[str, str], export["exported"])

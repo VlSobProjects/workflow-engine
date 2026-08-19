@@ -7,7 +7,12 @@ from workflow_engine.actions.base_actions import (
     BaseAutomaticAction,
     BaseInteractiveAction,
 )
-from workflow_engine.artifacts_export import ExportedArtifact, copy_named_artifacts, export_deliverables_on_completion
+from workflow_engine.artifacts_export import (
+    DeliverableExport,
+    ExportedArtifact,
+    copy_named_artifacts,
+    export_deliverables_on_completion,
+)
 from workflow_engine.bootstrap.config_loader import CONFIG_FILE_NAME
 from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowSessionsFactory
 from workflow_engine.bootstrap.storage_fatcory import StorageFactory
@@ -377,6 +382,7 @@ class WorkflowEngine:
     hard_max_nodes_visited: int
     export_dir: str | None
     runtime: SessionRuntime | None
+    last_export: DeliverableExport | None
 
     def __init__(
         self,
@@ -392,6 +398,7 @@ class WorkflowEngine:
         self.hard_max_nodes_visited = hard_max_nodes_visited
         self.export_dir = export_dir
         self.runtime = None
+        self.last_export = None
 
     @property
     def session(self) -> WorkflowSession | None:
@@ -463,6 +470,7 @@ class WorkflowEngine:
         self, session_id: str, output: ActionNodeOutput | None = None, export_dir: str | None = None
     ) -> tuple[PresentResponse, StateModel]:
         """Start or continue a workflow session."""
+        self.last_export = None
         runtime = self._acquire(session_id)
         if runtime.setup_error is not None:
             runtime.state.record_session_event(
@@ -499,8 +507,18 @@ class WorkflowEngine:
         destination = export_dir_override or self.export_dir
         if not destination or not runtime.workflow.deliverables:
             return
-        export_deliverables_on_completion(runtime.state, runtime.workflow.deliverables, Path(destination))
+        self.last_export = export_deliverables_on_completion(
+            runtime.state, runtime.workflow.deliverables, Path(destination)
+        )
         self._commit(runtime)
+
+    def get_last_export(self) -> DeliverableExport | None:
+        """The completion export of the last run started through this engine, or None if none ran.
+
+        A caller that asked for an export learns the destination from the command result instead of
+        having to read the session event journal. See ADR 011.
+        """
+        return self.last_export
 
     def set_session_limits(self, session_id: str, max_nodes_visited: int) -> StateReadOnlyView:
         runtime = self._acquire(session_id)

@@ -37,7 +37,8 @@ INFO_COMMANDS = (
 
 @dataclass
 class CommandResult:
-    command: CommandName
+    # `command` is None only when the command line was too malformed to name a known command.
+    command: CommandName | None
     command_status: CommandStatus
     session_id: str | None = field(default=None)
     workflow_status: WorkflowStatusCode | None = field(default=None)
