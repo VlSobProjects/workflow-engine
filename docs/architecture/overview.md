@@ -42,10 +42,8 @@ A node is **one action and an ordered list of guarded transitions**. See ADR 002
 | Transition | A guard and a static target. The first transition whose guard holds is taken. |
 
 An action is either automatic, and the engine continues, or interactive, and the engine returns a
-`PresentResponse` to its caller and stops until it is called again with a result. The engine supports
-this exchange (`ActionNodeOutput.from_args` decodes the resumed result), but no core action currently
-subclasses `BaseInteractiveAction` and no CLI command passes an output on `resume`, so today the
-exchange is exercised by the engine only, unreachable by an operator through the current CLI.
+`PresentResponse` to its caller and stops until it is called again. The core interactive action is
+`ask`; the exchange it takes part in is described under "Interactive exchange" below.
 
 A target is one of:
 
@@ -80,6 +78,50 @@ The configuration key `validators` is a short form for a post-condition. When a 
 entry becomes a leading transition `all_of(no_error, not P)` targeting failure under the name of `P`.
 The transitions built from it no longer reference `validators`, but the raw list stays on
 `WorkflowNode.config` as part of the node's own definition.
+
+## Interactive exchange (see ADR 013)
+
+A node whose action is interactive asks a question and the run stops there. There is one contract
+whoever answers: an operator, an agent, or a calling program. Who answered is data about the answer,
+recorded in the journal, not a property of the node, so the engine needs no taxonomy of interactive
+node types.
+
+The core action is `ask`. Its node configuration carries the presentation (title, instruction,
+options, hints and the rest, with `param.`/`output.`/`artifact.` references resolved as in any node)
+and an `answer` declaration in the shape of the workflow `inputs` block, validated by the same
+function. Beside it an `errors` catalogue names the failure codes the node accepts. Declaration and
+catalogue travel together as the `AnswerContract` of the presentation; the engine reads them from the
+built node and never from the concrete action class.
+
+**Pausing.** The engine journals the engine event `workflow_paused_interactive` with the node id and
+the declared names, saves the state, and returns. The paused position needs no state field of its
+own: it is `state.current_node_id` plus the execution mode of the built node. The command reports a
+paused workflow (exit code `2`) and carries a `question` block in `data` — the node id, the
+presentation, the declared answer, the error catalogue and the generic code. That block, not
+`PresentResponse`, is the caller-facing contract: the same class also carries setup errors, budget
+stops, node failures and completion.
+
+**Answering.** `resume` takes `--answer <json>` or `--answer-file <path>`. The document carries
+`status` (`success` | `failure`), `values`, an optional `text`, `error_code` and `message` on failure,
+and an optional `actor` label. A success becomes an `ActionNodeOutput` whose values are `SET` writes —
+the only write mode an answer has — and whose `text` is the output text of the node, so value guards
+route on it and `save_as` stores it. A failure becomes an output carrying its error code, which the
+node's own transitions route like any other failure. Either way the answer goes through the node's
+guards and transitions, never around them, and is journaled as the operator event
+`interactive_answered` with the answered names and their codecs, never the values; the actor label
+rides in the event details because `SessionEvent.actor` stays the two-valued engine/operator
+distinction of ADR 006.
+
+**Refusing.** An answer is accepted only when the current node's action is interactive and the last
+session event is `workflow_paused_interactive`; otherwise it would be a fabricated node output.
+Refused as well: a malformed document, an undeclared or missing required name, a value the declared
+codec cannot decode, and an error code outside the node's catalogue. Every refusal exits `4`, applies
+nothing and journals nothing — a refused command did not happen to the run.
+
+**Asking again.** `resume` without an answer presents the same question again, consuming neither an
+attempt nor a visit, which is all an escalation needs. A transition back to the node consumes an
+attempt and is bounded by `max_attempts` like anywhere else. A question waiting for an answer is not
+engine work, so the ADR 010 node budget does not bound how long it stays open.
 
 ## Registries
 
@@ -237,7 +279,8 @@ paths remain in POSIX form regardless of OS (ADR 008).
   set its initial soft limit;
 - `run` to create and execute a session; accepts repeatable `--input NAME[:TYPE]=VALUE` to bind
   declared inputs before execution (ADR 012);
-- `resume` to continue an existing session;
+- `resume` to continue an existing session; accepts `--answer <json>` or `--answer-file <path>`, which
+  are mutually exclusive and both optional, to answer a node the run is paused at (ADR 013);
 - `set-input` to bind typed values to declared workflow inputs of an unstarted session, one or more
   `--input NAME[:TYPE]=VALUE` per call (ADR 012);
 - `set-limit` to update the per-session `max_nodes_visited` soft limit; it refuses any value below the

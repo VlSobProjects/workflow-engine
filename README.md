@@ -62,14 +62,13 @@ writing the deliverable, with `pretty_table_write_error` and an `[Errno 2]` mess
 
 ## Running the examples
 
-`examples/` ships two validated templates. Each declares its `inputs` and its deliverable, and runs
-from any working directory the `workflow-engine` command is reachable from (see "Requirements").
-Session data lands under `<cwd>/.workflow-engine/` unless the config file or `--work-dir` says
-otherwise.
+`examples/` ships three validated templates. Each declares its `inputs`, and runs from any working
+directory the `workflow-engine` command is reachable from (see "Requirements"). Session data lands
+under `<cwd>/.workflow-engine/` unless the config file or `--work-dir` says otherwise.
 
-Both templates treat a missing deliverable as a failed run: the node that writes the CSV fails under
-the error code it produced, so the run ends with exit code `3` and the code in `errors` instead of
-reporting success with no file.
+The two batch templates treat a missing deliverable as a failed run: the node that writes the CSV
+fails under the error code it produced, so the run ends with exit code `3` and the code in `errors`
+instead of reporting success with no file. The third template stops mid-run and waits for an answer.
 
 ### folder-inventory-to-csv
 
@@ -105,6 +104,58 @@ and start again. A file that cannot be copied fails the run the same way, under 
 workflow-engine run --workflow-file examples/flatten-copy-tree.json \
   --input "source_root:Path=<folder-to-copy>" --input "target_dir:Path=<destination-folder>" --json
 ```
+
+### approve-and-copy
+
+Asks for a decision before it copies anything, which is what an `ask` node is for: the run stops, the
+command reports a paused workflow (exit code `2`), and nothing else happens until someone answers.
+Requires `source_file` and `target_dir`; **`target_dir` must already exist.**
+
+```
+workflow-engine run --workflow-file examples/approve-and-copy.json \
+  --input "source_file=<file-to-copy>" --input "target_dir=<destination-folder>" --json
+```
+
+The paused result carries the question under `data.question`: the node, the text of the question, the
+declared answer, and the error codes the node accepts.
+
+```json
+"question": {
+  "node_id": "ASK_APPROVAL",
+  "title": "Approve the copy",
+  "instruction": "Answer 'approved' or 'rejected' as the answer text, and name the decision maker in 'reviewer'.",
+  "options": ["approved", "rejected"],
+  "answer": [{"name": "reviewer", "type": null, "required": true, "description": "Who made the decision"}],
+  "error_catalogue": {"source_unreadable": "The file cannot be read, so no decision can be made."},
+  "generic_error_code": "answer_failed"
+}
+```
+
+Answer it with `resume --answer` (or `--answer-file <path>` for the same document in a file):
+
+```
+workflow-engine resume --session-id <SESSION_ID> --json \
+  --answer "{\"status\": \"success\", \"values\": {\"reviewer\": \"me\"}, \"text\": \"approved\"}"
+```
+
+The answer document has one required field, `status`:
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `success` or `failure`. |
+| `values` | The declared answer names and their values. Each is decoded by the codec its declaration names and written to the state. A `failure` carries none. |
+| `text` | The output text of the node, which the transition guards compare. Defaults to `""`. |
+| `error_code` | Required on `failure`: a code from `error_catalogue`, or the generic `answer_failed`. |
+| `message` | Free text explaining a failure. |
+| `actor` | Who answered, e.g. `operator` or `agent:reviewer-bot`. Recorded in the session journal. Defaults to `unspecified`. |
+
+Anything else is refused with exit code `4` and changes nothing: an undeclared or missing name, a
+value the codec cannot decode, an undeclared error code, a malformed document, or an answer sent to a
+run that is not waiting for one. `resume` **without** an answer presents the same question again,
+consuming neither an attempt nor a visit — that is how a caller who cannot answer hands the question
+on. In this template an answer text that is neither `approved` nor `rejected` sends the run back to
+the same node, which is bounded by its `max_attempts` (`2` here) and then fails under
+`max_attempts_exceeded`.
 
 `--input NAME[:TYPE]=VALUE` is repeatable; `TYPE` names a registered codec. `help-components` lists
 codecs under their Python module path (e.g. `pathlib._local.Path` for `Path` on this Python version);

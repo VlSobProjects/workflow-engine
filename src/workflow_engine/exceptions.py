@@ -21,6 +21,15 @@ class WorkflowInputError(WorkflowEngineError):
     """
 
 
+class WorkflowAnswerError(WorkflowInputError):
+    """Raised when an answer to a paused interactive node is refused. See ADR 013 §5.
+
+    Covers a malformed answer document, an answer offered where no node asked, an undeclared or missing
+    declared name, a value the declared codec cannot decode, and an error code outside the node's
+    catalogue. A refusal applies nothing and journals nothing; the CLI maps it to exit code 4.
+    """
+
+
 class ActionConfigurationError(WorkflowConfigurationError):
     """Exception raised for errors in action configuration."""
 

@@ -7,7 +7,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Annotated, ClassVar
 
-from workflow_engine.actions.action_present import PresentResponse
+from workflow_engine.actions.action_present import AnswerContract, PresentResponse
 from workflow_engine.exceptions import (
     ActionConfigurationError,
     ArtifactNotFoundError,
@@ -133,6 +133,14 @@ class BaseInteractiveAction(BaseAction):
     @abstractmethod
     def present(self, state: StateReadOnlyView) -> PresentResponse:
         raise NotImplementedError("Subclasses must implement the present method.")
+
+    def answer_contract(self) -> AnswerContract:
+        """What an answer to this node must carry. See ADR 013 §2.
+
+        The engine validates an incoming answer against this contract, so it never needs to know which
+        interactive action asked. An action that declares nothing accepts an answer that binds nothing.
+        """
+        return AnswerContract()
 
     @classmethod
     def execution_mode(cls) -> ExecutionMode:
