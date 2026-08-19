@@ -162,6 +162,22 @@ codecs under their Python module path (e.g. `pathlib._local.Path` for `Path` on 
 the bare name shown above (`Path`) also resolves and is what the examples use. `set-input` only binds
 to a session that has not started yet; `run --input` binds and starts in one call.
 
+### Writing a path on Windows
+
+A `Path` input accepts native separators — `--input "src:Path=C:\data\in.txt"` binds the same value as
+`C:/data/in.txt` — because the codec builds a `pathlib.Path`, which normalizes them. From there the
+engine works in POSIX form everywhere: in `state.json`, in the JSON result, in a node output and in a
+guard comparison. **Forward slashes are still the safer form to write**, for two reasons:
+
+- A typed value is parsed as JSON before the codec sees it, with a fall back to the raw string. A bare
+  `C:\data\in.txt` is not valid JSON, so it falls back and arrives intact — but a value that carries
+  its own quotes (`--input 'src:Path="C:\data\in.txt"'`) *is* valid JSON, and there `\d` is rejected
+  while `\t` and `\f` are a tab and a form feed. The path then binds silently as something else. Do
+  not quote the value inside the assignment; the shell's own quotes around the whole `NAME=VALUE` are
+  fine. The same holds for a path inside a JSON answer, where a backslash must be written `\\`.
+- `pathlib` normalizes as it parses: `.\reports\out` binds as `reports/out`. The path still resolves
+  the same way, but the form you get back is not the form you wrote.
+
 ## Retrieving the result
 
 A completed `run`/`resume` reports the declared deliverables and every registered artifact by

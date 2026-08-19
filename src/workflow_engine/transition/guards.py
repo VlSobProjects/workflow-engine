@@ -18,7 +18,7 @@ from workflow_engine.registry.function_registry import (
     RegisteredFunctionExecutor,
     get_registered_function,
 )
-from workflow_engine.tools import parameter_from_dict, parameter_from_dict_default
+from workflow_engine.tools import parameter_from_dict, parameter_from_dict_default, render_value_as_text
 
 REVERSED_KEY = "reversed"
 ALL_OF_KEY = "all_of"
@@ -82,7 +82,12 @@ class ValueGuard(BaseGuard, ABC):
         return f"{self.data_keys()[0]}:{self.value}"
 
     def converted_value(self, state: StateReadOnlyView) -> str:
-        return state.set_parameters({"value": self.value})["value"].__str__()
+        """Resolve the configured value and render it as the text this guard compares.
+
+        A resolved value is typed, so the rendering follows the one rule for text (ADR 008): a path
+        compares in POSIX form, which is the form the functions that produce paths write.
+        """
+        return render_value_as_text(state.set_parameters({"value": self.value})["value"])
 
     @abstractmethod
     def _compare(self, output_text: str, value: str) -> bool:

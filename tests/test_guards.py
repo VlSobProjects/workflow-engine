@@ -284,3 +284,36 @@ def test_a_guard_function_cannot_ask_for_the_state(load_engine):
     # again rather than reappearing by accident. See ADR 002.
     with pytest.raises(FunctionConfigurationError):
         guard_factory({FUNCTION_NAME_KEY: "guard_asking_for_the_state"})
+
+
+class TestPathValueRendering:
+    """A path parameter is compared in POSIX form, which is the form a path-producing node writes."""
+
+    @pytest.fixture
+    def state_with_path(self, load_engine, tmp_path):
+        state = StateModel(
+            timestamp=datetime.datetime.now(tz=datetime.UTC),
+            work_dir=Path(),
+            schema_version="1",
+            flow_id="test",
+            session_id="test-session-id",
+            params={
+                "target": ActionParameter.create(
+                    name="target", value=Path("C:/out/copy.txt"), source_node_id="test_node_id"
+                )
+            },
+            current_node_id="test_node_id",
+        )
+        return StateReadOnlyView.from_state(state)
+
+    def test_a_path_parameter_matches_the_posix_output_of_the_node_that_produced_it(self, state_with_path):
+        # What `copy_file` writes as its output text is `Path.as_posix()`, on every OS.
+        assert guard_factory({"equals": "param.target"}).check(out("C:/out/copy.txt"), state_with_path)
+
+    def test_a_native_separator_literal_no_longer_matches(self, state_with_path):
+        # The consequence of the rule: a definition that worked around the old rendering by writing
+        # native separators stops matching, because nothing in the engine produces that form.
+        assert not guard_factory({"equals": r"C:\out\copy.txt"}).check(out("C:/out/copy.txt"), state_with_path)
+
+    def test_a_path_parameter_is_contained_in_a_posix_text(self, state_with_path):
+        assert guard_factory({"contains": "param.target"}).check(out("copied to C:/out/copy.txt ok"), state_with_path)

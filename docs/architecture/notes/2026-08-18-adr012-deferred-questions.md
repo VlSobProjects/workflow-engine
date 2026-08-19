@@ -5,10 +5,11 @@
 - **Status:** open
 - **Affected:** ADR 006 (data flow, codec contract), ADR 009 (help contract), ADR 011 (deliverables),
   ADR 012 (inputs), ADR 014 (Draft, decides §1 for prompt templates; §3 waits for its own ADR after
-  ADR 013 — session `2026-08-19-architecture-1`), ADR 013 (Implementing; §3 is not a prerequisite for
-  it — session `2026-08-19-architecture-2`)
+  ADR 013 — session `2026-08-19-architecture-1`), ADR 013 (Accepted; §3 was not a prerequisite for it —
+  session `2026-08-19-architecture-2`; §4 was found while fixing its text rendering — session
+  `2026-08-19-implementation-14`)
 
-Three model choices that outlive the ADR 012 session and are not decisions yet. The facts behind them
+Four model choices that outlive the ADR 012 session and are not decisions yet. The facts behind them
 are recorded in the ADR 012 change log; this note carries only the open questions a frozen ADR cannot
 hold. None blocks anything.
 
@@ -50,3 +51,21 @@ left: this is **not** a prerequisite for ADR 013. An agent driving a paused run 
 declaration inside the presentation, so it never has to read the workflow definition to answer. The
 question stays open on its own merits — an agent choosing *which* workflow to run still has nothing to
 read — and remains its own ADR when its turn comes.
+## 4. The string transport decodes JSON escapes in a quoted value
+
+Found while fixing the text-rendering rule (session `2026-08-19-implementation-14`), and documented in
+the README rather than changed, because the rule it follows is in a frozen ADR.
+
+A typed `--input` value is parsed as JSON with a fall back to the raw string (ADR 012 §"binding rule").
+A bare Windows path falls back and binds intact. A value that carries its own quotes does not fall
+back: `p:Path="C:\tmp\file.txt"` is a valid JSON string, so `\t` becomes a tab and `\f` a form feed,
+and the input binds silently as a different path. Nothing is malformed from the transport's point of
+view, so nothing can be reported.
+
+Question: should the JSON parse be reserved for the codecs that need it — collections and objects —
+while a scalar codec binds the raw string? That would make the quoted form harmless and remove the one
+place where the transport can change a value without saying so. It contradicts the ADR 012 wording,
+which applies the rule to every typed value, so it is a supersession or an editorial correction of a
+frozen ADR, not an implementation choice. Touches ADR 012 and, through the answer document, ADR 013 —
+there the values arrive as real JSON, where a backslash is escaped by the format itself.
+

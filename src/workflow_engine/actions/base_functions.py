@@ -6,6 +6,7 @@ from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
     register_function,
 )
+from workflow_engine.tools import render_value_as_text
 from workflow_engine.validators.functions_validators import (
     file_exists_arg_validator,
     folder_exists_arg_validator,
@@ -25,7 +26,7 @@ def echo_value(
     can evaluate it, because guards read the action result and never the state. A non-string value
     is emitted as its string representation.
     """
-    return ActionNodeOutput(output_text=value if isinstance(value, str) else str(value))
+    return ActionNodeOutput(output_text=render_value_as_text(value))
 
 
 @register_function(
