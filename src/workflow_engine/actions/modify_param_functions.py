@@ -39,7 +39,7 @@ def set_items(
     summary="Reads the paths in a folder into two deques",
 )
 def read_folder_items_to_deque(
-    path_target: Annotated[str, "Path to the target directory to scan"],
+    path_target: Annotated[str | Path, "Path to the target directory to scan"],
     folder_deque_name: Annotated[str, "Name of the state parameter that stores folder paths in a deque"],
     file_deque_name: Annotated[str, "Name of the state parameter that stores file paths in a deque"],
     state: Annotated[StateReadOnlyView, "Read-only state view used to check whether deque parameters already exist"],
@@ -118,7 +118,7 @@ def init_list_param(
     summary="Extends a deque parameter with the entries of a folder.",
 )
 def enqueue_folder_entries(
-    folder_path: Annotated[str, "Path to the folder whose files and subfolders are enqueued"],
+    folder_path: Annotated[str | Path, "Path to the folder whose files and subfolders are enqueued"],
     deque_param_name: Annotated[str, "Name of the existing deque parameter to extend"],
 ) -> ActionNodeOutput:
     """Extend an existing deque parameter with the sorted entries of a folder.

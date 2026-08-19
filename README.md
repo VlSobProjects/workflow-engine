@@ -113,7 +113,7 @@ Requires `source_file` and `target_dir`; **`target_dir` must already exist.**
 
 ```
 workflow-engine run --workflow-file examples/approve-and-copy.json \
-  --input "source_file=<file-to-copy>" --input "target_dir=<destination-folder>" --json
+  --input "source_file:Path=<file-to-copy>" --input "target_dir:Path=<destination-folder>" --json
 ```
 
 The paused result carries the question under `data.question`: the node, the text of the question, the

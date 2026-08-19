@@ -14,7 +14,7 @@ from workflow_engine.validators.functions_validators import file_exists_arg_vali
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="MD5 checksum of a file.")
-def md5_check_sum_file(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
+def md5_check_sum_file(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
     """Calculate the MD5 checksum of a file."""
     with Path(file_path).open("rb") as fh:
         m = hashlib.md5()
@@ -27,7 +27,7 @@ def md5_check_sum_file(file_path: Annotated[str, "Path to the file"]) -> ActionN
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="File size bytes.")
-def file_size(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
+def file_size(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
     """Get the size of a file in bytes."""
     size = Path(file_path).stat().st_size
     return ActionNodeOutput(output_text=str(size))
@@ -35,7 +35,7 @@ def file_size(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="File last modification time")
 def file_modify_time(
-    file_path: Annotated[str, "Path to the file"],
+    file_path: Annotated[str | Path, "Path to the file"],
     formater: Annotated[str, "Format for the date and time default: %Y-%m-%d %H:%M:%S"] = "%Y-%m-%d %H:%M:%S",
 ) -> ActionNodeOutput:
     """Get the last modification time of a file."""
@@ -45,7 +45,7 @@ def file_modify_time(
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="File creation time")
 def file_create_time(
-    file_path: Annotated[str, "Path to the file"],
+    file_path: Annotated[str | Path, "Path to the file"],
     formater: Annotated[str, "Format for the date and time default: %Y-%m-%d %H:%M:%S"] = "%Y-%m-%d %H:%M:%S",
 ) -> ActionNodeOutput:
     """Get the creation time of a file."""
@@ -57,7 +57,7 @@ UNITS = ("B", "KB", "MB", "GB", "TB", "PB")
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="File size")
-def file_size_human(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
+def file_size_human(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
     """Get the size of a file in a human-readable format."""
     size = Path(file_path).stat().st_size
 
@@ -73,14 +73,14 @@ def file_size_human(file_path: Annotated[str, "Path to the file"]) -> ActionNode
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="MIME type of the file.")
-def file_mime_type(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
+def file_mime_type(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
     """Get the MIME type of file."""
     mime, _ = mimetypes.guess_type(file_path)
     return ActionNodeOutput(output_text=mime or "")
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="File encoding")
-def file_encoding(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
+def file_encoding(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
     """Get the encoding of a file. Tries several common encodings and returns the first one that
     successfully reads the file.
     If none of the encodings work, returns an empty string.
@@ -103,19 +103,19 @@ def file_encoding(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOu
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="Is a file executable")
-def file_executable(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
+def file_executable(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
     """Check if a file is executable."""
     return ActionNodeOutput(output_text=str(os.access(file_path, os.X_OK)).lower())
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="File permissions")
-def file_permissions(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
+def file_permissions(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
     """Get the permissions of a file in symbolic notation (e.g., '-rwxr-xr-x')."""
     return ActionNodeOutput(output_text=stat.filemode(Path(file_path).stat().st_mode))
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="File owner")
-def file_owner(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
+def file_owner(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
     """Get the owner of a file."""
     match platform.system():
         case "Linux" | "Darwin":
@@ -130,7 +130,7 @@ def file_owner(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutpu
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="Is a file a symbolic link")
-def is_symlink(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
+def is_symlink(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
     """Check if a file is a symbolic link."""
     return ActionNodeOutput(output_text=str(Path(file_path).is_symlink()).lower())
 
@@ -139,7 +139,7 @@ def is_symlink(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutpu
     decorators=[file_exists_arg_validator({"file_path": 0})], summary="Get the last access time of a file"
 )
 def access_time(
-    file_path: Annotated[str, "Path to the file"],
+    file_path: Annotated[str | Path, "Path to the file"],
     formater: Annotated[str, "Datetime format, default is '%Y-%m-%d %H:%M:%S'"] = "%Y-%m-%d %H:%M:%S",
 ) -> ActionNodeOutput:
     """Get the last access time of a file."""
@@ -148,7 +148,7 @@ def access_time(
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="File SHA256 checksum")
-def sha256_checksum_file(file_path: Annotated[str, "Path to the file"]) -> ActionNodeOutput:
+def sha256_checksum_file(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
     """Calculate the SHA256 checksum of a file."""
     h = hashlib.sha256()
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import ClassVar
 
 from workflow_engine.actions.action_present import AnswerContract, PresentResponse
@@ -39,10 +40,15 @@ def _resolve_text(state: StateReadOnlyView, value: str) -> str:
     """Resolve one presentation string, which may be a 'param.'/'output.'/'artifact.' reference.
 
     A reference is resolved as a whole value, as everywhere else in a node configuration; a resolved
-    value that is not a string is rendered, because a presentation is text.
+    value that is not a string is rendered, because a presentation is text. A path is rendered in
+    POSIX form: the presentation is published in the command result, and ADR 008 holds there too.
     """
     resolved = state.set_parameters({"value": value})["value"]
-    return resolved if isinstance(resolved, str) else str(resolved)
+    if isinstance(resolved, str):
+        return resolved
+    if isinstance(resolved, Path):
+        return resolved.as_posix()
+    return str(resolved)
 
 
 def _string_list(data: dict[str, object], key: str) -> list[str] | None:

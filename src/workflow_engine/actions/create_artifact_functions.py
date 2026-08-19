@@ -60,7 +60,7 @@ def dict_list_to_pretty_table(
     artifact_name: Annotated[str, "Name of the artifact to create"],
     dict_param_name: Annotated[str, "Name of the parameter containing the list of dictionaries"],
     state: Annotated[StateReadOnlyView, "Read-only state view used to access parameters and artifacts"],
-    artifact_path: Annotated[str | None, "Path to the artifact"] = None,
+    artifact_path: Annotated[str | Path | None, "Path to the artifact"] = None,
     artifact_description: Annotated[str | None, "Description of the artifact"] = None,
     table_format: Annotated[str | None, "Format of the pretty table"] = None,
 ) -> ActionNodeOutput:
