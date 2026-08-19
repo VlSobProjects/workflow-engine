@@ -75,7 +75,11 @@ class FunctionConfigurationError(WorkflowConfigurationError):
 
 
 class FunctionRuntimeError(WorkflowRuntimeError):
-    """Exception raised for errors in runtime."""
+    """Exception raised for errors in runtime.
+
+    The parameters clause is dropped when there are none: a caller reads this text out of the
+    ``errors`` map of a command result, where a trailing empty clause is noise.
+    """
 
     def __init__(
         self, function_name: str, parameters: dict[str, object] | None = None, message: str | None = None
@@ -83,9 +87,10 @@ class FunctionRuntimeError(WorkflowRuntimeError):
         self.function_name = function_name
         self.parameters = parameters
         self.message = message
+        with_parameters = f" with parameters '{parameters}'" if parameters else ""
         super().__init__(
-            f"Function runtime error in '{function_name}' "
-            f"with parameters '{parameters}': {message if message is not None else 'No message'}"
+            f"Function runtime error in '{function_name}'{with_parameters}: "
+            f"{message if message is not None else 'No message'}"
         )
 
 
