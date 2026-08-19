@@ -52,10 +52,15 @@ precedence and path resolution: `docs/architecture/overview.md`.
 from any working directory with `uv run workflow-engine ...`. Session data lands under
 `<cwd>/.workflow-engine/` unless the config file or `--work-dir` says otherwise.
 
+Both templates treat a missing deliverable as a failed run: the node that writes the CSV fails under
+the error code it produced, so the run ends with exit code `3` and the code in `errors` instead of
+reporting success with no file.
+
 ### folder-inventory-to-csv
 
 Walks a folder tree and writes a CSV inventory (path, size, MIME type, modified time, MD5) as the
-`file_scan_table` deliverable. Requires the input `scan_root` (`Path`).
+`file_scan_table` deliverable. Requires the input `scan_root` (`Path`). A tree that holds no file at
+all produces no table: the run fails with the error code `pretty_table_no_data`.
 
 Step by step:
 
@@ -76,9 +81,10 @@ workflow-engine run --workflow-file examples/folder-inventory-to-csv.json \
 
 Walks a folder tree and copies every file into a flat target directory, writing a copy report
 (source, copied path, MD5) as the `copy_report` deliverable. Requires `source_root` and `target_dir`
-(both `Path`); **`target_dir` must already exist.** If it does not, the first copy fails with the
-error code `target_folder_not_found` and the run stops as a failed workflow (exit code `3`); create
-the directory and start again.
+(both `Path`); **`target_dir` must already exist.** If it does not, the first copy fails the
+`COPY_FILE` node with the error code `target_folder_not_found`, the run stops as a failed workflow
+(exit code `3`) with that code under `errors.COPY_FILE`, and no file is copied; create the directory
+and start again. A file that cannot be copied fails the run the same way, under `copy_failed`.
 
 ```
 workflow-engine run --workflow-file examples/flatten-copy-tree.json \

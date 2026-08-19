@@ -127,7 +127,16 @@
           "table_format": "csv"
         }
       },
-      "transitions": [{ "stop": true }]
+      "transitions": [
+        {
+          "errors": [
+            "pretty_table_no_data",
+            "pretty_table_artifact_exists",
+            "pretty_table_write_error"
+          ]
+        },
+        { "stop": true }
+      ]
     }
   ]
 }
