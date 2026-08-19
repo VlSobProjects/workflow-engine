@@ -4,7 +4,7 @@ Together with the recursive scan (`test_adr006_e2e_scan.py`) this is the second 
 scenario required by the ADR 009 generality policy for the core helpers promoted from the ADR 006
 tests: `init_deque_param`, `init_list_param`, `echo_value` and `enqueue_folder_entries`. The tree is
 walked breadth-first through one deque, every file is copied flat into an existing target folder
-(`copy_file` with a folder target), and a copy report artifact records source, copy and checksum.
+(`copy_file_to_folder`), and a copy report artifact records source, copy and checksum.
 """
 
 import hashlib
@@ -94,10 +94,10 @@ def build_workflow(source_root: Path, target_dir: Path) -> dict[str, object]:
                 "id": "COPY_FILE",
                 "action_type": "function",
                 "action_parameters": {
-                    "function_name": "copy_file",
+                    "function_name": "copy_file_to_folder",
                     "function_parameters": {
                         "path_source": "param.cur_path",
-                        "path_target": target_dir.resolve().as_posix(),
+                        "path_target_folder": target_dir.resolve().as_posix(),
                     },
                 },
                 "save_as": "copied_path",
