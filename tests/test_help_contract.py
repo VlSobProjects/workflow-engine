@@ -7,11 +7,13 @@ external module through the bootstrap loading path, because that mechanism is it
 import json
 import sys
 from pathlib import Path
+from typing import Annotated
 
 import pytest
 
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import WorkflowEngineConfiguration
+from workflow_engine.exceptions import WorkflowConfigurationError
 from workflow_engine.help_contract.adapters.actions import adapt_action
 from workflow_engine.help_contract.adapters.codecs import adapt_codec
 from workflow_engine.help_contract.adapters.functions import adapt_function
@@ -21,7 +23,6 @@ from workflow_engine.help_contract.builder import (
     build_component_type_payload,
     build_components_payload,
     collect_help_components,
-    external_names_from_report,
     find_help_component,
 )
 from workflow_engine.help_contract.guard_catalog import (
@@ -34,11 +35,11 @@ from workflow_engine.help_contract.models import (
     CONTRACT_VERSION,
     MISSING_METADATA_TEXT,
     ComponentSource,
-    ComponentType,
 )
 from workflow_engine.help_contract.renderers import TextComponentRenderer, render_components_list_text
+from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.action_registry import ACTION_REGISTRY
-from workflow_engine.registry.function_registry import FUNCTION_REGISTRY, VALIDATOR_REGISTRY
+from workflow_engine.registry.function_registry import FUNCTION_REGISTRY, VALIDATOR_REGISTRY, register_function
 from workflow_engine.registry.type_registry import CODEC_REGISTRY
 from workflow_engine.transition.guards import GUARD_CLASSES
 
@@ -238,20 +239,74 @@ class TestExternalComponentVisibility:
     """External registrations stay visible with explicit missing-metadata reporting."""
 
     def test_external_function_is_reported_with_missing_metadata(self, external_engine):
-        external = external_names_from_report(external_engine.components)
-        assert "external_probe_function" in external[ComponentType.FUNCTION]
+        assert "external_probe_function" in FUNCTION_REGISTRY
 
-        component = find_help_component("functions", "external_probe_function", external)
+        component = find_help_component("functions", "external_probe_function")
         assert component is not None
         assert component.source is ComponentSource.EXTERNAL
         assert component.summary == MISSING_METADATA_TEXT
         assert component.description == MISSING_METADATA_TEXT
 
-        payload = build_component_payload("functions", "external_probe_function", external)
+        payload = build_component_payload("functions", "external_probe_function")
         assert payload["component"]["source"] == "external"
 
     def test_core_components_stay_core_next_to_external(self, external_engine):
-        external = external_names_from_report(external_engine.components)
-        component = find_help_component("functions", "copy_file", external)
+        component = find_help_component("functions", "copy_file")
         assert component is not None
         assert component.source is ComponentSource.CORE
+
+
+class TestCodecNameResolution:
+    """A codec answers to the same names in help as it does everywhere else. See ADR 012."""
+
+    def test_bare_class_name_resolves(self, load_engine):
+        """`--input NAME:Path=` and both shipped templates use the bare name; help must answer it."""
+        component = find_help_component("codecs", "Path")
+
+        assert component is not None
+        assert component.name == "pathlib._local.Path"
+
+    def test_full_registered_name_still_resolves(self, load_engine):
+        component = find_help_component("codecs", "pathlib._local.Path")
+
+        assert component is not None
+        assert component.name == "pathlib._local.Path"
+
+    def test_unknown_name_is_a_miss(self, load_engine):
+        assert find_help_component("codecs", "NoSuchCodec") is None
+
+    def test_ambiguous_bare_name_is_reported_as_ambiguous(self, load_engine):
+        """Two codecs answering to one bare name is not a missing component; it needs its own message."""
+        original = dict(CODEC_REGISTRY)
+        CODEC_REGISTRY["probe_module_a.Duplicate"] = CODEC_REGISTRY["pathlib._local.Path"]
+        CODEC_REGISTRY["probe_module_b.Duplicate"] = CODEC_REGISTRY["builtins.int"]
+        try:
+            with pytest.raises(WorkflowConfigurationError, match="Ambiguous codec type 'Duplicate'"):
+                find_help_component("codecs", "Duplicate")
+        finally:
+            CODEC_REGISTRY.clear()
+            CODEC_REGISTRY.update(original)
+
+
+@register_function(summary="Registered from a test module, the way a launcher script registers.")
+def launcher_probe_function(probe: Annotated[str, "Anything"]) -> ActionNodeOutput:
+    """A function that reaches the registry by import, without going through `external_modules`."""
+    return ActionNodeOutput(output_text=probe)
+
+
+class TestComponentSourceIsWhereItComesFrom:
+    """`source` states where a component is defined, not which loading path put it in the registry."""
+
+    def test_a_component_registered_outside_the_engine_package_is_external(self, load_engine):
+        """The launcher-script route README recommends first registers by plain import, before the
+        component loader takes its snapshot; only the defining module can tell it from a core one."""
+        component = find_help_component("functions", "launcher_probe_function")
+
+        assert component is not None
+        assert component.source is ComponentSource.EXTERNAL
+
+    def test_a_component_of_the_engine_package_is_core(self, load_engine):
+        for type_key, name in (("functions", "copy_file"), ("actions", "function"), ("codecs", "Path")):
+            component = find_help_component(type_key, name)
+            assert component is not None
+            assert component.source is ComponentSource.CORE, type_key
