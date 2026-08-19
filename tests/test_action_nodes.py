@@ -102,3 +102,17 @@ def test_stop_on_error_node_runs_its_function_with_the_declared_parameters(engin
 
     assert target.read_text() == "payload"
     assert state.get_workflow_status_code() is WorkflowStatusCode.COMPLETED
+
+
+def test_a_completed_run_reports_no_errors_on_the_engine_response(engine, tmp_path):
+    """`PresentResponse.errors` says nothing unless the response reports a failure."""
+    session_id = _session(
+        engine,
+        tmp_path,
+        [_stop_node("stop", {"value": "done"}, function_name="echo_value")],
+    )
+
+    response, state = engine.start_workflow(session_id=session_id)
+
+    assert state.get_workflow_status_code() is WorkflowStatusCode.COMPLETED
+    assert not response.errors

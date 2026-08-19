@@ -259,9 +259,11 @@ errors.
 The CLI is the only writer of standard output: the engine reports a failure through the response it
 returns and the session event journal, never by printing, so `--json` output stays parseable on the
 failure path. A failure that the state does not record as a node error, such as an exception escaping
-an action, reaches the caller through the `errors` field of the response. The same holds for a
-malformed command line: the argument parser writes its message and the usage to standard error, and
-under `--json` standard output still carries one command result with `command_status: error`.
+an action, reaches the caller through the `errors` field of the response. That field carries only
+what actually failed, so a caller may read a non-empty map as a failure and a completed run reports
+none. The same holds for a malformed command line: the argument parser writes its message and the
+usage to standard error, and under `--json` standard output still carries one command result with
+`command_status: error`.
 
 ## Operator help contract
 
