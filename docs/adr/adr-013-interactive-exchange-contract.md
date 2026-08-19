@@ -1,10 +1,10 @@
 # ADR 013: Interactive exchange and typed answer contract
 
 ## Status
-Implementing
+Accepted
 
 ## Active branch
-`feature/adr_013-interactive-exchange`
+—
 
 ## Context
 
