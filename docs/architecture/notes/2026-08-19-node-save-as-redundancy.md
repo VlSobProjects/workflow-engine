@@ -5,7 +5,9 @@
   `2026-08-19-implementation-3` (the dead `BaseAction.save_as` field), and the user's observation
   that `save_as` predates the typed parameter channel and may have lost its purpose
 - **Status:** open
-- **Affected:** ADR 006 (data flow between nodes), ADR 009 (operator help contract)
+- **Affected:** ADR 006 (data flow between nodes), ADR 009 (operator help contract), ADR 013 (Draft;
+  author-chosen parameter naming reappears in the typed answer declaration — session
+  `2026-08-19-architecture-1`)
 
 ## The observation
 
