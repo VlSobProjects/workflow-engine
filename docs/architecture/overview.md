@@ -246,6 +246,11 @@ automation. Exit codes are `0` for successful completion and non-runner commands
 workflow commands, `3` for failed workflow commands, and `4` for command-level setup or resolution
 errors.
 
+The CLI is the only writer of standard output: the engine reports a failure through the response it
+returns and the session event journal, never by printing, so `--json` output stays parseable on the
+failure path. A failure that the state does not record as a node error, such as an exception escaping
+an action, reaches the caller through the `errors` field of the response.
+
 ## Operator help contract
 
 `help-components` and `help-component` expose the registered components as an operator contract.

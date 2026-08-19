@@ -231,7 +231,6 @@ def _start_engine(
                 storage.save_state(state)
 
                 if step.failure is not None:
-                    print(f"Engine stop: {step.failure}")
                     state.record_session_event(
                         SessionEvent.engine_event(
                             SessionEventCode.WORKFLOW_FAILED, {"node_id": cur_node.id, "failure": step.failure}
@@ -254,7 +253,6 @@ def _start_engine(
                 return cur_node.action.present(state_read_only)
 
     except WorkflowRuntimeError as e:
-        print(f"Engine stop: Exception occurred during workflow execution: {e}")
         state.record_session_event(
             SessionEvent.engine_event(
                 SessionEventCode.WORKFLOW_FAILED,
@@ -318,7 +316,6 @@ def _build_workflow_nodes(
         )
 
     if _get_workflow_node(MappingProxyType(nodes), state.current_node_id) is None:
-        print(f"Engine stop: Node with id {state.current_node_id} not found in workflow")
         return empty, PresentResponse(
             title="Error in workflow setup",
             description="Current node not found in workflow by id",
