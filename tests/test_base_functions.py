@@ -1,6 +1,8 @@
+from pathlib import PureWindowsPath
+
 import pytest
 
-from workflow_engine.actions.base_functions import copy_file, copy_file_to_folder
+from workflow_engine.actions.base_functions import copy_file, copy_file_to_folder, echo_value
 from workflow_engine.exceptions import FunctionRuntimeError
 
 
@@ -82,3 +84,13 @@ def test_copying_several_files_into_one_folder_keeps_them_distinct(source_file, 
 def test_a_missing_source_fails_the_run(function, tmp_path):
     with pytest.raises(FunctionRuntimeError):
         function((tmp_path / "nowhere.txt").as_posix(), tmp_path.as_posix())
+
+
+class TestEchoValueRendersPaths:
+    """`echo_value` surfaces a state value as a node output, so it follows the text rule of ADR 008."""
+
+    def test_a_path_value_is_emitted_in_posix_form(self):
+        assert echo_value(PureWindowsPath(r"C:\tmp\file.txt")).output_text == "C:/tmp/file.txt"
+
+    def test_a_string_value_is_emitted_unchanged(self):
+        assert echo_value("plain text").output_text == "plain text"

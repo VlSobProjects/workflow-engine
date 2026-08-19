@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import ClassVar
 
 from workflow_engine.actions.action_present import AnswerContract, PresentResponse
@@ -16,7 +15,12 @@ from workflow_engine.registry.action_registry import (
     ActionParameterDoc,
     register_action,
 )
-from workflow_engine.tools import parameter_from_dict, parameter_from_dict_default, parameter_from_dict_optional
+from workflow_engine.tools import (
+    parameter_from_dict,
+    parameter_from_dict_default,
+    parameter_from_dict_optional,
+    render_value_as_text,
+)
 
 DEFAULT_TITLE = "Question"
 
@@ -43,12 +47,7 @@ def _resolve_text(state: StateReadOnlyView, value: str) -> str:
     value that is not a string is rendered, because a presentation is text. A path is rendered in
     POSIX form: the presentation is published in the command result, and ADR 008 holds there too.
     """
-    resolved = state.set_parameters({"value": value})["value"]
-    if isinstance(resolved, str):
-        return resolved
-    if isinstance(resolved, Path):
-        return resolved.as_posix()
-    return str(resolved)
+    return render_value_as_text(state.set_parameters({"value": value})["value"])
 
 
 def _string_list(data: dict[str, object], key: str) -> list[str] | None:

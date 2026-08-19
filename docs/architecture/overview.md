@@ -273,6 +273,13 @@ which holds sessions under `<work_dir>/sessions/<session_id>/`, storage under `<
 and config at the runtime root. Relative paths are resolved against the current working directory. Stored
 paths remain in POSIX form regardless of OS (ADR 008).
 
+The same rule holds wherever the engine turns a state value into text, not only where it stores one:
+`render_value_as_text` renders a path with `as_posix()`, and the three surfaces that render go through
+it — a value guard comparing against a resolved reference, the `echo_value` function, and the
+presentation of an interactive node. Without it a `Path` parameter would compare and print with native
+separators on Windows while the same value is persisted and serialized as POSIX, so a guard could fail
+against the very path the previous node had just written.
+
 ### Public commands
 
 - `init-new-session` to create a session without starting execution; accepts `--max-nodes-visited` to
