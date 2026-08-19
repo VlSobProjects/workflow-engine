@@ -234,6 +234,11 @@ the existing collection-writing functions.
 - Leaves open: reopening failed sessions; workflow-definition introspection without running
   (ADR 012 deferred §3), which this decision does not require; a budget checkpoint routed to a node
   inside the graph instead of the out-of-graph pause of ADR 010.
+- Leaves open, found by the review of the delivered implementation and recorded in
+  `docs/architecture/notes/2026-08-19-interactive-exchange-publishing-boundary.md`: that the
+  internal/published boundary is held by one function rather than by the shapes (`PresentResponse`
+  keeps the fields the declared answer replaced), that `actor` is an audit label with no identity
+  contract behind it, and that the published `question` block carries no version of its own.
 
 ## Related ADRs
 
