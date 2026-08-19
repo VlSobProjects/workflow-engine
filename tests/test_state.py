@@ -212,3 +212,51 @@ def test_collection_write_type_mismatch_is_reported(state_base):
 
     assert output.error_code == PARAM_TYPE_MISMATCH
     assert state_base.error_code == PARAM_TYPE_MISMATCH
+
+
+class TestWriteProvenance:
+    """A value is recorded as produced by the node that produced it, not by the node that follows."""
+
+    def test_a_param_write_names_the_producing_node(self, state_base):
+        output = ActionNodeOutput(
+            output_text="ignored",
+            param_writes={"produced": ParamWrite(mode=WriteParamMode.SET, value="value")},
+        )
+        state_base.update(curr_node_id="PRODUCER", output=output, save_as=None, next_node_id="CONSUMER")
+
+        assert state_base.params["produced"].source_node_id == "PRODUCER"
+        assert state_base.current_node_id == "CONSUMER"
+
+    def test_save_as_and_a_param_write_of_one_node_agree(self, state_base):
+        output = ActionNodeOutput(
+            output_text="text",
+            param_writes={"produced": ParamWrite(mode=WriteParamMode.SET, value="value")},
+        )
+        state_base.update(curr_node_id="PRODUCER", output=output, save_as="saved", next_node_id="CONSUMER")
+
+        assert state_base.params["saved"].source_node_id == state_base.params["produced"].source_node_id
+
+    def test_an_existing_param_keeps_the_node_that_created_it(self, state_base):
+        output = ActionNodeOutput(
+            output_text="ignored",
+            param_writes={"test_param": ParamWrite(mode=WriteParamMode.SET, value="other", allow_overwrite=True)},
+        )
+        state_base.update(curr_node_id="PRODUCER", output=output, save_as=None, next_node_id="CONSUMER")
+
+        assert state_base.params["test_param"].value == "other"
+        assert state_base.params["test_param"].source_node_id == "test_node_id"
+
+    def test_an_artifact_event_names_the_producing_node(self, state_base):
+        output = ActionNodeOutput(
+            output_text="ignored",
+            artifacts={
+                "test_artifact": WorkflowArtifact(
+                    description="replacement",
+                    relative_path=Path("test/test.txt"),
+                    created_at=datetime.now(tz=UTC),
+                )
+            },
+        )
+        state_base.update(curr_node_id="PRODUCER", output=output, save_as=None, next_node_id="CONSUMER")
+
+        assert state_base.artifact_events[-1].node_id == "PRODUCER"
