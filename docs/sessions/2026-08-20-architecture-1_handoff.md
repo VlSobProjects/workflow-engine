@@ -79,12 +79,85 @@ function may change an answered value or only add to it, which decides whether t
 is a contract about what was supplied or about what was stored.
 
 ## Next steps
-1. Build the ADR-0083 scenario as a real flow (the first goal of phase 2). ADR 015 should not leave
-   Draft before it exists, so the shape is chosen against a written flow rather than an imagined one.
-2. Settle the prompt templating question, which unblocks reconsidering pre-processing.
-3. The per-node visit cap, raised in the same discussion and still unrecorded: ADR-0083 enforces
-   `max_visits` per node with its own error code, while this engine counts `visit_counters` and neither
-   reads nor enforces them. The coverage note's row claiming that mechanism is "full" is wrong.
+
+The next session is an **investigation**: it gathers the evidence ADR 015 needs and changes no engine
+code. ADR 015 must not leave Draft before it, and the prompt templating question must not be decided
+before it either — both are waiting on the same material. The brief is below, in the order the work
+takes.
+
+### What the investigation has to produce
+
+Answers, with evidence, to open points 1, 2, 3 and 7 of ADR 015, plus the node count that the
+templating decision needs. Everything else in the ADR can be settled by argument; these four cannot.
+
+### 1. Write the ADR-0083 flow with today's core, and run it
+
+One flow covering `Q`, `A`, `I`, `FQ`, `STOP`, the counters, the `validators` and the error catalogue.
+`S` stays out: it waits for the trust decision about a process-running function. Run it twice — once
+by a scripted end-to-end pass, once driven by a live agent, because the second is what the whole
+question is about.
+
+Record while writing, not afterwards:
+
+- the total node count, and of those, every node that exists **only to adjust data**: surfacing a
+  value into an output text, composing a sentence, appending to a collection;
+- every place where the answer had to be constrained by prompt wording ("answer exactly `approved`")
+  instead of by code, because that is the disguised form of the same gap;
+- every place where a reference had to be shown as a bare value because it could not be written inside
+  a sentence — this count, and nothing else, is what the templating decision needs.
+
+Where the flow lives is the first thing to decide: a conformance scenario under `tests/`, which is
+what it actually is, or a fourth template in `examples/`, which makes it operator-facing and therefore
+shorter and less complete. The recommendation is `tests/`.
+
+### 2. Rewrite the same flow on paper in both candidate shapes
+
+Not code: the same nodes as they would read with a post function, once as a separate `ask_function`
+action and once as optional keys on `ask`. Compare three things: how many nodes disappear, how the
+node reads at the point where the function is attached, and what the journal loses in each case
+(a vanished node takes its guard record, its counters and its route-around with it).
+
+→ decides open point 1 (shape).
+
+### 3. Classify every post use the flow produced
+
+Sort each one into: normalizing a declared value; producing the text a guard routes on; accumulating;
+producing an artifact; combining the answer with other state.
+
+→ decides open points 2, 3 and 7 together, because the classification is the argument. If the real
+uses only ever *add* — a routing text, an append — then a post function can be forbidden from changing
+an answered value and the audit story stays simple. If normalizing a declared value is the common
+case, it has to be allowed, and the ADR has to say what `interactive_answered` then means: the name
+was answered, but not necessarily with the value that was stored.
+
+### 4. Two questions to answer by reading the code, not by building
+
+- **Where the hook sits.** Confirm against `_start_engine` that a post stage between accepting the
+  answer and selecting the transition introduces no ordering surprise — in particular that it runs
+  before `_proceed_with_output` and that its output is the one `state.update` applies.
+- **What a failure does to an already-journaled answer** (open point 4). The precedent to read is what
+  a failing node does today to a journaled `inputs_set`: the binding happened, the run then failed, and
+  the journal keeps both. If that is the accepted shape, `interactive_answered` followed by a node
+  failure needs no new rule.
+
+### Out of scope for that session
+
+No engine changes, no ADR status change, no `S` function. The per-node visit cap is only opened if the
+live run actually needs it: the global hard cap already prevents a runaway, so wanting it is evidence,
+and not wanting it is evidence too.
+
+### Small correction to take first
+
+The coverage note's row claiming `attempt_counters` / `max_visits` are carried "full" is wrong:
+ADR-0083 enforces `max_visits` per node with its own error code, while this engine counts
+`visit_counters` and neither reads nor enforces them — the field is not even on `StateReadOnlyView`.
+That note is the yardstick the investigation measures against, so the row is fixed before it starts.
+
+### After the investigation
+
+1. Settle ADR 015 open points 1, 2, 3 and 7 in the ADR text, then decide whether it leaves Draft.
+2. Decide prompt templating with the count from step 1, which also unblocks reconsidering
+   pre-processing (ADR 015 open point 6).
 
 ## References
 - ADR opened: `docs/adr/adr-015-computation-inside-an-interactive-node.md`
