@@ -14,7 +14,8 @@ def command_result_encoder(obj):
 
 
 def render_text(response: CommandResult) -> str:
-    resp_list = [f"Command: {response.command.value}", f"Status: {response.command_status.value}"]
+    command = response.command.value if response.command is not None else "unknown"
+    resp_list = [f"Command: {command}", f"Status: {response.command_status.value}"]
     if response.workflow_status:
         resp_list.append(f"Workflow Status: {response.workflow_status.value}")
     if response.errors:

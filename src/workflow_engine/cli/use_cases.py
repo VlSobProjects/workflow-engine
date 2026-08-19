@@ -5,6 +5,7 @@ from workflow_engine.actions.action_present import PresentResponse
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import load_config_file
 from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
+from workflow_engine.engine import WorkflowEngine
 from workflow_engine.help_contract.builder import (
     ExternalNames,
     build_component_type_payload,
@@ -52,6 +53,18 @@ def _with_engine_errors(result: CommandResult, response: PresentResponse) -> Com
     return result
 
 
+def _with_export_destination(result: CommandResult, engine: WorkflowEngine) -> CommandResult:
+    """Report where the completion export sent the deliverables, when one ran.
+
+    The key is absent when the run performed no export at all: no destination was resolved, the
+    workflow declares no deliverables, or the run did not complete. See ADR 011.
+    """
+    export = engine.get_last_export()
+    if export is not None:
+        result.data["export"] = {"destination": export.destination, "exported": export.exported}
+    return result
+
+
 def init_session(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     session_id = engine.init_new_session(workflow_path=Path(args.workflow_file))
@@ -84,7 +97,7 @@ def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
     result.data["inputs"] = engine.get_inputs(session_id)
-    return result
+    return _with_export_destination(result, engine)
 
 
 def set_input(command_name: CommandName, args: Namespace) -> CommandResult:
@@ -118,7 +131,7 @@ def resume_workflow(command_name: CommandName, args: Namespace) -> CommandResult
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
     result.data["inputs"] = engine.get_inputs(session_id)
-    return result
+    return _with_export_destination(result, engine)
 
 
 def export_artifact(command_name: CommandName, args: Namespace) -> CommandResult:

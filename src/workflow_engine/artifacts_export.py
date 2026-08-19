@@ -16,6 +16,18 @@ class ExportedArtifact:
     target_path: str  # absolute POSIX path of the copy
 
 
+@dataclass(frozen=True)
+class DeliverableExport:
+    """The outcome of one completion export: where it was sent and what landed there.
+
+    The session event journal has carried this since ADR 011, but a caller reads the command result,
+    not `state.json`; this is the value the result reports.
+    """
+
+    destination: str  # absolute POSIX path of the export directory
+    exported: dict[str, str]  # logical name -> absolute POSIX path of the copy
+
+
 def _copy_artifact_file(artifacts_root: Path, relative_path: Path, destination: Path) -> Path:
     """Copy one artifact preserving its relative path under the destination, overwriting if present.
 
@@ -29,13 +41,15 @@ def _copy_artifact_file(artifacts_root: Path, relative_path: Path, destination: 
     return target.resolve()
 
 
-def export_deliverables_on_completion(state: StateModel, deliverables: tuple[str, ...], destination: Path) -> None:
+def export_deliverables_on_completion(
+    state: StateModel, deliverables: tuple[str, ...], destination: Path
+) -> DeliverableExport:
     """Copy each declared deliverable to ``destination`` and record the outcome as engine events.
 
     Delivery problems never annul the completed work: a deliverable missing from the state records
     ``deliverable_missing``, a failed copy records ``artifact_export_failed``, and the successfully
     exported set records ``artifacts_exported``. All three keep the workflow status ``completed``.
-    See ADR 011.
+    Returns the destination and the exported map so the caller can report them. See ADR 011.
     """
     artifacts_root = state.work_dir / ARTIFACTS_DIR
     exported: dict[str, str] = {}
@@ -56,13 +70,15 @@ def export_deliverables_on_completion(state: StateModel, deliverables: tuple[str
             )
             continue
         exported[name] = target.as_posix()
+    resolved_destination = destination.resolve().as_posix()
     if exported:
         state.record_session_event(
             SessionEvent.engine_event(
                 SessionEventCode.ARTIFACTS_EXPORTED,
-                {"exported": exported, "destination": destination.resolve().as_posix()},
+                {"exported": exported, "destination": resolved_destination},
             )
         )
+    return DeliverableExport(destination=resolved_destination, exported=exported)
 
 
 def copy_named_artifacts(state: StateModel, names: tuple[str, ...], destination: Path) -> list[ExportedArtifact]:

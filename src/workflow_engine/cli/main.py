@@ -1,7 +1,7 @@
 import argparse
 import sys
 from argparse import Namespace
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
@@ -23,11 +23,22 @@ from workflow_engine.exceptions import WorkflowEngineError
 from workflow_engine.help_contract.models import COMPONENT_TYPE_BY_KEY
 
 
+class CommandLineError(Exception):
+    """A malformed command line.
+
+    argparse reports a bad call by writing to stdout and exiting on the spot, which destroys the
+    `--json` contract: a caller that parses stdout gets usage text instead of a document. The parser
+    raises this instead, so the entry point decides what to write and where.
+    """
+
+    def __init__(self, message: str, usage: str) -> None:
+        self.usage = usage
+        super().__init__(message)
+
+
 class CustomArgumentParser(argparse.ArgumentParser):
     def error(self, message):
-        print(f"Error: {message}")
-        self.print_help()
-        sys.exit(ExitCode.ERROR.value)
+        raise CommandLineError(message, self.format_usage())
 
 
 @dataclass
@@ -272,10 +283,49 @@ def _get_parser() -> CustomArgumentParser:
     return parser
 
 
+def _command_from_argv(argv: Sequence[str]) -> CommandName | None:
+    """The command a malformed call meant, when its first positional token names a known one."""
+    for token in argv:
+        if token.startswith("-"):
+            continue
+        try:
+            return CommandName(token)
+        except ValueError:
+            return None
+    return None
+
+
+def _report_command_line_error(error: CommandLineError, argv: Sequence[str]) -> None:
+    """Report a malformed command line: the operator text on stderr, and a result when `--json`.
+
+    stdout belongs to the answer, so the message and the usage go to stderr unconditionally. A caller
+    that asked for JSON gets a `CommandResult` there and never has to parse usage text.
+    """
+    print(f"Error: {error}", file=sys.stderr)
+    print(error.usage, file=sys.stderr, end="")
+    if "--json" in argv:
+        print(
+            render_json(
+                CommandResult(
+                    command=_command_from_argv(argv),
+                    command_status=CommandStatus.ERROR,
+                    message=str(error),
+                    errors={"command_line": str(error)},
+                    data=None,
+                )
+            )
+        )
+
+
 def main(argv=None):
     """Main entry point for the workflow engine CLI."""
+    effective_argv = list(sys.argv[1:] if argv is None else argv)
     parser = _get_parser()
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(effective_argv)
+    except CommandLineError as error:
+        _report_command_line_error(error, effective_argv)
+        sys.exit(ExitCode.ERROR.value)
     command = _get_commend(CommandName(args.command))
     response = command.run_command(args)
     if args.json:

@@ -575,6 +575,55 @@ class TestHelpComponentCommand:
         assert response["errors"]
 
 
+class TestMalformedCommandLine:
+    """A wrong call is the most common error of all: stdout must stay parseable."""
+
+    def test_unknown_command_writes_nothing_to_stdout(self, capsys):
+        """Without --json a malformed call reports on stderr and leaves stdout empty."""
+        with pytest.raises(SystemExit) as exc_info:
+            main(["no-such-command"])
+
+        captured = capsys.readouterr()
+        assert exc_info.value.code == 4
+        assert captured.out == ""
+        assert "usage:" in captured.err
+
+    def test_missing_required_option_writes_nothing_to_stdout(self, capsys):
+        """A known command missing a required option reports on stderr, not on stdout."""
+        with pytest.raises(SystemExit) as exc_info:
+            main(["run"])
+
+        captured = capsys.readouterr()
+        assert exc_info.value.code == 4
+        assert captured.out == ""
+        assert "--workflow-file" in captured.err
+
+    def test_missing_required_option_with_json_returns_a_command_result(self, capsys):
+        """With --json stdout carries exactly one CommandResult naming the command that failed."""
+        with pytest.raises(SystemExit) as exc_info:
+            main(["run", "--json"])
+
+        captured = capsys.readouterr()
+        response = cast(dict[str, object], json.loads(captured.out))
+        assert exc_info.value.code == 4
+        assert response["command"] == "run"
+        assert response["command_status"] == "error"
+        assert response["message"]
+        assert cast(dict[str, str], response["errors"])["command_line"]
+        assert "usage:" in captured.err
+
+    def test_unknown_command_with_json_returns_a_command_result_without_a_command(self, capsys):
+        """A command line too malformed to name a command still answers in JSON, with command null."""
+        with pytest.raises(SystemExit) as exc_info:
+            main(["no-such-command", "--json"])
+
+        captured = capsys.readouterr()
+        response = cast(dict[str, object], json.loads(captured.out))
+        assert exc_info.value.code == 4
+        assert response["command"] is None
+        assert response["command_status"] == "error"
+
+
 class TestCliOutputSchema:
     """Tests for JSON/text output schema consistency across all commands."""
 
