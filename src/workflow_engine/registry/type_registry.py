@@ -97,10 +97,6 @@ def find_codec(value: object) -> type[Codec]:
     return NoCodec
 
 
-def get_codec_by_type_name(type_name: str) -> type[Codec] | None:
-    return CODEC_REGISTRY.get(type_name)
-
-
 def find_codec_by_type_name(type_name: str) -> type[Codec] | None:
     """Find a codec by a full registered name or an unambiguous bare class name, or None.
 

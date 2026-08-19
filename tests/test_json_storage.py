@@ -201,22 +201,22 @@ def test_workflow_file_with_a_utf8_bom_and_non_ascii_text_is_loaded(tmp_path, js
     """The definition is an operator-edited file: a BOM and non-ASCII text must survive loading."""
     workflow_path = write_simple_workflow(tmp_path)
     definition = json.loads(workflow_path.read_text(encoding="utf-8"))
-    definition["flow_id"] = "простой-поток"
+    definition["flow_id"] = "naïve-café-workflow"
     workflow_path.write_text(json.dumps(definition, ensure_ascii=False, indent=2), encoding="utf-8-sig")
 
     workflow = json_storage.upload_workflow_from_file(workflow_path)
 
-    assert workflow.flow_id == "простой-поток"
+    assert workflow.flow_id == "naïve-café-workflow"
 
 
 def test_state_file_written_as_raw_utf8_keeps_non_ascii_parameter_values(tmp_path, json_storage):
     """A state file is read as UTF-8, not in the platform default encoding."""
     state = json_storage.load_state(SESSION_ID)
-    state.params["test_param"] = ActionParameter.create("test_node_id", "test_param", "отчёт")
+    state.params["test_param"] = ActionParameter.create("test_node_id", "test_param", "a résumé of the naïve café")
     json_storage.save_state(state)
 
     state_file = json_storage.storage_dir / SESSION_ID / "state.json"
     raw = json.loads(state_file.read_text(encoding="utf-8"))
     state_file.write_text(json.dumps(raw, ensure_ascii=False, indent=4), encoding="utf-8")
 
-    assert json_storage.load_state(SESSION_ID).params["test_param"].value == "отчёт"
+    assert json_storage.load_state(SESSION_ID).params["test_param"].value == "a résumé of the naïve café"

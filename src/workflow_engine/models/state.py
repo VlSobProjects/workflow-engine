@@ -225,10 +225,6 @@ class StateSource(ABC):
         pass
 
     @abstractmethod
-    def load_all_states(self) -> list[StateModel]:
-        pass
-
-    @abstractmethod
     def save_state(self, state: StateModel) -> None:
         pass
 
