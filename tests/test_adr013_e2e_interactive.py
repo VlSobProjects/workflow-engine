@@ -122,6 +122,7 @@ class TestAnswering:
         state = state_of(workspace, session_id)
         reviewer = cast(dict, cast(dict, state["params"])["reviewer"])
         assert cast(dict, reviewer["value"])["object"] == "vlad"
+        assert reviewer["source_node_id"] == "ASK_APPROVAL"
         assert cast(dict, state["outputs"])["ASK_APPROVAL"] == "approved"
 
     def test_the_answer_is_journaled_without_its_values(self, workspace, capsys):

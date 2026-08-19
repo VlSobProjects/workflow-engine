@@ -733,23 +733,35 @@ class StateModel:
         self.guard_results[node_id] = records
 
     def update(self, curr_node_id: str, save_as: str | None, output: ActionNodeOutput | None, next_node_id: str | None):
+        """Apply everything one finished node produced, then move the position.
+
+        The parameter writes are applied before ``_update_stats``, because that is what moves
+        ``current_node_id`` to the next node: a value written afterwards would be recorded as
+        produced by the node that has not run yet.
+        """
         self._update_cur_node(curr_node_id, output, save_as)
-        self._update_stats(next_node_id, curr_node_id)
         if output is not None and len(output.param_writes) > 0:
             for param_name, param_write in output.param_writes.items():
-                error = self._param_write(param_name, param_write)
+                error = self._param_write(param_name, param_write, curr_node_id)
                 if error is not None:
                     self.error_code, self.error_msg = error
                     output.error_code, output.error_msg = error
                     self.errors[curr_node_id] = f"[{self.error_code}] {self.error_msg}"
                     break
 
-        self._set_artifacts(output)
+        self._update_stats(next_node_id, curr_node_id)
+        self._set_artifacts(output, curr_node_id)
 
     def add_parameter(self, param_name: str, param_value: object):
         self.params[param_name] = ActionParameter.create(self.current_node_id, param_name, param_value)
 
-    def _param_write(self, param_name: str, param_write: ParamWrite) -> tuple[str, str] | None:
+    def _param_write(self, param_name: str, param_write: ParamWrite, source_node_id: str) -> tuple[str, str] | None:
+        """Apply one typed write to the bus, recording ``source_node_id`` as the producer of a new value.
+
+        The producer is passed in rather than read from ``current_node_id``: a write is applied while the
+        run is between two nodes, and an operator binding an input is not at a node at all. An existing
+        parameter keeps the producer it was created with; only its value changes.
+        """
         from workflow_engine.collection_param_handlers import MODIFY_GROUP, modify_param_object
 
         if param_name in self.params:
@@ -770,7 +782,7 @@ class StateModel:
                     f"allow_overwrite={param_write.allow_overwrite}",
                 )
         elif param_write.mode == WriteParamMode.SET:
-            self.params[param_name] = ActionParameter.create(self.current_node_id, param_name, param_write.value)
+            self.params[param_name] = ActionParameter.create(source_node_id, param_name, param_write.value)
         elif param_write.mode == WriteParamMode.REPLACE:
             return (
                 INVALID_WRITE_MODE,
@@ -791,13 +803,18 @@ class StateModel:
                 return artifact_name, artifact
         return None
 
-    def _set_artifacts(self, output: ActionNodeOutput | None):
+    def _set_artifacts(self, output: ActionNodeOutput | None, source_node_id: str):
+        """Register the artifacts of a finished node, attributing its events to that node.
+
+        Like a parameter write, this runs after the position has moved, so the producing node is
+        passed in rather than read from ``current_node_id``.
+        """
         if output is not None and len(output.artifacts) > 0:
             for artifact_name, artifact in output.artifacts.items():
                 if artifact_name in self.artifacts:
                     old_artifact = self.artifacts[artifact_name]
                     self.artifact_events.append(
-                        ArtifactEvent.overwritten(self.current_node_id, artifact_name, old_artifact, artifact)
+                        ArtifactEvent.overwritten(source_node_id, artifact_name, old_artifact, artifact)
                     )
                 else:
                     path_conflict_artifact = self._get_artifact_by_path(artifact.relative_path)
@@ -806,7 +823,7 @@ class StateModel:
                         self.artifacts.pop(path_conflict_artifact[0])
                         self.artifact_events.append(
                             ArtifactEvent.path_conflict(
-                                self.current_node_id,
+                                source_node_id,
                                 artifact_name,
                                 path_conflict_artifact[0],
                                 path_conflict_artifact[1],

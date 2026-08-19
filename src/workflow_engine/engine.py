@@ -629,7 +629,11 @@ class WorkflowEngine:
             seen.add(assignment.name)
             value, codec_name = decode_input_value(assignment, declaration)
             error = state._param_write(
-                assignment.name, ParamWrite(mode=WriteParamMode.SET, value=value, allow_overwrite=True)
+                assignment.name,
+                ParamWrite(mode=WriteParamMode.SET, value=value, allow_overwrite=True),
+                # An input is bound before the first node runs, so the node the session starts at is
+                # the closest thing to a producer this write has.
+                state.current_node_id,
             )
             if error is not None:
                 raise WorkflowInputError(f"Cannot bind input '{assignment.name}': [{error[0]}] {error[1]}")
