@@ -24,7 +24,7 @@ completed
 
 ## Result
 ADR 015 "Computation inside an interactive node" is open as `Draft` on `development`, registered, with
-six open points to settle before it leaves Draft.
+seven open points to settle before it leaves Draft.
 
 The scope was cut to the half that has evidence: a registered function that runs **after** an answer is
 accepted, before the answer becomes the node output. Preparing the question by running a function
@@ -46,19 +46,34 @@ first is deliberately excluded for now.
    failure; a function hidden inside `ask` has none of the three. That is the real trade-off — graph
    verbosity against process visibility — and it is why the ADR states the boundary before the
    mechanism.
-4. **The answer is injected, not referenced.** At post-processing time the answered values are not on
-   the bus yet: the engine applies a node's writes when the step is taken. So a `param.<name>`
-   reference in the function's configuration would read the previous value. The bound answer is passed
-   the way `state` and `action_output` already are.
-5. **Four alternatives recorded as rejected**: keeping the graph as the only place to compute (kept as
+4. **The answer takes the slot a registered function already has.** At post-processing time the
+   answered values are not on the bus yet — the engine applies a node's writes when the step is taken —
+   so a `param.<name>` reference in the function's configuration would read the previous value. The
+   first draft invented a new injected parameter for it; that was unnecessary. A registered function
+   already receives `output`, which for an automatic node is the previous node's `ActionNodeOutput`, so
+   a post function takes the same slot with the output built from the answer. Same shape, different
+   source. Two things that were folklore are now written down: the slot holds the object for a
+   function and the text for a guard, and the answered values sit in `param_writes`.
+5. **The injection convention is extracted, the hierarchy is not touched.** It is written three times
+   today — identically in `ActionWithFunction._execute` and `StopAction._execute`, differently in
+   `FunctionGuard._check` — and the post stage would be the fourth copy. One function states it, every
+   caller uses it. The considered alternative was to give the interactive side the automatic machinery
+   by inheritance; rejected because `ActionWithFunction` *is* an automatic action and the engine
+   dispatches on `isinstance(BaseAutomaticAction)`, checked first, so such a class would be executed
+   instead of presenting, and `execution_mode()` would answer according to the order of its bases. The
+   reuse at stake is four lines. Recorded as alternative F so the next reader does not retry it.
+6. **Moving the engine's dispatch to `execution_mode()` is an independent cleanup.** The enum exists
+   for exactly this distinction and is used only by the help contract today. Because the hierarchy
+   stays as it is, this ADR does not need it.
+7. **Six alternatives recorded as rejected**: keeping the graph as the only place to compute (kept as
    the rule above the boundary), declarative micro-transforms in the answer declaration (worth
    revisiting as sugar), an external interactive action (the extension point exists, but normalizing a
    model's answer is not team-specific), a node-level pre/post concept for every action (dissolves
-   ADR 002), and folding it into ADR 014 (an operator's answer needs normalizing too, and the `FQ` loop
-   has no model in it).
+   ADR 002), folding it into ADR 014 (an operator's answer needs normalizing too, and the `FQ` loop has
+   no model in it), and giving the interactive side the automatic machinery by inheritance (decision 5).
 
 ## Open questions
-The six open points of the ADR, of which two are the load-bearing ones: whether the shape is a second
+The seven open points of the ADR, of which two are the load-bearing ones: whether the shape is a second
 interactive action or optional keys on `ask` — both have a precedent in this core — and whether a post
 function may change an answered value or only add to it, which decides whether the answer declaration
 is a contract about what was supplied or about what was stored.

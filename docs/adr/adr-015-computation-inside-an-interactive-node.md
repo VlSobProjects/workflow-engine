@@ -73,16 +73,46 @@ with its own error code. A function hidden inside `ask` has no guard record, no 
 around it. Trading that away for brevity is only worth it where the work is genuinely a data
 adjustment.
 
-### 3. The function receives the answer, because the answer is not on the bus yet
+### 3. The answer arrives in the slot a registered function already has
 
 The engine applies a node's `param_writes` when the step is taken, which is after the transition is
 selected. At post-processing time the answered values exist only inside the pending output, so a
 `param.<name>` reference in the function's configuration would resolve to the previous value or fail.
 
-The bound answer is therefore **injected**, the way `state`, `output` and `action_output` already are
-for registered functions: a post function declares a parameter for the answer and receives its values,
-its text, its status and its error code. Its configured `function_parameters` keep resolving against
+No new injection is needed for that. A registered function already receives two things it did not
+configure — `state` and `output` — and for an automatic node `output` is the `ActionNodeOutput` of the
+previous node. A post function occupies the same slot: `output` is the `ActionNodeOutput` built from
+the answer. The source differs, the shape does not, and a function written for one position reads the
+same as a function written for the other. Its configured `function_parameters` keep resolving against
 the state as everywhere else, so it can combine the answer with what the run already knows.
+
+Two things the ADR has to state plainly, because they are already inconsistent in the code:
+
+- **What is in the slot.** For a registered *function* `output` is the whole `ActionNodeOutput`; for a
+  *guard* `output` is the output text and `action_output` is the object. An author who writes
+  `output: str` in a post function gets an object. The rule belongs in the operator help of the action
+  and in the ADR 009 surface, not in folklore.
+- **How the answered values are reached.** In the output object they are `param_writes`, so a
+  normalizing function would write `output.param_writes["decision"].value` — bus internals in
+  application code. Whether the values also arrive as a plain mapping is an open point below.
+
+### 3a. One place says what a registered function is given
+
+The injection convention is written three times today: identically in `ActionWithFunction._execute`
+and `StopAction._execute`, and differently in `FunctionGuard._check`. Adding a fourth copy for the
+post stage is how the fourth one eventually drifts, the way the guard one already has.
+
+The convention is extracted into one function — given an executor, the state view and the incoming
+output, run the function with the standard injection — and every caller uses it. That, and not a
+change of hierarchy, is what makes function handling uniform.
+
+The class hierarchy is deliberately **not** touched. An action that runs a function on its answer
+holds a `registered_function` and calls the shared runner, exactly as `StopAction` already holds an
+optional one: composition, which this core already uses, rather than inheritance from
+`ActionWithFunction`, which is itself an automatic action (see alternative F). A consequence worth
+recording: because the hierarchy stays as it is, the engine's `isinstance` dispatch keeps working, and
+moving that dispatch to `execution_mode()` — an enum declared for exactly this distinction and today
+used only by the help contract — stays an independent cleanup rather than a precondition of this ADR.
 
 ### 4. The function's result is the node's output
 
@@ -136,6 +166,12 @@ is. The audit distinction between "what was supplied from outside" and "what the
    the interactive side needs the same is unknown; the default should be one until it is not.
 6. **When pre-processing is reconsidered**, and against which decision — the templating question, or
    evidence from the first flows that a question genuinely has to be computed rather than composed.
+7. **In what shape the answered values reach the function.** The output object carries them as
+   `param_writes`, which is the bus's shape and not the author's. Options: leave it, since the object
+   is already there; hand the values as a plain mapping beside it; or give the post function the
+   `Answer` itself, which also carries the status, the message and the actor that `param_writes`
+   cannot express. The third is the most useful and the least uniform, so it needs deciding rather
+   than drifting.
 
 ## Alternatives considered
 
@@ -171,6 +207,29 @@ Let the LLM node own answer parsing, and leave `ask` declarative. Tempting becau
 is a model reply. Rejected: ADR 014 is about the engine calling a model itself, while this is about an
 answer arriving from outside — an operator's answer needs normalizing too, and the ADR-0083 `FQ` loop
 has no model in it at all.
+
+### F. Give the interactive action the automatic machinery by inheritance
+Two shapes of the same idea: let an interactive action inherit `BaseAutomaticAction._execute` so every
+node runs through one scheme — with the answer standing in for the previous node's output — or make
+`ActionWithFunction` a base that an interactive action inherits alongside `BaseInteractiveAction`, so
+function handling lives in one class.
+
+The instinct is right and the mechanism is not, for reasons worth recording so the next reader does
+not retry it:
+
+- `ActionWithFunction` **is** an automatic action, and the engine dispatches with
+  `isinstance(action, BaseAutomaticAction)`, checked first. A class that inherits both would be
+  executed as automatic and would never present. The type would lie about what the action is.
+- `execution_mode()` is defined on both branches, so which one answers depends on the order of the
+  bases. Reading the class would require reading its MRO.
+- The reuse is four lines: building the executor from `data` — and even that is `BaseAction`'s method,
+  available to every action already — and calling it with the standard injection.
+- `prev_output` would carry two meanings, "the previous node's output" and "my own raw answer",
+  distinguished only by which branch the reader is in.
+
+Rejected in favour of §3a: extract the injection convention as a function and keep the hierarchy. The
+distinction between an automatic and an interactive action is the one thing the engine decides on;
+blurring it to save four lines is the expensive kind of tidiness.
 
 ## Consequences
 
@@ -210,3 +269,12 @@ imagined one.
 - 2026-08-20: opened as Draft in session `2026-08-20-architecture-1`, from two workarounds that
   appeared within a week of ADR 013 shipping and from the needs of an AI far end. ADR 013 alternative C
   had reserved the space.
+- 2026-08-20: §3 rewritten in the same session. The first version invented a new injected parameter for
+  the answer; a registered function already receives `output`, which for an automatic node is the
+  previous node's `ActionNodeOutput`, so the answer takes that slot and no new name is introduced. The
+  two things that were folklore are now stated: what the slot holds for a function versus for a guard,
+  and that the answered values sit in `param_writes`. §3a and alternative F were added after weighing
+  whether the interactive side should inherit the automatic machinery: it should not — the convention
+  is extracted as a function and the hierarchy stays, because `ActionWithFunction` is itself an
+  automatic action and the engine dispatches on that type. Open point 7 records the remaining question
+  of what shape the answered values reach the function in.
