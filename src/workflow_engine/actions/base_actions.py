@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from dataclasses import field
 from datetime import UTC, datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Annotated, ClassVar, cast
+from typing import Annotated, ClassVar
 
 from workflow_engine.actions.action_present import PresentResponse
 from workflow_engine.exceptions import (
@@ -44,12 +43,14 @@ def _factory_sate_stub() -> StateModel:
 
 
 class BaseAction(ABC):
-    ACTION_TYPE: ClassVar[str]
-    save_as: Annotated[str | None, "The name to save the output text of the action as."] = field(default=None)
+    """Base of every action, built from the 'action_parameters' of a node.
 
-    def __init__(self, data: dict[str, object]):
-        if "save_as" in data and isinstance(data["save_as"], str):
-            self.save_as = cast(str, data["save_as"])
+    The base class keeps no configuration of its own: each subclass reads the keys it needs in its
+    own constructor. Node level keys such as 'save_as' are not action parameters; the engine reads
+    them from the node configuration.
+    """
+
+    ACTION_TYPE: ClassVar[str]
 
     def validate_action(self) -> None:
         return
@@ -79,9 +80,6 @@ class BaseAction(ABC):
 
 
 class BaseAutomaticAction(BaseAction):
-    def __init__(self, data: dict[str, object]):
-        super().__init__(data)
-
     @abstractmethod
     def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         """
@@ -132,9 +130,6 @@ class BaseAutomaticAction(BaseAction):
 
 
 class BaseInteractiveAction(BaseAction):
-    def __init__(self, data: dict[str, object]):
-        super().__init__(data)
-
     @abstractmethod
     def present(self, state: StateReadOnlyView) -> PresentResponse:
         raise NotImplementedError("Subclasses must implement the present method.")
@@ -154,7 +149,6 @@ class ActionWithFunction(BaseAutomaticAction):
     registered_function: Annotated[RegisteredFunctionExecutor[ActionNodeOutput], f"{FUNCTION_NAME_KEY}"]
 
     def __init__(self, data: dict[str, object]):
-        super().__init__(data)
         self.registered_function = self.get_registered_action_function(data)
 
     def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:

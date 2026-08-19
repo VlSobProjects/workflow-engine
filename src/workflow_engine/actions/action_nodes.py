@@ -18,7 +18,10 @@ from workflow_engine.registry.function_registry import (
 )
 from workflow_engine.tools import parameter_from_dict
 
-_SAVE_AS_DOC = ActionParameterDoc("str", "State parameter name to save the output text of the node under.")
+_SAVE_AS_NOTE = (
+    "'save_as' is a node key declared next to 'transitions', not an action parameter: it stores the "
+    "output text of the node in the state parameter of that name."
+)
 _FUNCTION_NAME_DOC = ActionParameterDoc("str", "Name of a registered function to execute.")
 _FUNCTION_PARAMETERS_DOC = ActionParameterDoc(
     "dict",
@@ -29,6 +32,7 @@ _FUNCTION_PARAMETERS_DOC = ActionParameterDoc(
 
 @register_action(
     "Executes a single registered function and returns its output.",
+    notes=[_SAVE_AS_NOTE],
     metadata=ActionOperatorMetadata(
         description=(
             "Runs one registered function and uses its result as the node output. The function is "
@@ -38,7 +42,6 @@ _FUNCTION_PARAMETERS_DOC = ActionParameterDoc(
         required_parameters={"function_name": _FUNCTION_NAME_DOC},
         optional_parameters={
             "function_parameters": _FUNCTION_PARAMETERS_DOC,
-            "save_as": _SAVE_AS_DOC,
         },
         node_template={
             "id": "<node-id>",
@@ -85,6 +88,7 @@ class FunctionAction(ActionWithFunction):
 
 @register_action(
     "Executes multiple registered functions and appends their outputs to a list parameter.",
+    notes=[_SAVE_AS_NOTE],
     metadata=ActionOperatorMetadata(
         description=(
             "Runs several registered functions in one node. Each entry of 'functions' maps a result "
@@ -103,7 +107,7 @@ class FunctionAction(ActionWithFunction):
                 "str", "Name of the list state parameter the result dictionary is appended to."
             ),
         },
-        optional_parameters={"save_as": _SAVE_AS_DOC},
+        optional_parameters={},
         node_template={
             "id": "<node-id>",
             "action_type": "functions",
@@ -159,7 +163,6 @@ class FunctionsAction(BaseAutomaticAction):
     save_to_list: str
 
     def __init__(self, data: dict[str, object]):
-        super().__init__(data)
         self.save_to_list = parameter_from_dict(data, "save_to_list", str)
         f_config_dict = parameter_from_dict(data, "functions", dict)
         self.functions = {
@@ -187,6 +190,7 @@ class FunctionsAction(BaseAutomaticAction):
 
 @register_action(
     "Stops the workflow execution.",
+    notes=[_SAVE_AS_NOTE],
     metadata=ActionOperatorMetadata(
         description=(
             "Ends the workflow at this node. Without a function the node passes the previous "
@@ -198,7 +202,6 @@ class FunctionsAction(BaseAutomaticAction):
                 "str", "Registered function to execute before stopping; its result is the final output."
             ),
             "function_parameters": _FUNCTION_PARAMETERS_DOC,
-            "save_as": _SAVE_AS_DOC,
         },
         node_template={
             "id": "<node-id>",
@@ -219,7 +222,6 @@ class StopAction(BaseAutomaticAction):
     registered_function: RegisteredFunctionExecutor[ActionNodeOutput] | None
 
     def __init__(self, data: dict[str, object]):
-        super().__init__(data)
         self.registered_function = self.get_registered_action_function(data) if FUNCTION_NAME_KEY in data else None
 
     def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
@@ -232,6 +234,7 @@ class StopAction(BaseAutomaticAction):
 
 @register_action(
     "Stops the workflow execution on error.",
+    notes=[_SAVE_AS_NOTE],
     metadata=ActionOperatorMetadata(
         description=(
             "Ends the workflow when a specific error code is present. With 'function_name' the "
@@ -247,7 +250,6 @@ class StopAction(BaseAutomaticAction):
                 "str", "Registered function whose output is checked instead of the previous output."
             ),
             "function_parameters": _FUNCTION_PARAMETERS_DOC,
-            "save_as": _SAVE_AS_DOC,
         },
         node_template={
             "id": "<node-id>",
