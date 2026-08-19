@@ -133,7 +133,10 @@ On `workflow_completed`, when an export destination is known (`--export-dir` CLI
 Export is non-fatal: missing or unwritable deliverables record session events
 (`deliverable_missing`, `artifact_export_failed`) but do not change the completed status.
 Successful export records an `artifacts_exported` event. All three event codes map to `COMPLETED`
-in status derivation so they never corrupt the session status.
+in status derivation so they never corrupt the session status. The terminal `run`/`resume` result
+additionally carries `data.export` with the resolved `destination` and the exported map, so a caller
+that asked for an export learns where the files went without reading the event journal; the key is
+absent when no export ran.
 
 `copy_artifact(source_artifact_name, target_artifact_name, state, target_path=None,
 allow_overwrite=False)` copies and registers a new artifact from an existing one (copy-promote
@@ -256,7 +259,9 @@ errors.
 The CLI is the only writer of standard output: the engine reports a failure through the response it
 returns and the session event journal, never by printing, so `--json` output stays parseable on the
 failure path. A failure that the state does not record as a node error, such as an exception escaping
-an action, reaches the caller through the `errors` field of the response.
+an action, reaches the caller through the `errors` field of the response. The same holds for a
+malformed command line: the argument parser writes its message and the usage to standard error, and
+under `--json` standard output still carries one command result with `command_status: error`.
 
 ## Operator help contract
 
@@ -280,6 +285,12 @@ adds `execution_mode` and the node-authoring sections (`node_template`,
 a codec detail adds `python_type`; a type-level payload carries `component_type` with `type`,
 `description` and `components` entries in the list shape (`name`, `summary`, `source`). Existing keys
 and nesting are stable; extension is additive only.
+
+`source` states where a component is defined, not which loading path registered it: the engine's own
+package is `core` and every other module is `external`, so a component registered by a launcher
+script is reported as external like one loaded through `external_modules`. A codec is addressed by
+the rule of ADR 012, a full registered name or an unambiguous bare class name, the same rule the
+input surface uses.
 
 Metadata sources per type: actions and codecs declare explicit metadata at the registration point;
 functions and validators combine the signature with `Annotated`/`Args` parameter documentation;
