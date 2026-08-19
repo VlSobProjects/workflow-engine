@@ -97,17 +97,16 @@ def find_codec(value: object) -> type[Codec]:
     return NoCodec
 
 
-def get_codec_by_type_name(type_name: str) -> type[Codec] | None:
-    return CODEC_REGISTRY.get(type_name)
-
-
-def resolve_codec_by_type_name(type_name: str) -> type[Codec]:
-    """Resolve a codec from a full registered name or an unambiguous bare class name.
+def find_codec_by_type_name(type_name: str) -> type[Codec] | None:
+    """Find a codec by a full registered name or an unambiguous bare class name, or None.
 
     An exact full name (``pathlib.Path``, ``builtins.int``) wins. Otherwise the bare class name
-    (``Path``, ``int``) is matched against the live registry: exactly one match resolves, none is
-    unknown, and more than one is ambiguous. The bare index is built per call because plugins may
-    register codecs after import. See ADR 012.
+    (``Path``, ``int``) is matched against the live registry: exactly one match resolves and none
+    means unknown. The bare index is built per call because plugins may register codecs after import.
+
+    This is the one rule every surface that takes a codec name uses. An ambiguous bare name is raised
+    rather than returned as a miss: several codecs answer to it, so calling it unknown would be wrong
+    and picking one of them would be a guess. See ADR 012.
     """
     codec = CODEC_REGISTRY.get(type_name)
     if codec is not None:
@@ -116,12 +115,20 @@ def resolve_codec_by_type_name(type_name: str) -> type[Codec]:
     if len(matches) == 1:
         return next(iter(matches.values()))
     if len(matches) == 0:
-        raise WorkflowConfigurationError(
-            f"Unknown codec type '{type_name}'. Known types: {', '.join(sorted(CODEC_REGISTRY))}"
-        )
+        return None
     raise WorkflowConfigurationError(
         f"Ambiguous codec type '{type_name}'; use the full name (one of: {', '.join(sorted(matches))})"
     )
+
+
+def resolve_codec_by_type_name(type_name: str) -> type[Codec]:
+    """Resolve a codec by the shared rule, refusing an unknown name. See ADR 012."""
+    codec = find_codec_by_type_name(type_name)
+    if codec is None:
+        raise WorkflowConfigurationError(
+            f"Unknown codec type '{type_name}'. Known types: {', '.join(sorted(CODEC_REGISTRY))}"
+        )
+    return codec
 
 
 class IterableCodec(Codec, ABC):

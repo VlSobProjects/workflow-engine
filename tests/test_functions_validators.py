@@ -40,3 +40,15 @@ def test_action_param_file_exists_validator(tests_dir):
     )
     print(f"Test 3: {test3.output_text}, error_code: {test3.error_code}, error_message: {test3.error_msg}")
     assert test3.output_text == "all good"
+
+
+def test_validator_failure_reads_as_a_message_not_as_a_parameter_dump():
+    """The failure text belongs in the message; the parameters slot reports the call, not the fault."""
+    with pytest.raises(FunctionRuntimeError) as error:
+        function_with_params(file_path="path/to/file", other_param="value", another_param="value", number=1)
+
+    message = str(error.value)
+    assert message.startswith("Function runtime error in 'function_with_params': ")
+    assert "file_path: Argument path/to/file - validation 'file exists' failed." in message
+    assert "with parameters" not in message
+    assert "No message" not in message

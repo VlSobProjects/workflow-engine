@@ -175,12 +175,27 @@ class RegisteredFunctionExecutor[T]:
                 return self.registered_function.function(**self.registered_function.args_cleaner(params))
             else:
                 return self.registered_function.function()
+        except FunctionRuntimeError as e:
+            # The function already reported itself; wrapping would repeat its name and parameters.
+            if e.function_name == self.registered_function.name:
+                raise
+            raise self._runtime_error(params, e) from e
         except Exception as e:
-            raise FunctionRuntimeError(
-                function_name=self.registered_function.name,
-                parameters=params,
-                message=f"Error executing registered function: {e}",
-            ) from e
+            raise self._runtime_error(params, e) from e
+
+    def _runtime_error(self, params: dict[str, object] | None, cause: Exception) -> FunctionRuntimeError:
+        """The failure of one call, reported with the parameters the function declares.
+
+        `params` also carries what the engine injects for the call - the read-only state view and the
+        previous output - which belongs to no function signature and renders as an unreadable repr.
+        The signature filter that decides what the function is called with decides what is reported.
+        """
+        declared = self.registered_function.args_cleaner(params) if params is not None else None
+        return FunctionRuntimeError(
+            function_name=self.registered_function.name,
+            parameters=declared,
+            message=f"Error executing registered function: {cause}",
+        )
 
 
 def _get_registered_executor[T](

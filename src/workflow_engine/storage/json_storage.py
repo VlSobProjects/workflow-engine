@@ -2,7 +2,7 @@ import dataclasses
 import json
 from pathlib import Path
 
-from workflow_engine.exceptions import StateLoadError, WorkflowConfigurationError, WorkflowParameterError
+from workflow_engine.exceptions import StateLoadError, WorkflowConfigurationError
 from workflow_engine.models.node import WorkflowNodeModel
 from workflow_engine.models.state import ActionParameter, ArtifactEvent, GuardRecord, SessionEvent, StateModel
 from workflow_engine.models.workflow import InputDeclaration, WorkflowModel
@@ -59,23 +59,6 @@ class JsonStorage(Storage):
             raise WorkflowConfigurationError(
                 f"Failed to create storage directory: {self.storage_dir.resolve(strict=False)}"
             ) from ex
-
-    def load_all_states(self) -> list[StateModel]:
-        """Load all states from storage."""
-        states = []
-        for session_folder in self.storage_dir.iterdir():
-            if session_folder.is_dir() and session_folder.joinpath(STATE_FILE).exists():
-                state_file = session_folder.joinpath(STATE_FILE)
-                try:
-                    with state_file.open(encoding="utf-8-sig") as f:
-                        json_obj = json.load(f)
-                    try:
-                        states.append(StateModel.from_dict(json_obj))
-                    except WorkflowParameterError as e:
-                        print(f"Invalid workflow parameter in state file at path: {state_file.absolute()}: {e}")
-                except json.JSONDecodeError as ex:
-                    print(f"Invalid JSON format in state file at path: {state_file.absolute()}: {ex}")
-        return states
 
     def __init__(self, storage_dir: Path) -> None:
         path = storage_dir.expanduser()

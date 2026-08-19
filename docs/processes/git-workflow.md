@@ -46,6 +46,10 @@ The `adr_` token is what marks a branch as ADR driven. There are no separate ADR
 - `development` is merged into `main` when the state is stable and worth marking as such.
 - A `poc/` branch is never merged into `development`.
 - Before merging into `development`, the required tests and the linter must pass.
+- A `feature/`, `fix/` or `refactor/` branch synchronizes the documentation its change made
+  inaccurate, in the same branch: `README.md` for anything an operator or a calling program sees, and
+  `docs/architecture/overview.md` for anything the architecture description states. A change that
+  affects neither needs no documentation edit; a change that does is not finished without one.
 - When merging into `development`, update every registry the branch touched: the ADR registry
   (`docs/adr/README.md`), the sessions registry (`docs/sessions/README.md`), and the architecture notes
   registry (`docs/architecture/notes/README.md`).
