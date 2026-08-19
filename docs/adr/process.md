@@ -46,6 +46,7 @@ An ADR may become Accepted only when all of the following hold:
 - the feature branch is merged into `development`,
 - the required tests pass, up to and including end to end tests where applicable,
 - Context, Decision and Consequences describe the delivered result,
+- `docs/architecture/overview.md` describes the delivered architecture, updated in the same merge,
 - no POC code reached `development` unless it was raised to production quality.
 
 ## Amendment versus reversal

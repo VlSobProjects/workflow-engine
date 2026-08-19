@@ -26,6 +26,7 @@ The map may change, but only as a deliberate decision.
 - An ADR records why a decision was made, with its alternatives and consequences.
 - `docs/architecture/overview.md` records what the architecture is now, without repeating rationale.
 - The overview is updated when an ADR becomes Accepted, in the same merge as the implementation.
+  This is a freeze gate condition: see the freeze gate in `docs/adr/process.md`.
 
 ## 3. One fact in one place
 State a fact in a single document and link to it from elsewhere.

@@ -149,6 +149,9 @@ All observed outputs, keys and exit codes match the README text, with the except
 3. Which finding classes deserve a preventive rule: registry completeness check before merge (A.1),
    template-heading completeness for session notes (E.2), overview sync when a signature or a state
    field changes (B.1, B.6), README example must state its preconditions (A.2)?
+   Resolved by `2026-08-19-documentation-4_handoff.md`: one rule only (overview sync, added to the
+   ADR freeze gate). A.1 and E.2 are left under observation without a rule or a test; A.2 is a code
+   defect, not a rule class.
 
 ## Next steps
 1. Fix A.1 and A.2 (documentation part) before the tag.
