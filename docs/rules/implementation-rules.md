@@ -55,7 +55,7 @@ implementation, be maintained, and have an acceptable licence.
 It requires explicit approval, is declared in `pyproject.toml`, and development tools are declared
 separately from runtime dependencies.
 
-## 10. Registration and dynamic behaviour
+## 11. Registration and dynamic behaviour
 Registries are populated at import time. Keep that mechanism explicit and visible.
 When adding a module that registers something, make sure it is actually imported by the code that
 needs it, rather than relying on an accidental import.

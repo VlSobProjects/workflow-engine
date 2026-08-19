@@ -22,6 +22,11 @@ This directory holds the architecture decision records and their registry.
 Keep this table updated on every status change.
 The registry is edited only on `development`.
 
+`Depends on` lists the ADRs a decision needs in place to hold, and it is what rule 11 of
+`../rules/general-rules.md` reads. It is not a mirror of the `Related ADRs` section of an ADR file:
+that section also names decisions a record merely touches or is constrained by, and it is frozen with
+the rest of the text when the ADR is accepted. The two therefore differ on purpose.
+
 ## ADR governance
 - `template.md` — the section structure of an ADR.
 - `format.md` — formatting and status values.

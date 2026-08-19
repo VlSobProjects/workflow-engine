@@ -19,6 +19,12 @@ be resumed.
 
 Python 3.13 or newer. Dependencies are declared in `pyproject.toml`.
 
+Every command below calls `workflow-engine`, the console script the package installs. Inside a clone
+of this repository, run `uv sync` once and prefix the commands with `uv run`. From any other working
+directory the script has to be reachable: either point uv at the project with
+`uv run --project <path-to-repo> workflow-engine ...`, or install the package into an environment that
+is on your `PATH`. A bare `uv run workflow-engine` outside the repository reports `program not found`.
+
 ## Configuration file
 
 Every command reads a JSON config file, so the options you'd otherwise repeat on every call
@@ -31,6 +37,10 @@ wins:
    for settings shared across every project on the machine.
 4. none of the above exists: the engine creates one with resolved defaults at the runtime root
    (`<cwd>/.workflow-engine/` unless `--work-dir`/`WE_WORK_DIR` says otherwise) and uses it.
+
+Whichever path is resolved, a file that is not there yet is created with the resolved defaults. That
+includes an explicit `--config <path>` pointing at a file that does not exist: it is written where you
+pointed it, not at the runtime root.
 
 So the first command run in a fresh directory writes a starter config there, ready to edit:
 
@@ -46,11 +56,16 @@ So the first command run in a fresh directory writes a starter config there, rea
 or the `WE_WORK_DIR`/`WE_STORAGE_DIR` environment variables, which win over the config file. Full
 precedence and path resolution: `docs/architecture/overview.md`.
 
+On Windows without long-path support, keep the runtime root short. Artifacts live several levels below
+`work_dir`, so a deep runtime root pushes them past the 260-character limit and the run fails while
+writing the deliverable, with `pretty_table_write_error` and an `[Errno 2]` message.
+
 ## Running the examples
 
 `examples/` ships two validated templates. Each declares its `inputs` and its deliverable, and runs
-from any working directory with `uv run workflow-engine ...`. Session data lands under
-`<cwd>/.workflow-engine/` unless the config file or `--work-dir` says otherwise.
+from any working directory the `workflow-engine` command is reachable from (see "Requirements").
+Session data lands under `<cwd>/.workflow-engine/` unless the config file or `--work-dir` says
+otherwise.
 
 Both templates treat a missing deliverable as a failed run: the node that writes the CSV fails under
 the error code it produced, so the run ends with exit code `3` and the code in `errors` instead of
