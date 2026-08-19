@@ -132,7 +132,17 @@ Three ways to get the file itself:
   into the directory you ran the command from.
 - Pass `--export-dir <dir>` to `run` or `resume` (or set `export_dir` once in the config file — see
   "Configuration file"): on completion the engine copies every declared deliverable into `<dir>`,
-  preserving its relative artifact path.
+  preserving its relative artifact path. The result reports where they went:
+
+  ```json
+  "export": {
+    "destination": "<dir>",
+    "exported": {"file_scan_table": "<dir>/reports/file_scan_table.csv"}
+  }
+  ```
+
+  The key is present only when that export ran: a destination was resolved, the workflow declares
+  `deliverables`, and the run completed.
 - Run `export-artifact --session-id <SESSION_ID> --target-dir <dir> --all` (or `--artifact-name
   <name>` for one artifact) after the fact. Works for completed, paused and failed sessions.
 
@@ -140,7 +150,10 @@ Three ways to get the file itself:
 `artifacts_absolute`, `deliverables` and `inputs`.
 
 Exit codes: `0` success, `2` workflow paused, `3` workflow failed, `4` command-level setup or
-resolution error. Full CLI and artifact contracts: `docs/architecture/overview.md`.
+resolution error. A malformed command line is a `4` too: the message and the usage go to stderr, and
+with `--json` stdout still carries one command result with `"command_status": "error"`, so a caller
+that parses stdout never gets usage text instead of a document. Full CLI and artifact contracts:
+`docs/architecture/overview.md`.
 
 ## Hitting the hard node cap
 
