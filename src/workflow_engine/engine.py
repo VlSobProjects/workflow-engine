@@ -7,6 +7,7 @@ from workflow_engine.actions.base_actions import (
     BaseAutomaticAction,
     BaseInteractiveAction,
 )
+from workflow_engine.answers import Answer, BoundAnswer, bind_answer
 from workflow_engine.artifacts_export import (
     DeliverableExport,
     ExportedArtifact,
@@ -18,6 +19,7 @@ from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowS
 from workflow_engine.bootstrap.storage_fatcory import StorageFactory
 from workflow_engine.collection_param_handlers import WriteParamMode
 from workflow_engine.exceptions import (
+    WorkflowAnswerError,
     WorkflowEngineError,
     WorkflowInputError,
     WorkflowParameterError,
@@ -255,7 +257,22 @@ def _start_engine(
             if cur_node and isinstance(cur_node.action, BaseAutomaticAction):
                 output = cur_node.action.execute(state_read_only, output)
             elif cur_node and isinstance(cur_node.action, BaseInteractiveAction):
-                return cur_node.action.present(state_read_only)
+                # The run stops at the question. The paused position needs no state field of its own:
+                # it is the current node, and the built node says whether it is interactive. See ADR 013 §3.
+                response = cur_node.action.present(state_read_only)
+                state.record_session_event(
+                    SessionEvent.engine_event(
+                        SessionEventCode.WORKFLOW_PAUSED_INTERACTIVE,
+                        {
+                            "node_id": cur_node.id,
+                            "answer": [
+                                declaration.name for declaration in cur_node.action.answer_contract().declarations
+                            ],
+                        },
+                    )
+                )
+                storage.save_state(state)
+                return response
 
     except WorkflowRuntimeError as e:
         state.record_session_event(
@@ -375,6 +392,25 @@ def _run_entry_event(state: StateModel) -> SessionEvent:
     )
 
 
+def _answered_event(node_id: str, answer: Answer, bound: BoundAnswer) -> SessionEvent:
+    """Journal the answer as an operator-side event. See ADR 013 §9.
+
+    It records who answered and which names were bound with which codecs, never the values, mirroring
+    ``inputs_set``. The label rides in the details because ``SessionEvent.actor`` stays the two-valued
+    engine/operator distinction of ADR 006: who supplied an answer is a property of the answer.
+    """
+    details: dict[str, object] = {
+        "node_id": node_id,
+        "status": answer.status.value,
+        "actor": answer.actor,
+        "names": list(bound.codecs),
+        "codecs": bound.codecs,
+    }
+    if answer.error_code is not None:
+        details["error_code"] = answer.error_code
+    return SessionEvent.operator_event(SessionEventCode.INTERACTIVE_ANSWERED, details)
+
+
 class WorkflowEngine:
     storage_factory: StorageFactory
     session_factory: WorkflowSessionsFactory
@@ -467,9 +503,14 @@ class WorkflowEngine:
         return dict_to_text_lv3("Workflow Engine Components", self.components, 0, 4)
 
     def start_workflow(
-        self, session_id: str, output: ActionNodeOutput | None = None, export_dir: str | None = None
+        self, session_id: str, answer: Answer | None = None, export_dir: str | None = None
     ) -> tuple[PresentResponse, StateModel]:
-        """Start or continue a workflow session."""
+        """Start or continue a workflow session, optionally answering the node it is paused at.
+
+        An answer is validated before anything is journaled, so a refused one leaves the run exactly as
+        it was (ADR 013 §5). Resuming a paused interactive node without an answer presents the same
+        question again, consuming no attempt and no visit (§6).
+        """
         self.last_export = None
         runtime = self._acquire(session_id)
         if runtime.setup_error is not None:
@@ -487,9 +528,13 @@ class WorkflowEngine:
             return runtime.setup_error, runtime.state
 
         self._require_bound_inputs(runtime, session_id)
+        bound = self._accept_answer(runtime, answer) if answer is not None else None
 
         runtime.state.record_session_event(_run_entry_event(runtime.state))
+        if answer is not None and bound is not None:
+            runtime.state.record_session_event(_answered_event(runtime.state.current_node_id, answer, bound))
         self._commit(runtime)
+        output = bound.output if bound is not None else None
         response = _start_engine(runtime.nodes, runtime.storage, runtime.state, output, self.hard_max_nodes_visited)
         self._commit(runtime)
         self._export_on_completion(runtime, export_dir)
@@ -595,6 +640,31 @@ class WorkflowEngine:
         )
         self._commit(runtime)
         return StateReadOnlyView.from_state(state)
+
+    @staticmethod
+    def _accept_answer(runtime: SessionRuntime, answer: Answer) -> BoundAnswer:
+        """Accept an answer only from a run that is actually waiting for one. See ADR 013 §5.
+
+        Both halves of the precondition are needed: the node must be the kind that asks, and the run
+        must be stopped at its question. An answer to a node that did not ask is the fabricated node
+        output ADR 012 removed. Every refusal raises before anything is applied or journaled, the way a
+        refused ``set-input`` behaves.
+        """
+        state = runtime.state
+        node = _get_workflow_node(runtime.nodes, state.current_node_id)
+        action = node.action if node is not None else None
+        if not isinstance(action, BaseInteractiveAction):
+            raise WorkflowAnswerError(
+                f"Node '{state.current_node_id}' of session {state.session_id} asked nothing: "
+                f"an answer is accepted only at an interactive node"
+            )
+        last_event = state.get_last_event_code()
+        if last_event is not SessionEventCode.WORKFLOW_PAUSED_INTERACTIVE:
+            raise WorkflowAnswerError(
+                f"Session {state.session_id} is not waiting for an answer: the last event is "
+                f"'{last_event.value}', not '{SessionEventCode.WORKFLOW_PAUSED_INTERACTIVE.value}'"
+            )
+        return bind_answer(answer, action.answer_contract())
 
     @staticmethod
     def _require_bound_inputs(runtime: SessionRuntime, session_id: str) -> None:

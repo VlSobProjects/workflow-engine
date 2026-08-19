@@ -1,17 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 
-
-def default_hints() -> list[str]:
-    return ["Use ';' delimit to submit multiple values"]
-
-
-def default_submit() -> str:
-    return """
-    On Success: [task_success] and any requested in instruction values if any.
-
-    On Error: [error_code] from errors with brif reasoning.
-    """
+from workflow_engine.models.workflow import InputDeclaration
 
 
 def def_errors() -> dict[str, str]:
@@ -25,13 +15,35 @@ def def_errors() -> dict[str, str]:
     }
 
 
+@dataclass(frozen=True)
+class AnswerContract:
+    """What a valid answer to an interactive node must carry. See ADR 013 §2.
+
+    The declarations are the machine-readable replacement of the free-text ``expected_input``: they name
+    the parameters an answer binds and how each is typed. The catalogue names the failure codes the node
+    accepts, which is why it is not ``PresentResponse.errors``: that field reports what actually failed.
+    """
+
+    declarations: tuple[InputDeclaration, ...] = ()
+    error_catalogue: dict[str, str] = field(default_factory=dict)
+
+    def declared_codes(self) -> frozenset[str]:
+        return frozenset(self.error_catalogue)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "declarations": [declaration.to_dict() for declaration in self.declarations],
+            "error_catalogue": dict(self.error_catalogue),
+        }
+
+
 @dataclass
 class PresentResponse:
     title: str = field(metadata={"label": "Title", "description": "Short title of the question"})
     description: str = field(metadata={"label": "Description", "description": "Description of action"})
     instruction: str = field(metadata={"label": "Instruction", "description": "Main instruction for the LLM"})
     submit: str | None = field(
-        default_factory=default_submit,
+        default=None,
         metadata={"label": "Submit", "description": "Submit one or multiple parameters after performing an action"},
     )
     goal: str | None = field(
@@ -57,14 +69,16 @@ class PresentResponse:
     expected_input: str | None = field(
         default=None, metadata={"label": "Expected User Input", "description": "Expected input from the user"}
     )
-    hints: list[str] | None = field(
-        default_factory=default_hints, metadata={"label": "Hints", "description": "Hints for agent"}
-    )
+    hints: list[str] | None = field(default=None, metadata={"label": "Hints", "description": "Hints for agent"})
     constraints: list[str] | None = field(
         default=None, metadata={"label": "Constraints", "description": "Constraints for agent"}
     )
     examples: list[str] | None = field(
         default=None, metadata={"label": "Examples", "description": "Examples for agent"}
+    )
+    answer: AnswerContract | None = field(
+        default=None,
+        metadata={"label": "Answer", "description": "Declared shape of a valid answer to an interactive node"},
     )
 
 

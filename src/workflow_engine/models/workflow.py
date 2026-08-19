@@ -36,6 +36,60 @@ class InputDeclaration:
         }
 
 
+def validate_input_declarations(raw: object, block_name: str) -> tuple[InputDeclaration, ...]:
+    """Validate a declaration block for shape only. See ADR 012 (``inputs``) and ADR 013 (``answer``).
+
+    An absent block and an empty list are equivalent. Each entry declares a unique ``name`` matching
+    ``[A-Za-z_][A-Za-z0-9_]*``; an optional ``type`` must name a registered codec (full or bare) and is
+    stored as the resolved full codec name; ``required`` defaults to true. Shape errors are aggregated.
+
+    The workflow ``inputs`` block and the ``answer`` declaration of an interactive node are one shape
+    with one validator: ``block_name`` only names the block a message is about.
+    """
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise WorkflowConfigurationError(f"{block_name} must be a list of declarations")
+    errors: list[str] = []
+    seen: set[str] = set()
+    declarations: list[InputDeclaration] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            errors.append(f"entry {index} must be an object")
+            continue
+        name = item.get("name")
+        if not isinstance(name, str) or not _INPUT_NAME_RE.fullmatch(name):
+            errors.append(f"entry {index}: name must match [A-Za-z_][A-Za-z0-9_]*")
+            continue
+        if name in seen:
+            errors.append(f"duplicate name '{name}'")
+            continue
+        seen.add(name)
+        raw_type = item.get("type")
+        resolved_type: str | None = None
+        if raw_type is not None:
+            if not isinstance(raw_type, str):
+                errors.append(f"'{name}': type must be a string")
+                continue
+            try:
+                resolved_type = resolve_codec_by_type_name(raw_type).type_name()
+            except WorkflowConfigurationError as exc:
+                errors.append(f"'{name}': {exc}")
+                continue
+        required = item.get("required", True)
+        if not isinstance(required, bool):
+            errors.append(f"'{name}': required must be a boolean")
+            continue
+        description = item.get("description")
+        if description is not None and not isinstance(description, str):
+            errors.append(f"'{name}': description must be a string")
+            continue
+        declarations.append(InputDeclaration(name=name, type=resolved_type, required=required, description=description))
+    if errors:
+        raise WorkflowConfigurationError(f"Invalid {block_name}: " + "; ".join(errors))
+    return tuple(declarations)
+
+
 class WorkflowSource(ABC):
     """Abstract base class for workflow sources."""
 
@@ -111,59 +165,6 @@ class WorkflowModel:
             raise WorkflowConfigurationError("Invalid deliverables: " + "; ".join(errors))
         return tuple(names)
 
-    @staticmethod
-    def _validate_inputs(raw: object) -> tuple[InputDeclaration, ...]:
-        """Validate the optional ``inputs`` block for shape only. See ADR 012.
-
-        An absent block and an empty list are equivalent. Each entry declares a unique ``name`` matching
-        ``[A-Za-z_][A-Za-z0-9_]*``; an optional ``type`` must name a registered codec (full or bare) and is
-        stored as the resolved full codec name; ``required`` defaults to true. Shape errors are aggregated.
-        """
-        if raw is None:
-            return ()
-        if not isinstance(raw, list):
-            raise WorkflowConfigurationError("inputs must be a list of input declarations")
-        errors: list[str] = []
-        seen: set[str] = set()
-        declarations: list[InputDeclaration] = []
-        for index, item in enumerate(raw):
-            if not isinstance(item, dict):
-                errors.append(f"entry {index} must be an object")
-                continue
-            name = item.get("name")
-            if not isinstance(name, str) or not _INPUT_NAME_RE.fullmatch(name):
-                errors.append(f"entry {index}: name must match [A-Za-z_][A-Za-z0-9_]*")
-                continue
-            if name in seen:
-                errors.append(f"duplicate input '{name}'")
-                continue
-            seen.add(name)
-            raw_type = item.get("type")
-            resolved_type: str | None = None
-            if raw_type is not None:
-                if not isinstance(raw_type, str):
-                    errors.append(f"input '{name}': type must be a string")
-                    continue
-                try:
-                    resolved_type = resolve_codec_by_type_name(raw_type).type_name()
-                except WorkflowConfigurationError as exc:
-                    errors.append(f"input '{name}': {exc}")
-                    continue
-            required = item.get("required", True)
-            if not isinstance(required, bool):
-                errors.append(f"input '{name}': required must be a boolean")
-                continue
-            description = item.get("description")
-            if description is not None and not isinstance(description, str):
-                errors.append(f"input '{name}': description must be a string")
-                continue
-            declarations.append(
-                InputDeclaration(name=name, type=resolved_type, required=required, description=description)
-            )
-        if errors:
-            raise WorkflowConfigurationError("Invalid inputs: " + "; ".join(errors))
-        return tuple(declarations)
-
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> WorkflowModel:
         nodes = parameter_from_dict_with_checker(
@@ -179,5 +180,5 @@ class WorkflowModel:
             start_node_id=parameter_from_dict(data, "start_node_id", str),
             nodes=[WorkflowNodeModel.from_dict(node) for node in nodes if isinstance(node, dict)],
             deliverables=cls._validate_deliverables(data.get("deliverables")),
-            inputs=cls._validate_inputs(data.get("inputs")),
+            inputs=validate_input_declarations(data.get("inputs"), "inputs"),
         )

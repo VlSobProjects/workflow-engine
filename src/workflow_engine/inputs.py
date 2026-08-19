@@ -59,11 +59,30 @@ def resolve_input_codec(assignment: InputAssignment, declaration: InputDeclarati
     return explicit or declared
 
 
+def decode_declared_value(
+    name: str, value: object, codec: type[Codec] | None, subject: str = "input"
+) -> tuple[object, str | None]:
+    """Decode an already-parsed value by its declared codec, into the value and the full codec name.
+
+    This is the codec half of the binding rule, reached by both callers: the ``--input`` string transport
+    below, and a JSON answer whose values are typed already (ADR 013 §4). A name declared without a type
+    is bound as given. A codec that cannot decode the value is an error, reported against ``subject``.
+    """
+    if codec is None:
+        return value, None
+    try:
+        decoded = codec.value_from_dict_obj(value)
+    except Exception as exc:
+        raise WorkflowInputError(f"{subject} '{name}': cannot decode value as {codec.type_name()}: {exc}") from exc
+    return decoded, codec.type_name()
+
+
 def decode_input_value(assignment: InputAssignment, declaration: InputDeclaration) -> tuple[object, str | None]:
     """Decode an assignment into its typed Python value and the resolved full codec name (or ``None``).
 
     An untyped value is bound as the literal string. A typed value is parsed as JSON, falling back to the
-    raw string when it is not valid JSON, then decoded by the codec. A codec that cannot decode is an error.
+    raw string when it is not valid JSON, then decoded by the codec. That parse-or-fall-back step belongs
+    to the command-line string transport alone; the decoding itself is shared. See ADR 012, ADR 013 §4.
     """
     codec = resolve_input_codec(assignment, declaration)
     if codec is None:
@@ -72,10 +91,4 @@ def decode_input_value(assignment: InputAssignment, declaration: InputDeclaratio
         parsed = json.loads(assignment.value)
     except json.JSONDecodeError:
         parsed = assignment.value
-    try:
-        decoded = codec.value_from_dict_obj(parsed)
-    except Exception as exc:
-        raise WorkflowInputError(
-            f"input '{assignment.name}': cannot decode value as {codec.type_name()}: {exc}"
-        ) from exc
-    return decoded, codec.type_name()
+    return decode_declared_value(assignment.name, parsed, codec)

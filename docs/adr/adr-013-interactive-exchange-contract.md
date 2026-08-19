@@ -234,6 +234,11 @@ the existing collection-writing functions.
 - Leaves open: reopening failed sessions; workflow-definition introspection without running
   (ADR 012 deferred §3), which this decision does not require; a budget checkpoint routed to a node
   inside the graph instead of the out-of-graph pause of ADR 010.
+- Leaves open, found by the review of the delivered implementation and recorded in
+  `docs/architecture/notes/2026-08-19-interactive-exchange-publishing-boundary.md`: that the
+  internal/published boundary is held by one function rather than by the shapes (`PresentResponse`
+  keeps the fields the declared answer replaced), that `actor` is an audit label with no identity
+  contract behind it, and that the published `question` block carries no version of its own.
 
 ## Related ADRs
 
@@ -252,17 +257,22 @@ remains that only code could answer.
 Reuse rather than rebuild:
 - `BaseInteractiveAction` and the interactive branch of `_start_engine` — the pause already works;
 - `_proceed_with_output` — the answer path needs no change to guard or transition handling;
-- `ActionNodeOutput.from_args` — the existing decoding of an externally supplied output;
+- `ActionNodeOutput.from_args` — the existing decoding of an externally supplied output (dropped
+  during implementation: see the change log);
 - `WorkflowModel._validate_inputs` — extract it so `inputs` and `answer` share one validator;
 - `decode_input_value` — split it so that decoding an already-parsed value by its codec is reachable
   without the command-line string rule;
 - the collection-writing functions, for accumulating answers across a loop of questions;
 - `_require_bound_inputs` — the shape of a setup-time precondition that refuses a command.
 
-Touched: `models/workflow.py`, `inputs.py`, a new `ask` action module, `actions/action_present.py`,
-a new answer parsing module, `engine.py`, `models/state.py` (event codes, status derivation, actor
-code lists), `cli/main.py`, `cli/use_cases.py`, `cli/contract.py`, `README.md`,
-`docs/architecture/overview.md`, an example workflow, and the test suite.
+Touched, as delivered: `models/workflow.py` (the extracted declaration validator), `inputs.py` (the
+extracted codec decoding), `exceptions.py` (`WorkflowAnswerError`), `actions/action_present.py`
+(`AnswerContract`, the two removed defaults), `actions/base_actions.py` (`answer_contract`), the new
+`actions/action_ask.py`, the new `answers.py`, `bootstrap/plugin_manifest.py`, `output.py` (the
+removed `from_args`), `engine.py`, `models/state.py` (event codes, status derivation, actor code
+lists), `cli/main.py`, `cli/use_cases.py`, `README.md`, `docs/architecture/overview.md`,
+`examples/approve-and-copy.json`, and three test modules. `cli/contract.py` needed no change: the
+question rides in `data`, which the command result already carries.
 
 ## Change log
 
@@ -277,3 +287,22 @@ code lists), `cli/main.py`, `cli/use_cases.py`, `cli/contract.py`, `README.md`,
   the draft had not named were closed in the same pass: what the `output_text` of an answered node
   is (the new `text` field), when an answer is refused (§5), and that `values` are written with
   `SET` only (alternative H).
+- 2026-08-19: implemented on `feature/adr_013-interactive-exchange` (session
+  `2026-08-19-implementation-11`). Six points the text left to the implementation, recorded here
+  because they are contract, not mechanics:
+  1. The declaration and the error catalogue travel as one `AnswerContract` on the presentation, and
+     the catalogue is **not** `PresentResponse.errors`: that field says what actually failed, and
+     filling it with a catalogue is the defect the `fix/successful-run-reports-errors` session
+     removed. `BaseInteractiveAction.answer_contract()` is what the engine reads, so it validates an
+     answer without knowing which interactive action asked.
+  2. `ActionNodeOutput.from_args` and the `output` parameter of `start_workflow` are removed instead
+     of reused. Nothing called them, and `from_args` read `args.input`, which ADR 012 gave a
+     different meaning. `start_workflow` now takes the `answer` in their place.
+  3. A `failure` answer carries no `values`: it answered nothing, so a half-answer is refused rather
+     than silently dropped. Unknown top-level fields are refused for the same reason.
+  4. The `SET` writes of an answer allow overwriting, because a question asked again in a loop
+     answers the same names.
+  5. The `answer` declaration is a required key of an `ask` node; a question that binds no parameter
+     declares `[]` explicitly and is routed by its answer text.
+  6. The published block names the generic failure code as `generic_error_code`, so a caller learns
+     `answer_failed` from the question instead of from this document.

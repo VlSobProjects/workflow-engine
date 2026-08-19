@@ -53,9 +53,11 @@ class SessionEventCode(Enum):
     WORKFLOW_STARTED = "workflow_started"
     OPERATOR_LIMIT_UPDATED = "operator_limit_updated"
     INPUTS_SET = "inputs_set"
+    INTERACTIVE_ANSWERED = "interactive_answered"
     WORKFLOW_RESUMED = "workflow_resumed"
     WORKFLOW_SETUP_FAILED = "workflow_setup_failed"
     WORKFLOW_PAUSED_LIMIT = "workflow_paused_limit"
+    WORKFLOW_PAUSED_INTERACTIVE = "workflow_paused_interactive"
     WORKFLOW_PAUSED_SAFETY_LIMIT = "workflow_paused_safety_limit"
     WORKFLOW_COMPLETED = "workflow_completed"
     WORKFLOW_FAILED = "workflow_failed"
@@ -68,6 +70,7 @@ OPERATOR_CODES = (
     SessionEventCode.SESSION_CREATED,
     SessionEventCode.OPERATOR_LIMIT_UPDATED,
     SessionEventCode.INPUTS_SET,
+    SessionEventCode.INTERACTIVE_ANSWERED,
     SessionEventCode.WORKFLOW_RESUMED,
     SessionEventCode.WORKFLOW_STARTED,
 )
@@ -76,6 +79,7 @@ ENGINE_CODES = (
     SessionEventCode.WORKFLOW_SETUP_FAILED,
     SessionEventCode.WORKFLOW_PAUSED_LIMIT,
     SessionEventCode.WORKFLOW_PAUSED_SAFETY_LIMIT,
+    SessionEventCode.WORKFLOW_PAUSED_INTERACTIVE,
     SessionEventCode.WORKFLOW_COMPLETED,
     SessionEventCode.WORKFLOW_FAILED,
     SessionEventCode.DELIVERABLE_MISSING,
@@ -608,6 +612,8 @@ class StateModel:
             case (
                 SessionEventCode.WORKFLOW_PAUSED_LIMIT
                 | SessionEventCode.WORKFLOW_PAUSED_SAFETY_LIMIT
+                | SessionEventCode.WORKFLOW_PAUSED_INTERACTIVE
+                | SessionEventCode.INTERACTIVE_ANSWERED
                 | SessionEventCode.WORKFLOW_STARTED
                 | SessionEventCode.WORKFLOW_RESUMED
                 | SessionEventCode.OPERATOR_LIMIT_UPDATED

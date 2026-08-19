@@ -1,0 +1,91 @@
+{
+  "schema_version": "1",
+  "flow_id": "approve-and-copy",
+  "start_node_id": "READ_SIZE",
+  "inputs": [
+    {
+      "name": "source_file",
+      "required": true,
+      "description": "Path of the file whose copy has to be approved"
+    },
+    {
+      "name": "target_dir",
+      "required": true,
+      "description": "Path of an existing folder the file is copied into"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "READ_SIZE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "file_size_human",
+        "function_parameters": { "file_path": "param.source_file" }
+      },
+      "save_as": "source_size",
+      "transitions": [{ "next": "ASK_APPROVAL" }]
+    },
+    {
+      "id": "ASK_APPROVAL",
+      "action_type": "ask",
+      "max_attempts": 2,
+      "action_parameters": {
+        "title": "Approve the copy",
+        "description": "Waiting for a decision on the copy",
+        "instruction": "Answer 'approved' or 'rejected' as the answer text, and name the decision maker in 'reviewer'.",
+        "goal": "Nothing is copied before someone approves it.",
+        "context": "param.source_file",
+        "options": ["approved", "rejected"],
+        "hints": ["param.source_size"],
+        "answer": [
+          {
+            "name": "reviewer",
+            "required": true,
+            "description": "Who made the decision"
+          }
+        ],
+        "errors": {
+          "source_unreadable": "The file cannot be read, so no decision can be made."
+        }
+      },
+      "transitions": [
+        { "next": "COPY", "validator": { "equals": "approved" } },
+        { "next": "REPORT_REJECTION", "validator": { "equals": "rejected" } },
+        { "errors": ["source_unreadable", "answer_failed"], "fail": "approval_failed" },
+        { "next": "ASK_APPROVAL" }
+      ]
+    },
+    {
+      "id": "COPY",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "copy_file_to_folder",
+        "function_parameters": {
+          "path_source": "param.source_file",
+          "path_target_folder": "param.target_dir"
+        }
+      },
+      "save_as": "copied_file",
+      "transitions": [
+        { "errors": ["copy_failed", "target_folder_not_found"], "fail": "copy_failed" },
+        { "next": "REPORT_COPY" }
+      ]
+    },
+    {
+      "id": "REPORT_COPY",
+      "action_type": "stop",
+      "action_parameters": {
+        "function_name": "echo_value",
+        "function_parameters": { "value": "param.copied_file" }
+      }
+    },
+    {
+      "id": "REPORT_REJECTION",
+      "action_type": "stop",
+      "action_parameters": {
+        "function_name": "echo_value",
+        "function_parameters": { "value": "param.reviewer" }
+      }
+    }
+  ]
+}

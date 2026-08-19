@@ -2,6 +2,7 @@ from argparse import Namespace
 from pathlib import Path
 
 from workflow_engine.actions.action_present import PresentResponse
+from workflow_engine.answers import load_answer, question_block
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import load_config_file
 from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
@@ -19,7 +20,7 @@ from workflow_engine.help_contract.renderers import (
     render_components_list_text,
 )
 from workflow_engine.inputs import parse_input_assignment
-from workflow_engine.models.state import StateReadOnlyView
+from workflow_engine.models.state import SessionEventCode, StateReadOnlyView
 
 
 def _get_config(args: Namespace):
@@ -56,6 +57,18 @@ def _with_engine_errors(result: CommandResult, response: PresentResponse) -> Com
     return result
 
 
+def _with_pending_question(result: CommandResult, response: PresentResponse, state: StateReadOnlyView) -> CommandResult:
+    """Carry the question of a run that stopped at an interactive node, and only then. See ADR 013 §3.
+
+    The block is the published shape of a paused question: the node, the presentation, the declared
+    answer and the error catalogue. `PresentResponse` itself stays internal, because the same class also
+    reports setup errors, budget stops, failures and completion.
+    """
+    if state.get_last_event_code() is SessionEventCode.WORKFLOW_PAUSED_INTERACTIVE:
+        result.data["question"] = question_block(state.current_node_id, response)
+    return result
+
+
 def _with_export_destination(result: CommandResult, engine: WorkflowEngine) -> CommandResult:
     """Report where the completion export sent the deliverables, when one ran.
 
@@ -89,18 +102,19 @@ def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
     if assignments:
         engine.set_inputs(session_id=session_id, assignments=assignments)
     res, state = engine.start_workflow(session_id=session_id, export_dir=getattr(args, "export_dir", None))
+    state_view = StateReadOnlyView.from_state(state)
     result = _with_engine_errors(
         CommandResult.from_state(
             command=command_name,
             command_status=CommandStatus.COMPLETED,
-            state=StateReadOnlyView.from_state(state),
+            state=state_view,
             message=res.description,
         ),
         res,
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
     result.data["inputs"] = engine.get_inputs(session_id)
-    return _with_export_destination(result, engine)
+    return _with_export_destination(_with_pending_question(result, res, state_view), engine)
 
 
 def set_input(command_name: CommandName, args: Namespace) -> CommandResult:
@@ -122,19 +136,23 @@ def set_input(command_name: CommandName, args: Namespace) -> CommandResult:
 def resume_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     session_id = args.session_id
-    res, state = engine.start_workflow(session_id=session_id, export_dir=getattr(args, "export_dir", None))
+    answer = load_answer(getattr(args, "answer", None), getattr(args, "answer_file", None))
+    res, state = engine.start_workflow(
+        session_id=session_id, answer=answer, export_dir=getattr(args, "export_dir", None)
+    )
+    state_view = StateReadOnlyView.from_state(state)
     result = _with_engine_errors(
         CommandResult.from_state(
             command=command_name,
             command_status=CommandStatus.COMPLETED,
-            state=StateReadOnlyView.from_state(state),
+            state=state_view,
             message=res.description,
         ),
         res,
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
     result.data["inputs"] = engine.get_inputs(session_id)
-    return _with_export_destination(result, engine)
+    return _with_export_destination(_with_pending_question(result, res, state_view), engine)
 
 
 def export_artifact(command_name: CommandName, args: Namespace) -> CommandResult:

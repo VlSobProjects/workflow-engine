@@ -73,13 +73,16 @@ class Command:
     runner: Callable[[CommandName, Namespace], CommandResult]
     args: list[CommandArgs] = field(default_factory=list)
     exclusive_args: list[CommandArgs] = field(default_factory=list)
+    # A group of alternatives is required by default; `resume` declares one that is not, because an
+    # answer is optional there and its absence re-presents the question. See ADR 013.
+    exclusive_required: bool = field(default=True)
 
     def add_to_parser(self, parser: argparse._SubParsersAction, shared_parser: argparse.ArgumentParser):
         command_parser = parser.add_parser(self.command.value, help=self.help, parents=[shared_parser])
         for arg in self.args:
             arg.add_argument(command_parser)
         if self.exclusive_args:
-            group = command_parser.add_mutually_exclusive_group(required=True)
+            group = command_parser.add_mutually_exclusive_group(required=self.exclusive_required)
             for arg in self.exclusive_args:
                 arg.add_argument(group)
 
@@ -166,12 +169,28 @@ def _get_commend(command_name: CommandName) -> Command:
         case CommandName.RESUME:
             return Command(
                 command=CommandName.RESUME,
-                help="Resume a workflow",
+                help="Resume a workflow, optionally answering the question it is paused at",
                 runner=resume_workflow,
                 args=[
                     _session_id_arg(),
                     _export_dir_arg(),
                 ],
+                exclusive_args=[
+                    CommandArgs(
+                        key="--answer",
+                        help=(
+                            "Answer to the paused interactive node, as a JSON object: 'status' "
+                            "(success|failure), 'values', optional 'text', 'error_code', 'message', 'actor'"
+                        ),
+                        required=False,
+                    ),
+                    CommandArgs(
+                        key="--answer-file",
+                        help="Path to a file holding the same JSON answer document",
+                        required=False,
+                    ),
+                ],
+                exclusive_required=False,
             )
         case CommandName.SET_LIMIT:
             return Command(
