@@ -38,6 +38,53 @@ def run_json_cli(argv: list[str], capsys) -> tuple[int, dict[str, object]]:
     return cast(int, exc_info.value.code), cast(dict[str, object], json.loads(capsys.readouterr().out))
 
 
+def build_failing_workflow(root: Path) -> dict[str, object]:
+    """A one-node workflow that fails the node: the folder the copy target lives in does not exist."""
+    (root / "source.txt").write_text("payload")
+    return {
+        "schema_version": "1",
+        "flow_id": "cli-contract-failing",
+        "start_node_id": "COPY_TO_MISSING_FOLDER",
+        "nodes": [
+            {
+                "id": "COPY_TO_MISSING_FOLDER",
+                "action_type": "function",
+                "action_parameters": {
+                    "function_name": "copy_file",
+                    "function_parameters": {
+                        "path_source": (root / "source.txt").as_posix(),
+                        "path_target": (root / "missing-folder" / "source.txt").as_posix(),
+                    },
+                },
+                "transitions": [{"errors": ["target_folder_not_found"]}],
+            },
+        ],
+    }
+
+
+def build_exception_workflow(root: Path) -> dict[str, object]:
+    """A one-node workflow whose action raises: the source file the copy reads does not exist."""
+    return {
+        "schema_version": "1",
+        "flow_id": "cli-contract-exception",
+        "start_node_id": "COPY_MISSING_SOURCE",
+        "nodes": [
+            {
+                "id": "COPY_MISSING_SOURCE",
+                "action_type": "function",
+                "action_parameters": {
+                    "function_name": "copy_file",
+                    "function_parameters": {
+                        "path_source": (root / "no-such-source.txt").as_posix(),
+                        "path_target": (root / "copy.txt").as_posix(),
+                    },
+                },
+                "transitions": [{"stop": True}],
+            },
+        ],
+    }
+
+
 class TestRunCommand:
     """Tests for `run` command."""
 
@@ -80,6 +127,47 @@ class TestRunCommand:
         assert response["command_status"] == "completed"
         assert isinstance(response["data"], dict)
         assert isinstance(response["session_id"], str)
+
+    def test_run_of_a_failing_workflow_writes_nothing_but_json_to_stdout(self, tmp_path: Path, create_config, capsys):
+        """A failed run stays machine readable: the engine reports the failure through the response only."""
+        workflow_path = tmp_path / "failing_workflow.json"
+        workflow_path.write_text(json.dumps(build_failing_workflow(tmp_path), indent=2))
+
+        with pytest.raises(SystemExit) as exc_info:
+            main(
+                [
+                    "run",
+                    "--workflow-file",
+                    workflow_path.as_posix(),
+                    "--config",
+                    create_config.as_posix(),
+                    "--json",
+                ]
+            )
+
+        stdout = capsys.readouterr().out
+        response = cast(dict[str, object], json.loads(stdout))
+        code = exc_info.value.code
+
+        assert code == 3
+        assert response["command_status"] == "completed"
+        assert response["workflow_status"] == "failed"
+        assert "target_folder_not_found" in cast(dict[str, str], response["errors"])["COPY_TO_MISSING_FOLDER"]
+
+    def test_run_that_ends_in_an_exception_reports_the_cause_in_errors(self, tmp_path: Path, create_config, capsys):
+        """An exception leaves no node error in the state, so the engine response carries the cause."""
+        workflow_path = tmp_path / "exception_workflow.json"
+        workflow_path.write_text(json.dumps(build_exception_workflow(tmp_path), indent=2))
+
+        code, response = run_json_cli(
+            ["run", "--workflow-file", workflow_path.as_posix(), "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 3
+        assert response["workflow_status"] == "failed"
+        errors = cast(dict[str, str], response["errors"])
+        assert [key for key in errors if "FunctionRuntimeError" in key]
 
 
 class TestInitNewSessionCommand:

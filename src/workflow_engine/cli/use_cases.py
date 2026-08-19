@@ -1,6 +1,7 @@
 from argparse import Namespace
 from pathlib import Path
 
+from workflow_engine.actions.action_present import PresentResponse
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import load_config_file
 from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
@@ -41,6 +42,16 @@ def _parse_input_assignments(args: Namespace) -> list:
     return [parse_input_assignment(raw) for raw in (getattr(args, "input", None) or [])]
 
 
+def _with_engine_errors(result: CommandResult, response: PresentResponse) -> CommandResult:
+    """Add the errors the engine reported on its response, keeping the ones the state already carries.
+
+    A run that ends in a `WorkflowRuntimeError` records no node error in the state: the cause is only
+    on the engine response, and dropping it would leave the failure unexplained in the command result.
+    """
+    result.errors = {**(response.errors or {}), **(result.errors or {})}
+    return result
+
+
 def init_session(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     session_id = engine.init_new_session(workflow_path=Path(args.workflow_file))
@@ -62,11 +73,14 @@ def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
     if assignments:
         engine.set_inputs(session_id=session_id, assignments=assignments)
     res, state = engine.start_workflow(session_id=session_id, export_dir=getattr(args, "export_dir", None))
-    result = CommandResult.from_state(
-        command=command_name,
-        command_status=CommandStatus.COMPLETED,
-        state=StateReadOnlyView.from_state(state),
-        message=res.description,
+    result = _with_engine_errors(
+        CommandResult.from_state(
+            command=command_name,
+            command_status=CommandStatus.COMPLETED,
+            state=StateReadOnlyView.from_state(state),
+            message=res.description,
+        ),
+        res,
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
     result.data["inputs"] = engine.get_inputs(session_id)
@@ -93,11 +107,14 @@ def resume_workflow(command_name: CommandName, args: Namespace) -> CommandResult
     engine = _get_engine(args)
     session_id = args.session_id
     res, state = engine.start_workflow(session_id=session_id, export_dir=getattr(args, "export_dir", None))
-    result = CommandResult.from_state(
-        command=command_name,
-        command_status=CommandStatus.COMPLETED,
-        state=StateReadOnlyView.from_state(state),
-        message=res.description,
+    result = _with_engine_errors(
+        CommandResult.from_state(
+            command=command_name,
+            command_status=CommandStatus.COMPLETED,
+            state=StateReadOnlyView.from_state(state),
+            message=res.description,
+        ),
+        res,
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
     result.data["inputs"] = engine.get_inputs(session_id)
