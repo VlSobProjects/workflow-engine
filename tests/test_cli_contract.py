@@ -128,6 +128,22 @@ class TestRunCommand:
         assert isinstance(response["data"], dict)
         assert isinstance(response["session_id"], str)
 
+    def test_successful_run_reports_no_errors(self, tmp_path: Path, create_config, capsys):
+        """A non-empty `errors` map means something failed; a completed run must leave it empty."""
+        scan_root = tmp_path / "scan-root"
+        create_scan_fixture(scan_root)
+        workflow_path = tmp_path / "workflow.json"
+        workflow_path.write_text(json.dumps(build_workflow(scan_root), indent=2))
+
+        code, response = run_json_cli(
+            ["run", "--workflow-file", workflow_path.as_posix(), "--config", create_config.as_posix()],
+            capsys,
+        )
+
+        assert code == 0
+        assert response["workflow_status"] == "completed"
+        assert not response["errors"]
+
     def test_run_of_a_failing_workflow_writes_nothing_but_json_to_stdout(self, tmp_path: Path, create_config, capsys):
         """A failed run stays machine readable: the engine reports the failure through the response only."""
         workflow_path = tmp_path / "failing_workflow.json"

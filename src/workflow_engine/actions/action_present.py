@@ -15,6 +15,11 @@ def default_submit() -> str:
 
 
 def def_errors() -> dict[str, str]:
+    """The error catalogue an interactive prompt offers its agent.
+
+    Not a default: a response says nothing about errors unless it reports one, so a caller can read
+    a non-empty `errors` as failure. A future interactive action passes this explicitly.
+    """
     return {
         "other_error": "Submit this error if none of the other errors apply but you are unable to complete the task."
     }
@@ -37,7 +42,7 @@ class PresentResponse:
         metadata={"label": "Options", "description": "List of available options for the user to choose from"},
     )
     errors: dict[str, str] | None = field(
-        default_factory=def_errors, metadata={"label": "Errors", "description": "List error with descriptions"}
+        default=None, metadata={"label": "Errors", "description": "List error with descriptions"}
     )
     requirements: list[str] | None = field(
         default=None,
