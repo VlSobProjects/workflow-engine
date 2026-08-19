@@ -35,8 +35,8 @@ def echo_value(
     summary="Copy a file to a target file path",
 )
 def copy_file(
-    path_source: Annotated[str, "Path to the source file"],
-    path_target: Annotated[str, "Full path of the copy, including its file name"],
+    path_source: Annotated[str | Path, "Path to the source file"],
+    path_target: Annotated[str | Path, "Full path of the copy, including its file name"],
 ) -> ActionNodeOutput:
     """Copy a file to the given target path, which is always the full path of the copy.
 
@@ -74,8 +74,8 @@ def copy_file(
     summary="Copy a file into an existing folder",
 )
 def copy_file_to_folder(
-    path_source: Annotated[str, "Path to the source file"],
-    path_target_folder: Annotated[str, "Path to an existing folder to copy the file into"],
+    path_source: Annotated[str | Path, "Path to the source file"],
+    path_target_folder: Annotated[str | Path, "Path to an existing folder to copy the file into"],
 ) -> ActionNodeOutput:
     """Copy a file into an existing folder, keeping the source file name.
 
@@ -116,7 +116,7 @@ def _copy(source: Path, target: Path) -> ActionNodeOutput:
     summary="Create a folder",
 )
 def create_folder(
-    path_target: Annotated[str, "Path to the target folder"],
+    path_target: Annotated[str | Path, "Path to the target folder"],
     folder_name: Annotated[str, "Name of the folder to create"],
 ) -> ActionNodeOutput:
     """Create a folder at the specified target path with the given folder name."""
@@ -133,7 +133,7 @@ def create_folder(
 
 
 @register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="Delete a file")
-def file_delete(file_path: Annotated[str, "Path to the file to delete"]) -> ActionNodeOutput:
+def file_delete(file_path: Annotated[str | Path, "Path to the file to delete"]) -> ActionNodeOutput:
     """Delete a file at the specified path."""
     file = Path(file_path)
     try:

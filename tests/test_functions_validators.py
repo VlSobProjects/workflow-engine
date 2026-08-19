@@ -1,9 +1,12 @@
+from pathlib import Path
+
 import pytest
 
 from workflow_engine.exceptions import FunctionRuntimeError
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.validators.functions_validators import (
     file_exists_arg_validator,
+    folder_exists_arg_validator,
 )
 
 
@@ -52,3 +55,47 @@ def test_validator_failure_reads_as_a_message_not_as_a_parameter_dump():
     assert "file_path: Argument path/to/file - validation 'file exists' failed." in message
     assert "with parameters" not in message
     assert "No message" not in message
+
+
+@folder_exists_arg_validator({"folder_path": 0})
+def function_with_folder(folder_path: str | Path) -> ActionNodeOutput:
+    return ActionNodeOutput(output_text=Path(folder_path).name)
+
+
+@file_exists_arg_validator({"file_path": 0, "optional_path": 1})
+def function_with_optional_param(file_path: str | Path, optional_path: str | Path | None = None) -> ActionNodeOutput:
+    return ActionNodeOutput(output_text="all good")
+
+
+class TestPathArgumentsAcceptPath:
+    """A ``param.<name>`` declared with ``type: Path`` reaches a function as a ``Path``, not a string."""
+
+    def test_a_path_passes_the_file_validator(self, tests_dir):
+        result = function_with_optional_param(file_path=tests_dir / "test_functions_validators.py")
+        assert result.output_text == "all good"
+
+    def test_a_path_passes_the_folder_validator(self, tests_dir):
+        assert function_with_folder(folder_path=tests_dir).output_text == tests_dir.name
+
+    def test_a_missing_path_still_fails_as_a_path(self, tests_dir):
+        with pytest.raises(FunctionRuntimeError, match="file exists"):
+            function_with_optional_param(file_path=tests_dir / "absent.py")
+
+    def test_a_value_that_is_neither_a_string_nor_a_path_is_still_refused(self):
+        with pytest.raises(FunctionRuntimeError, match="is not 'str' or 'Path'"):
+            function_with_optional_param(file_path=7)
+
+
+class TestAbsentArguments:
+    """An argument the call does not carry is skipped, not validated with the previous one's value."""
+
+    def test_an_omitted_optional_argument_is_not_validated(self, tests_dir):
+        result = function_with_optional_param(file_path=tests_dir / "test_functions_validators.py")
+        assert result.output_text == "all good"
+
+    def test_an_omitted_argument_does_not_borrow_the_previous_value(self, tests_dir):
+        # `file_path` exists, `optional_path` is absent: validating the absent one against the
+        # previous value would silently report success for an argument nobody passed.
+        with pytest.raises(FunctionRuntimeError) as error:
+            function_with_optional_param(file_path=tests_dir / "absent.py")
+        assert "optional_path" not in str(error.value)

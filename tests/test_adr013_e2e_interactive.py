@@ -51,9 +51,9 @@ def start(workspace: dict[str, str], capsys) -> tuple[str, dict[str, object]]:
             "--config",
             workspace["config"],
             "--input",
-            f"source_file={workspace['source']}",
+            f"source_file:Path={workspace['source']}",
             "--input",
-            f"target_dir={workspace['target']}",
+            f"target_dir:Path={workspace['target']}",
         ],
         capsys,
     )

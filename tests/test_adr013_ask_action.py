@@ -28,6 +28,7 @@ def _state(tmp_path: Path) -> StateReadOnlyView:
         session_id="s",
     )
     state.add_parameter("candidate", "report.csv")
+    state.add_parameter("candidate_path", Path("C:/reports/candidate.csv"))
     state.outputs["PREVIOUS"] = "42 rows"
     return StateReadOnlyView.from_state(state)
 
@@ -91,6 +92,11 @@ class TestPresentation:
         response = _ask(context="param.candidate", hints=["output.PREVIOUS", "plain hint"]).present(_state(tmp_path))
         assert response.context == "report.csv"
         assert response.hints == ["42 rows", "plain hint"]
+
+    def test_a_path_value_is_rendered_in_posix_form(self, tmp_path):
+        # The presentation is published in the command result, so ADR 008 holds for it too.
+        response = _ask(context="param.candidate_path").present(_state(tmp_path))
+        assert response.context == "C:/reports/candidate.csv"
 
     def test_the_declaration_travels_with_the_presentation(self, tmp_path):
         response = _ask(answer=[{"name": "reviewer"}], errors={"nope": "cannot"}).present(_state(tmp_path))

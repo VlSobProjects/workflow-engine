@@ -5,13 +5,15 @@
   "inputs": [
     {
       "name": "source_file",
+      "type": "Path",
       "required": true,
-      "description": "Path of the file whose copy has to be approved"
+      "description": "File whose copy has to be approved"
     },
     {
       "name": "target_dir",
+      "type": "Path",
       "required": true,
-      "description": "Path of an existing folder the file is copied into"
+      "description": "Existing folder the file is copied into"
     }
   ],
   "nodes": [
