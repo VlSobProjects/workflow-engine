@@ -14,6 +14,20 @@ This note exists because the scenario is the natural end point of the project, a
 needs is already scattered across six other notes. It is a collection point, not a decision. Where the
 project owner has taken a position, it is recorded as a position, not as a settled question.
 
+## What it replaces
+
+The project owner's formulation, kept verbatim because it states the goal better than any description
+of the mechanism does:
+
+> Instead of prompts, links, promises and reminders — a stream of instructions, a deterministic check
+> before the checkpoints, a fully recoverable state to continue the work from, delivery of a ready
+> process instead of instructions on how and what to do.
+
+This is the sentence to judge the direction by. It also sets the priority between the two scenarios
+this project is chasing: the questionnaire coverage
+(`2026-08-19-adr0083-scenarios-coverage.md`) is the near goal, the one that has to be *run* and
+checked; this note is the direction that goal is a step towards, and nothing here is scheduled work.
+
 ## Why the scenario fits this engine at all
 
 Not everything a process needs is missing. What the engine already carries:
