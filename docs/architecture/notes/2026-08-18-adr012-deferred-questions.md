@@ -7,7 +7,9 @@
   ADR 012 (inputs), ADR 014 (Draft, decides §1 for prompt templates; §3 waits for its own ADR after
   ADR 013 — session `2026-08-19-architecture-1`), ADR 013 (Accepted; §3 was not a prerequisite for it —
   session `2026-08-19-architecture-2`; §4 was found while fixing its text rendering — session
-  `2026-08-19-implementation-14`)
+  `2026-08-19-implementation-14`),
+  ADR 018 (session read surfaces — removes the `inputs` field of `show-state`, sharpening the missing
+  workflow-definition introspection surface)
 
 Four model choices that outlive the ADR 012 session and are not decisions yet. The facts behind them
 are recorded in the ADR 012 change log; this note carries only the open questions a frozen ADR cannot

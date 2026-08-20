@@ -150,3 +150,4 @@ missing from the registry is effectively lost. Add the row when the branch is me
 `Summary` states what the session was about, in one line.
 `Status` is `completed` or `interrupted`.
 An `interrupted` session must be picked up or explicitly closed before related work continues.
+| 2026-08-20 | architecture | Drafted ADR 018 session read surfaces: show-state narrowed to the state of the run with guard traces added, parameters split into a listing command and a value-by-name command carrying the codec envelope, and the journal given its own read command with tail and node filters | completed | development | [2026-08-20-architecture-7_handoff.md](2026-08-20-architecture-7_handoff.md) |

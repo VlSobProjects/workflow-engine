@@ -5,8 +5,8 @@
   ADR-0083 scenario (`2026-08-20-implementation-5`). The question raised was what happens when an
   agent walks away from an interview in the middle, and how it later picks the interview up with the
   previous questions and answers in hand.
-- **Status:** open
-- **Affected:** ADR 006 (journal), ADR 009 (CLI contract), ADR 013 (interactive exchange)
+- **Status:** promoted → ADR 018
+- **Affected:** ADR 006 (journal), ADR 009 (CLI contract), ADR 013 (interactive exchange), ADR 018 (session read surfaces — the promotion)
 
 An interrupted interview costs nothing today: the session stays paused, `resume` without an answer
 re-presents the same question and consumes neither an attempt nor a visit (ADR 013 §6), and a
