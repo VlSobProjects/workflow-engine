@@ -70,5 +70,9 @@ A commit is never made without the user seeing its message first.
 Present the complete message, subject and body, and wait: the user confirms it, corrects it, or makes
 the commit themselves.
 The message is presented as a file, so that it can be read, copied and extended without being retyped.
-This covers every commit, a merge commit and a one line registry commit included.
+This covers every commit, a one line registry commit included.
+A merge commit is the single exception. When the user asks for the merge, its subject is written from
+the template in `docs/processes/git-workflow.md` and the merge is made at once, because a templated
+subject leaves nothing to review. A merge message that departs from the template is presented like
+any other. The rule names the instruction, not its wording: the conversation language is free.
 The form of the message is defined in `docs/processes/git-workflow.md`.

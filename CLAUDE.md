@@ -33,8 +33,9 @@ Do not read unrelated docs, and create documents only inside the map defined in
   thing instead. A fact true only on one machine lives outside the repository.
 - Before changing code, give a short explanation and wait for confirmation.
 - Never commit without showing the full commit message first and waiting: the user confirms it,
-  corrects it, or commits themselves. Merge and registry commits included. Present the message as a
-  file, so it can be copied and extended without being retyped.
+  corrects it, or commits themselves. Registry commits included. Present the message as a file, so it
+  can be copied and extended without being retyped. Exception: when the user asks for the merge, a
+  merge commit whose subject follows the template is made at once.
 - Architecture is discussed in critical mode: state at least two alternatives, the trade-offs, and
   the cost. Architectural changes happen under an ADR; an accepted ADR is frozen and only superseded.
 - A `feature/`, `fix/` or `refactor/` branch also carries the documentation its change made
