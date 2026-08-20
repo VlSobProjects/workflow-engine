@@ -1,10 +1,10 @@
 # ADR 018: Session read surfaces
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+`feature/adr_018-session-read-surfaces`
 
 ## Context
 
