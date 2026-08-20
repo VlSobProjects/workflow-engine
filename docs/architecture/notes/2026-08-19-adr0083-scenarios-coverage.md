@@ -9,8 +9,10 @@
 - **Status:** open
 - **Affected:** ADR 010 (budget checkpoint shape, and now a per-node visit cap), ADR 012 (deferred §1,
   shallow reference resolution), ADR 013 (Accepted and delivered; the table below was re-verified
-  against the code — see "What the implementation changed"), ADR 014 (Draft, decides prompt
-  templating), ADR 015 (Draft; the run below is the evidence its open points were waiting for)
+  against the code — see "What the implementation changed"), ADR 014 (Draft; its open point 1 is
+  decided by ADR 016 for the in-text case), ADR 015 (Draft; the run below is the evidence its open
+  points were waiting for, settled in session `2026-08-20-architecture-2`), ADR 016 (Draft, decides
+  text interpolation — friction 1 below)
 
 The answer is yes for the substance, with one core gap, one shape difference, and one function to
 write. Recorded here because the mapping keeps being re-derived, and because two of the three
@@ -122,8 +124,9 @@ the work takes.
    `STOP`, the counters, the `validators` and the error catalogue, run both by the scripted test and by
    an agent answering the published question blocks. It turned the remaining questions into evidence,
    as predicted — see "What building it found".
-3. **Decide text interpolation**, with the count of composing nodes that step 2 produces as the
-   argument. Friction 1 below.
+3. ~~Decide text interpolation.~~ Done in session `2026-08-20-architecture-3`: ADR 016 opened as
+   Draft with the count of step 2 as its evidence — references resolve inside declared template
+   fields, and collections render as compact JSON instead of a Python repr. Friction 1 below.
 4. **The script-running function for `S`**, as an external module rather than a core component: it is
    a trust decision (friction 3), and shipping it outside the core exercises the ADR 005 external
    module path at the same time.

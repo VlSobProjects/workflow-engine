@@ -165,8 +165,8 @@ one the scenario imposes, not the one the notes were written in.
 3. **Delivery of components with the workplace** (§2) — parked until publication by decision, but it is
    what makes "hand a colleague the workflows" a real sentence.
 4. **Text interpolation** — every question to a human currently shows a bare resolved reference instead
-   of a sentence; the shipped `ask` example demonstrates the cost. Decided in ADR 014 or in the ADR 012
-   deferred §1.
+   of a sentence; the shipped `ask` example demonstrates the cost. Decided: ADR 016 (Draft, session
+   `2026-08-20-architecture-3`).
 5. **A process-running function and its trust boundary** — the same decision the ADR-0083 coverage note
    records for its `S` node type.
 6. **Declared compensation** (§4) — after the graph can fan out, not before.

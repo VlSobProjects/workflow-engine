@@ -7,7 +7,9 @@
   convention rather than by the code
 - **Status:** open
 - **Affected:** ADR 007 (command contract), ADR 009 (operator help), ADR 013 (delivered), ADR 014
-  (Draft, publishes the same answer declaration)
+  (Draft, publishes the same answer declaration); the question-rendering note
+  (`2026-08-20-question-rendering-for-an-audience.md`) picks up §1's split-the-class option and §3's
+  version question with their first real consumer
 
 ADR 013 §3 decided that the caller-facing document is a reduced `question` block, not
 `PresentResponse`. The implementation does exactly that, in `answers.question_block`. What the

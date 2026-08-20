@@ -23,6 +23,11 @@ Question: keep resolution shallow and make "references only at the top level" an
 or introduce deep resolution that recurses into containers? Deep resolution costs ambiguity (a literal
 string that looks like a reference), performance, and a recursion boundary. Touches ADR 006.
 
+Narrowed in session `2026-08-20-architecture-3`: ADR 016 (Draft) resolves references *inside text* for
+fields declared as template text, which covers the in-sentence case ADR 014 open point 1 was waiting
+for. Whole-value resolution stays shallow everywhere; the deep-resolution branch of this question
+remains open on its own merits.
+
 ## 2. Codec full names are Python-version dependent
 
 The stored full codec name is version-specific (`pathlib._local.Path` on 3.13); reload survives only via
