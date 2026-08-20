@@ -194,16 +194,22 @@ the work takes.
    **The node-folding half is not done**, because it needs a function that does not exist — see the
    next item. Until it is, item 5 of "What ADR 015, 016 and 017 changed" is a prediction and this
    note's node count of eleven is still the current one.
-5. **The post function has a mechanism and no component.** Every fold predicted above needs a function
-   that takes the injected `output` — surfacing an answered value, or appending it and reporting
-   "enough" — and no core function takes one: they were shipped with the mechanism only, and the two
-   that prove it live in `tests/test_adr015_post_function.py`. `echo_value`, the obvious candidate,
-   cannot serve: it reads its value from the state, where the answer has not landed, and returns a
-   fresh output that would drop the answered writes. So an ADR-0083 flow written today either keeps the
-   extra nodes or ships an external module for two functions of four lines. Whether that pair belongs
-   in the core is a decision this note does not make: it is small, general and used by every
-   interactive loop, which argues for the core, and it is the first component whose contract is the
-   injected answer, which argues for proving it outside first.
+5. **The post function has a mechanism and no component — decided: the pair goes into the core**
+   (session `2026-08-20-architecture-6`). Every fold predicted above needs a function that takes the
+   injected `output` — surfacing an answered value, or appending it and reporting "enough" — and no
+   core function takes one: they were shipped with the mechanism only, and the two that prove it live
+   in `tests/test_adr015_post_function.py`. `echo_value`, the obvious candidate, cannot serve: it
+   reads its value from the state, where the answer has not landed, and returns a fresh output that
+   would drop the answered writes. The question the previous re-measurement deliberately left open is
+   now answered for the core, on two grounds. The external-first argument assumed an outside that
+   would ripen the contract, and there is none: the only consumers live in this repository, and the
+   proving-outside role is already played by the test functions, written in the external shape and
+   exercised end to end through the CLI. And the yardstick property decides the rest: this scenario
+   exists to show what the shipped core alone can carry, and a fold behind an external module would
+   not show it. The decision is component work under the delivered ADR 015, not an ADR of its own —
+   the precedent is `append_to_param`, added in session `2026-08-19-implementation-15` without one —
+   and the names and exact signatures are the implementation session's to choose. What the fold
+   costs is unchanged and stays priced by ADR 015 §2.
 6. **The script-running function for `S`**, as an external module rather than a core component: it is
    a trust decision (friction 3), and shipping it outside the core exercises the ADR 005 external
    module path at the same time.
