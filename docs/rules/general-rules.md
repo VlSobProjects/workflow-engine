@@ -64,3 +64,11 @@ Do not open a new ADR in POC or Implementing while another ADR is still in POC o
 The only exception is an ADR that turned out to be a dependency of the work in progress.
 Such a dependency must be recorded in the `Depends on` column of the ADR registry.
 Drafts are not affected by this rule and may stay open.
+
+## 12. Commit confirmation
+A commit is never made without the user seeing its message first.
+Present the complete message, subject and body, and wait: the user confirms it, corrects it, or makes
+the commit themselves.
+The message is presented as a file, so that it can be read, copied and extended without being retyped.
+This covers every commit, a merge commit and a one line registry commit included.
+The form of the message is defined in `docs/processes/git-workflow.md`.
