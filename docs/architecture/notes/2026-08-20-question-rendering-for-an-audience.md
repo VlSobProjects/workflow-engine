@@ -5,7 +5,8 @@
   the discussion separated the *content* of a question from its *form* — and the form side, which the
   interpolation evidence does not cover, is captured here instead of being decided on no evidence
 - **Status:** open
-- **Affected:** ADR 013 (§3, the published question block), ADR 009 (help contract), ADR 014
+- **Affected:** ADR 005 (a registered renderer is a component it loads), ADR 013 (§3, the
+  published question block), ADR 009 (help contract), ADR 014
   (provider adapters format prompts for their model), the publishing-boundary note
   (`2026-08-19-interactive-exchange-publishing-boundary.md`, §1 and §3)
 

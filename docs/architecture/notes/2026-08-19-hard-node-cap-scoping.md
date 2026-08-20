@@ -7,7 +7,7 @@
   (~330 tree entries already trip it in a small tree).
 - **Status:** open
 - **Affected:** ADR 010 (session safety cap), ADR 012 (workflow inputs), ADR 007 (CLI contract),
-  ADR 017 (Draft — the per-node dimension, decided; see below)
+  ADR 017 (Accepted — the per-node dimension, decided; see below)
 
 ## What exists today
 
