@@ -46,13 +46,14 @@ read surfaces — the `type` field of `list-parameters` and the `object_type` of
 envelope — where before it reached the outside only through `state.json`. Every new publisher raises
 the price of a later rename, so the urgency is no longer low.
 
-Direction under discussion (2026-08-21): the registry keys each codec by one stable short name
-(`Path`, `int`) and keeps the full names as synonyms. An interpreter transition adds the new spelling
-as one more synonym instead of replacing the old one, so definitions and states persisted under an
-older interpreter keep resolving — backward compatibility by accretion. The published surfaces carry
-only the short name; the synonyms exist for resolution — persisted state and machine readers — not
-for publishing. For the core codecs that already exist this promotes the bare-name fallback from a
-fallback to the contract. Open edges: whether the `object_type` of the persisted envelope changes its
+Direction agreed (2026-08-21, still a note, not a decision): the core keys each codec by one
+canonical short name (`Path`, `int`) — the only spelling that is written and published — and holds
+the full names as read-only synonyms, accepted on resolution and never written. An interpreter
+transition adds the new spelling as one more synonym instead of replacing the old one, and a
+spelling that ever reached a persisted state is never removed — backward compatibility by accretion.
+Because this changes the ADR 006 codec contract and the ADR 009 help surface, both frozen, the work
+is its own ADR when picked up. For the core codecs that already exist this promotes the bare-name
+fallback from a fallback to the contract. Open edges: whether the `object_type` of the persisted envelope changes its
 spelling, which is a state-migration question; and how an external module claims a short name without
 colliding with the core, which touches the entry-point discovery note
 (`2026-08-19-entry-point-discovery.md`).
