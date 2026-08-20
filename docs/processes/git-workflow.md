@@ -40,9 +40,41 @@ The `adr_` token is what marks a branch as ADR driven. There are no separate ADR
 - Delete the branch after it is merged, except for a `poc/` branch that is deliberately kept as a reference implementation.
 - Keep the branch focused: unrelated changes belong to their own branch and category.
 
+## Commit messages
+
+A commit message is written in English and states why the change was made.
+What changed is already in the diff.
+
+Form:
+
+```
+<type>: <what the commit does, one line>
+
+<body: the reason, the alternative that was rejected, the consequence a reader cannot see in the diff>
+
+Verified: <the commands that were run and their result>
+```
+
+- `<type>` is the branch category of the work in its commit form: `feat`, `fix`, `refactor`, `docs`,
+  `test`, `chore`, `poc`. A `feature/` branch commits as `feat:`.
+- The subject is one line, lower case after the type, without a trailing period, at most 80 characters.
+  It names what the commit does, not which files it touched.
+- The body is wrapped at 100 characters and written as prose. Use a list only when the change has
+  several independent parts.
+- `Verified:` is required by every commit that touches code, and names what was actually run, for
+  example `Verified: uv run ruff check . clean; uv run pytest 364 passed.`
+  A commit that touches no code carries no such line.
+- A commit whose subject already says everything needs no body: registering a session, a registry
+  row, a typo.
+
+A multi line message is written to a file and committed with `git commit -F <file>`, to keep the
+shell's quoting out of the message.
+
 ## Merging
 
 - Task branches are merged into `development`.
+- A merge commit states what the branch delivers: `Merge <branch>: <what the branch delivers, one line>`.
+  It carries no body; the reasoning is in the commits of the branch itself.
 - `development` is merged into `main` when the state is stable and worth marking as such.
 - A `poc/` branch is never merged into `development`.
 - Before merging into `development`, the required tests and the linter must pass.
