@@ -1,10 +1,10 @@
 # ADR 016: Reference interpolation in text
 
 ## Status
-Implementing
+Accepted
 
 ## Active branch
-`feature/adr_016-reference-interpolation-in-text`
+—
 
 ## Context
 
@@ -188,8 +188,9 @@ question only through references written in the node.
   *computed* rather than composed — for which no evidence exists yet.
 - Costs: a template scanner and an escape rule; the template-text kind in the operator help surface
   (ADR 009); and a behavior change on comparing surfaces — a guard that compares the text of a
-  collection sees compact JSON where it saw a Python repr, to be checked against the suite at
-  implementation time.
+  collection sees compact JSON where it saw a Python repr. The suite carried one such surface, the
+  output text of an accumulating loop, which moved to JSON as decided; no guard compared collection
+  text.
 - Breaks: text already written in one of the ten `ask` presentation fields that carries a literal
   `$` — a price, a shell variable, a regular expression — must escape it as `$$` or the node stops
   building. The break is confined to declared template fields, it surfaces at build time next to the
