@@ -29,6 +29,8 @@ Do not read unrelated docs, and create documents only inside the map defined in
   (`feature/`, `fix/`, `refactor/`, `docs/`, `test/`, `chore/`, `poc/`); ADR-driven work uses
   `<category>/adr_<number>-<short-name>`. Task branches merge into `development`.
 - No scope creep: change only what the task requires; do not fix unrelated problems unasked.
+- Never write a local path, user name or host name into a committed document; name the role of the
+  thing instead. A fact true only on one machine lives outside the repository.
 - Before changing code, give a short explanation and wait for confirmation.
 - Never commit without showing the full commit message first and waiting: the user confirms it,
   corrects it, or commits themselves. Merge and registry commits included. Present the message as a

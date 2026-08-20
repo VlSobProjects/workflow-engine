@@ -135,8 +135,8 @@ and the registered functions keep their names, as ADR 002 states.
 - `state_fields_decoder` is a JSON object hook applied to every nested dictionary, so a node named
   after a state field, now including `guard_results`, makes a saved state impossible to load.
 - `set_parameters` in a node configuration has no effect, because the factory never populates it.
-- `test_sart_engine` depends on files outside the repository: `C:\out\docs_pdf\...`, `C:\temp1` and
-  `C:\temp2`. It passes only on the machine where those exist.
+- `test_sart_engine` depends on absolute paths outside the repository, a source folder of documents
+  and two scratch folders. It passes only on the machine where those exist.
 
 ## Next steps
 
