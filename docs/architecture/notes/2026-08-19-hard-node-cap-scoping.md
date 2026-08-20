@@ -6,7 +6,8 @@
   `hard_max_nodes_visited` of 1000 is generous for a short task flow and low for a recursive folder scan
   (~330 tree entries already trip it in a small tree).
 - **Status:** open
-- **Affected:** ADR 010 (session safety cap), ADR 012 (workflow inputs), ADR 007 (CLI contract)
+- **Affected:** ADR 010 (session safety cap), ADR 012 (workflow inputs), ADR 007 (CLI contract),
+  ADR 017 (Draft — the per-node dimension, decided; see below)
 
 ## What exists today
 
@@ -41,8 +42,22 @@ template run/retrieve how-to states the cap, the symptom of hitting it (exit cod
 3. **Keep it global and only tune the default.** Cheapest, changes nothing structurally, and only moves
    the arbitrary number. Worth doing only with real numbers from more scenarios than the one scan.
 
+## The per-node dimension, decided
+
+The ADR-0083 flow supplied the evidence this note's global question never had: a retry that re-enters
+a question as a fresh visit is bounded by nothing but the hard cap, which means up to a thousand paid
+agent rounds stopped far from the culprit (session `2026-08-20-investigation-1`). Decided in session
+`2026-08-20-architecture-4` as **ADR 017**: a node may declare `max_visits`, enforced by the engine on
+entry, failing under `max_visits_exceeded`, with no default — so the scan case that motivates this
+note stays unbounded per node unless its author declares otherwise, and the global cap remains the
+host's backstop. Business bounds (how many follow-ups a task needs) stay in flow data and are not this
+mechanism.
+
 ## Open question
 
 Is the cap a property of the host (protect the machine from any definition), of the workflow (each flow
 knows its own size), or of a workflow class that does not exist yet? The answer decides whether this ever
-becomes an ADR that supersedes part of ADR 010, or stays a tuned default.
+becomes an ADR that supersedes part of ADR 010, or stays a tuned default. ADR 017 does not answer it —
+the per-node cap bounds a loop inside a run, while this question is about the size of the run itself —
+but it lowers the stakes: a livelock is now caught at its node when declared, so what remains for the
+global number is the honest-size question, waiting on real numbers from more scenarios.

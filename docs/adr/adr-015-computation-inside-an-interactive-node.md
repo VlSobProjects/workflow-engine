@@ -294,8 +294,9 @@ blurring it to save four lines is the expensive kind of tidiness.
   visit count out of the journal (§2 prices this), and the retries a post function bounds by
   `max_attempts` leave no count behind them, because `attempt_counters` reset on every departure from
   the node — afterwards only the `interactive_answered` events say the question was asked twice.
-  Either the counters stop resetting or the event carries the attempt; that fix is scoped with the
-  per-node cap work (`2026-08-19-hard-node-cap-scoping.md`), but the cost belongs to this ADR.
+  Decided in ADR 017: the counters keep resetting — their reset is what makes `max_attempts` a
+  per-visit bound — and `interactive_answered` carries the visit and attempt ordinals instead, so
+  the record is direct rather than reconstructed.
 - Closes off: nothing in ADR 013. The answer contract, the refusal rules and the journal are unchanged;
   this adds a stage after them.
 - Leaves open: pre-processing — reconsidered against the templating decision, which the ADR-0083
@@ -353,6 +354,9 @@ ships, the two methods enter the ADR 009 surface.
   Consequences now carry the counters cost and no longer claim a new injected parameter, which the §3
   rewrite had already retracted. Open point 7 is narrowed: the `Answer` option is not justified by the
   evidence; the mapping fork remains open.
+- 2026-08-20: the counters cost in the Consequences is settled by ADR 017 (session
+  `2026-08-20-architecture-4`): the answer event carries the visit and attempt ordinals, and the
+  counters keep their reset semantics.
 - 2026-08-20: open points 5 to 7 settled in the same session `2026-08-20-architecture-2`, closing the
   list. One function until evidence demands several (5); the pre-processing reconsideration moved out
   of the blocking list to Leaves open, since it waits on the templating decision and cannot be
