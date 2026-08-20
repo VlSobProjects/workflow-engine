@@ -70,8 +70,8 @@ encoding. Both follow the platform-independent persistence direction of ADR 008.
    architecture note `docs/architecture/notes/2026-08-19-hard-node-cap-scoping.md`. Phase 1 keeps the
    current global config field and its default; the cap, the `workflow_paused_safety_limit` stop and the
    config-edit recovery are documented in the README session instead.
-5. The scratch operator folder `C:/Users/Vladimir/we-op-demo` is kept deliberately as the operator
-   experiment sandbox outside the repository, contrary to next step 4 of `2026-08-18-investigation-1`.
+5. The scratch operator folder is kept deliberately as the operator experiment sandbox outside the
+   repository, contrary to next step 4 of `2026-08-18-investigation-1`.
 
 ## Open questions
 1. Should the default `hard_max_nodes_visited` stay at 1000, and does the cap belong to the host, to the

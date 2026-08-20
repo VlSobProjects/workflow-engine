@@ -106,7 +106,7 @@ Confirmed findings:
 3. Open an implementation session for the code-touching remainder of decision 4: replace the
    personal-path content of `simple_workflow.json` (or move the fixture into `tests/`), and add the
    template run/retrieve how-to to the top-level `README.md`.
-4. Remove the scratch operator folder `C:/Users/Vladimir/we-op-demo` (outside the repo) when no longer
+4. Remove the scratch operator folder used for the experiment (outside the repository) when no longer
    needed for inspection.
 
 ## References

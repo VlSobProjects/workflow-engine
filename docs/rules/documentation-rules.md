@@ -57,3 +57,10 @@ Session outcomes belong in `docs/sessions/` in the defined format, and nowhere e
 Durable architectural ideas that are not yet decisions belong in `docs/architecture/notes/`, in the
 format defined by its README — the single sanctioned in-repo channel for architectural thinking.
 Ephemeral working notes stay outside the repository.
+
+## 8. No machine-specific facts
+Committed documentation states facts about the project, not about the machine it was written on.
+Never write a local path, a user name, a host name or a personal directory into a document; name the
+role of the thing instead, such as "a scratch folder outside the repository".
+A fact that is true only on one machine lives outside the repository.
+An illustrative path in an example is not a machine-specific fact: it names no one and exists nowhere.

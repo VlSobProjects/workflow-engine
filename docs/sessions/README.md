@@ -47,6 +47,7 @@ A session that is interrupted still leaves its file, marked `interrupted`.
 
 - Record facts, decisions and next steps. Do not retell the course of the work.
 - No code dumps, no command output, no logs.
+- No local paths and no machine-specific facts: see `docs/rules/documentation-rules.md` §8.
 - If the scope grew during the session, record the split and leave the rest to the next steps.
 
 ## Registry
