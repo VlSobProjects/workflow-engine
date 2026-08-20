@@ -34,11 +34,9 @@
       "action_parameters": {
         "title": "Approve the copy",
         "description": "Waiting for a decision on the copy",
-        "instruction": "Answer 'approved' or 'rejected' as the answer text, and name the decision maker in 'reviewer'.",
+        "instruction": "Decide whether '${param.source_file}' (${param.source_size}) may be copied. Answer 'approved' or 'rejected' as the answer text, and name the decision maker in 'reviewer'.",
         "goal": "Nothing is copied before someone approves it.",
-        "context": "param.source_file",
         "options": ["approved", "rejected"],
-        "hints": ["param.source_size"],
         "answer": [
           {
             "name": "reviewer",
