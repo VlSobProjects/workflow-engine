@@ -132,7 +132,7 @@ def test_the_loop_collects_three_answers_and_then_leaves(workspace, capsys):
     # encoded values rather than a list of strings.
     stored = cast(list, cast(dict, cast(dict, cast(dict, state["params"])["answers"])["value"])["object"])
     assert [cast(dict, item)["object"] for item in stored] == ["first", "second", "third"]
-    assert cast(dict, state["outputs"])["REPORT"] == "['first', 'second', 'third']"
+    assert cast(dict, state["outputs"])["REPORT"] == '["first","second","third"]'
 
 
 def test_every_pass_is_counted_as_a_visit_and_no_attempt_is_consumed(workspace, capsys):

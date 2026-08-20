@@ -232,6 +232,13 @@ The substitution values pass through `render_value_as_text`; the collection case
 state. The declared-field kind extends `ActionParameterDoc`. The suite must be checked for guards
 comparing collection text, which change from repr to JSON.
 
+Two details the implementation settled, both inside the decision rather than beside it. The
+collection case falls back to the scalar rule of `render_value_as_text` for a type `common_encoder`
+does not carry: the encoder returns `None` there and `json.dumps` would write that as `null`, which
+would lose a value instead of rendering it. And the presentation fields are checked in declaration
+order with `instruction` first, so a `description` that merely defaults to the instruction never
+reports the author's template under a name the author did not write.
+
 Open points: none. Both points this Draft carried were settled in session
 `2026-08-20-architecture-5`, and the third one their settlement uncovered — what a lone `$` means in
 a template field — was decided with them.
@@ -255,3 +262,11 @@ a template field — was decided with them.
   for a missing reference, restricting the syntax to the braced form, and rejecting lenient
   substitution (alternative H) because it would also swallow the typo §2 exists to catch. The escape
   break this imposes on existing `$` text is recorded in the Consequences.
+- 2026-08-20: implemented in session `2026-08-20-implementation-2`. The mechanism is `string.Template`
+  with a never-matching `idpattern` and the dotted braced form, isolated in `text_interpolation`;
+  `ask` validates its ten presentation fields when the node is built and resolves them when the
+  presentation is built; `render_value_as_text` gained the collection case, and `ActionParameterDoc`
+  with `HelpParameter` gained the `template` kind that marks a field on the ADR 009 surface. The suite
+  check the Consequences asked for found one comparing surface, the output text of an accumulating
+  loop, which moved from the Python repr to compact JSON as decided; no guard compared collection
+  text, and no `$` had to be escaped anywhere in the repository.

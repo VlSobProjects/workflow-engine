@@ -21,8 +21,10 @@ def _wrap(text: str, indent: str) -> list[str]:
 def _parameter_lines(parameters: dict[str, HelpParameter]) -> list[str]:
     lines = ["Parameters:"]
     for name, parameter in parameters.items():
-        requiredness = "required" if parameter.required else "optional"
-        lines.append(f"{_INDENT}{name} ({parameter.type}, {requiredness}): {parameter.description}")
+        kinds = [parameter.type, "required" if parameter.required else "optional"]
+        if parameter.template:
+            kinds.append("template text")
+        lines.append(f"{_INDENT}{name} ({', '.join(kinds)}): {parameter.description}")
     return lines
 
 

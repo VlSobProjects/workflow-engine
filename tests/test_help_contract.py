@@ -45,7 +45,7 @@ from workflow_engine.transition.guards import GUARD_CLASSES
 
 STABLE_DETAIL_KEYS = {"name", "type", "summary", "description", "parameters", "source", "notes"}
 NORMALIZED_TYPE_KEYS = {"actions", "functions", "validators", "guards", "codecs"}
-PARAMETER_KEYS = {"type", "description", "required"}
+PARAMETER_KEYS = {"type", "description", "required", "template"}
 
 
 @pytest.fixture
@@ -84,6 +84,7 @@ class TestContractShape:
                     for parameter in parameters.values():
                         assert set(parameter.keys()) == PARAMETER_KEYS
                         assert isinstance(parameter["required"], bool)
+                        assert isinstance(parameter["template"], bool)
                 json.dumps(detail)
 
     def test_action_detail_carries_node_authoring_sections(self, load_engine):
