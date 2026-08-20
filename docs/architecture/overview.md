@@ -94,11 +94,24 @@ recorded in the journal, not a property of the node, so the engine needs no taxo
 node types.
 
 The core action is `ask`. Its node configuration carries the presentation (title, instruction,
-options, hints and the rest, with `param.`/`output.`/`artifact.` references resolved as in any node)
-and an `answer` declaration in the shape of the workflow `inputs` block, validated by the same
-function. Beside it an `errors` catalogue names the failure codes the node accepts. Declaration and
+options, hints and the rest, every field of it template text) and an `answer` declaration in the
+shape of the workflow `inputs` block, validated by the same function. Beside it an `errors` catalogue names the failure codes the node accepts. Declaration and
 catalogue travel together as the `AnswerContract` of the presentation; the engine reads them from the
 built node and never from the concrete action class.
+
+**Template text.** A presentation field resolves a `param.`/`output.`/`artifact.` reference both as
+its whole value, the way any node configuration does, and inside its text through the braced
+`${param.name}` form, with `$$` for a literal `$`. Templating is a property of the declared field and
+of nothing else: the ADR 009 help surface marks which parameters are template text, and every other
+configuration string keeps its exact meaning, so a literal `${` in a function parameter or a written
+file is untouched. All ten presentation fields are in the set, because they already resolved
+whole-value references through one function and because `description` defaults to the raw
+`instruction`. The two failures sit at two times: a malformed template refuses the node when it is
+built, among the per-node configuration errors of ADR 001, and an unresolved reference fails the run
+where the presentation is built, in the error class whole-value resolution already raises. Neither is
+routable — a presentation precedes any output of its node, so no guard could read it. Resolution is
+engine resolution and runs no user code, which is what lets a plain `resume` re-present the same
+question (ADR 016).
 
 **Pausing.** The engine journals the engine event `workflow_paused_interactive` with the node id and
 the declared names, saves the state, and returns. The paused position needs no state field of its
@@ -302,7 +315,10 @@ The same rule holds wherever the engine turns a state value into text, not only 
 it — a value guard comparing against a resolved reference, the `echo_value` function, and the
 presentation of an interactive node. Without it a `Path` parameter would compare and print with native
 separators on Windows while the same value is persisted and serialized as POSIX, so a guard could fail
-against the very path the previous node had just written.
+against the very path the previous node had just written. The same function renders a list or a dict
+as compact JSON, written with `common_encoder`, the encoder the state serialization uses: a collection
+therefore reaches a guard, an output text or a published question in the form the state itself is
+written in, rather than as the Python repr `str()` would produce (ADR 016).
 
 ### Public commands
 

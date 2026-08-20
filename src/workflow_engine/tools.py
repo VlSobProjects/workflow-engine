@@ -1,3 +1,4 @@
+import json
 from collections import deque
 from collections.abc import Callable, Mapping
 from datetime import datetime
@@ -94,12 +95,32 @@ def render_value_as_text(value: object) -> str:
     every OS. Values reach this point already typed, restored by their codec, so ``str()`` alone would
     put native separators into a guard comparison, a node output and a published document, while the
     same value is stored and serialized as POSIX everywhere else.
+
+    A list or a dict renders as compact JSON, written with the encoder the state serialization uses,
+    so a collection reads the same way wherever it is stored, published or compared. The Python repr
+    ``str()`` would produce is neither parseable by the agent that reads a published question nor the
+    form the state itself is written in. See ADR 016 §3.
     """
     if isinstance(value, str):
         return value
     if isinstance(value, PurePath):
         return value.as_posix()
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, default=_collection_item_encoder, ensure_ascii=False, separators=(",", ":"))
     return str(value)
+
+
+def _collection_item_encoder(obj: object) -> object:
+    """Encode one value inside a rendered collection.
+
+    ``common_encoder`` is the state serialization encoder and covers what the state stores. What it
+    does not recognize falls back to the scalar rule of ``render_value_as_text`` instead of to
+    ``None``, which ``json.dumps`` would silently write as ``null``.
+    """
+    encoded = common_encoder(obj)
+    if encoded is None:
+        return render_value_as_text(obj)
+    return encoded
 
 
 def common_encoder(obj):

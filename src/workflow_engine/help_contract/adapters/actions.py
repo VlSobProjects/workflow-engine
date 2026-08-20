@@ -29,9 +29,13 @@ def adapt_action(action: type[BaseAction], source: ComponentSource) -> ActionCom
         )
     parameters: dict[str, HelpParameter] = {}
     for name, doc in metadata.required_parameters.items():
-        parameters[name] = HelpParameter(type=doc.type, description=doc.description, required=True)
+        parameters[name] = HelpParameter(
+            type=doc.type, description=doc.description, required=True, template=doc.template
+        )
     for name, doc in metadata.optional_parameters.items():
-        parameters[name] = HelpParameter(type=doc.type, description=doc.description, required=False)
+        parameters[name] = HelpParameter(
+            type=doc.type, description=doc.description, required=False, template=doc.template
+        )
     return ActionComponent(
         name=action_type,
         source=source,

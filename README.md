@@ -157,6 +157,16 @@ on. In this template an answer text that is neither `approved` nor `rejected` se
 the same node, which is bounded by its `max_attempts` (`2` here) and then fails under
 `max_attempts_exceeded`.
 
+Every field of the question is template text: `${param.<name>}`, `${output.<node_id>}` and
+`${artifact.<logical_name>}` are replaced by the value they name when the question is presented, so
+a value stands inside the sentence instead of beside it — `"Copy ${param.source_file} to
+${param.target_dir}?"`. `$$` writes a literal `$`, and a field whose whole value is a bare
+reference (`"context": "param.source_file"`) keeps working as before. A `$` that begins neither of
+those refuses the node when the workflow is loaded, reported with the other node configuration
+errors before anything runs; a reference that names nothing fails the run at the question instead
+of reaching the answerer as written. A list or a dict is written into the text as compact JSON, a
+path in POSIX form.
+
 An `ask` node may also carry `function_name` and `function_parameters`, the same keys a `function` or
 a `stop` node carries. The registered function then runs on an accepted answer, before that answer
 becomes the output of the node: it is given the answer as its injected `output` argument, and what it

@@ -9,10 +9,17 @@ T = TypeVar("T", bound=BaseAction)
 
 @dataclass(frozen=True)
 class ActionParameterDoc:
-    """Operator documentation of one node configuration parameter of an action."""
+    """Operator documentation of one node configuration parameter of an action.
+
+    ``template`` declares the parameter template text: its value may carry ``${param.<name>}``,
+    ``${output.<node_id>}`` and ``${artifact.<logical_name>}`` placeholders, and ``$$`` writes a
+    literal ``$``. Templating is a property of the declared field, so the declaration is what tells
+    an author which values are read as text and which keep their exact meaning. See ADR 016 §1.
+    """
 
     type: str
     description: str
+    template: bool = False
 
 
 @dataclass(frozen=True)

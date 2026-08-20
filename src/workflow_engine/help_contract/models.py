@@ -81,14 +81,24 @@ def get_component_type_description(component_type: ComponentType) -> str:
 
 @dataclass(frozen=True)
 class HelpParameter:
-    """Documentation of one configuration parameter: display type, description, requiredness."""
+    """Documentation of one configuration parameter: display type, description, requiredness, kind.
+
+    ``template`` marks the parameter template text, the kind ADR 016 defines: references resolve
+    inside its value instead of only as the whole of it.
+    """
 
     type: str
     description: str
     required: bool = True
+    template: bool = False
 
     def to_payload(self) -> dict[str, object]:
-        return {"type": self.type, "description": self.description, "required": self.required}
+        return {
+            "type": self.type,
+            "description": self.description,
+            "required": self.required,
+            "template": self.template,
+        }
 
 
 @dataclass(frozen=True)

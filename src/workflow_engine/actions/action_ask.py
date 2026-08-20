@@ -22,11 +22,11 @@ from workflow_engine.registry.function_registry import (
     FUNCTION_PARAMETERS_KEY,
     RegisteredFunctionExecutor,
 )
+from workflow_engine.text_interpolation import resolve_template_text, validate_template_text
 from workflow_engine.tools import (
     parameter_from_dict,
     parameter_from_dict_default,
     parameter_from_dict_optional,
-    render_value_as_text,
 )
 
 DEFAULT_TITLE = "Question"
@@ -60,6 +60,17 @@ _FUNCTION_PARAMETERS_DOC = ActionParameterDoc(
     "injected 'output'.",
 )
 
+_TEMPLATE_NOTES = (
+    "Every presentation field is template text: '${param.<name>}', '${output.<node_id>}' and "
+    "'${artifact.<logical_name>}' are replaced by the referenced value when the question is "
+    "presented, so a value can stand inside a sentence instead of beside it. '$$' writes a literal "
+    "'$', and a field whose whole value is a bare reference keeps resolving as it always did.",
+    "A '$' that begins neither '$$' nor a braced reference is a configuration error of the node, "
+    "reported when the workflow is loaded; a reference that does not resolve fails the run at the "
+    "question rather than reaching the answerer as written. Neither is routable by a transition.",
+    "A list or a dict is written into the text as compact JSON, the same form the state stores.",
+)
+
 _POST_FUNCTION_NOTES = (
     "A function configured here is given the accepted answer as the injected 'output' parameter: an "
     "ActionNodeOutput whose 'output_text' is the answer text and whose parameter writes hold the "
@@ -73,16 +84,6 @@ _POST_FUNCTION_NOTES = (
     "The answer is journaled as it was supplied. What the function made of it is the output of the "
     "node, journaled the way any node output is.",
 )
-
-
-def _resolve_text(state: StateReadOnlyView, value: str) -> str:
-    """Resolve one presentation string, which may be a 'param.'/'output.'/'artifact.' reference.
-
-    A reference is resolved as a whole value, as everywhere else in a node configuration; a resolved
-    value that is not a string is rendered, because a presentation is text. A path is rendered in
-    POSIX form: the presentation is published in the command result, and ADR 008 holds there too.
-    """
-    return render_value_as_text(state.set_parameters({"value": value})["value"])
 
 
 def _string_list(data: dict[str, object], key: str) -> list[str] | None:
@@ -105,7 +106,7 @@ def _string_map(data: dict[str, object], key: str) -> dict[str, str]:
 
 @register_action(
     "Asks a question and pauses the run until a typed answer arrives.",
-    notes=list(_POST_FUNCTION_NOTES),
+    notes=list(_TEMPLATE_NOTES + _POST_FUNCTION_NOTES),
     metadata=ActionOperatorMetadata(
         description=(
             "Presents a question to whoever runs the workflow — an operator, an agent, or a program — "
@@ -118,21 +119,27 @@ def _string_map(data: dict[str, object], key: str) -> dict[str, str]:
             "node, so the answer can be routed on, accumulated or normalized without a second node."
         ),
         required_parameters={
-            "instruction": ActionParameterDoc("str", "The question itself: what the answerer has to do."),
+            "instruction": ActionParameterDoc(
+                "str", "The question itself: what the answerer has to do.", template=True
+            ),
             _ANSWER_KEY: _ANSWER_DOC,
         },
         optional_parameters={
-            "title": ActionParameterDoc("str", f"Short title of the question (default '{DEFAULT_TITLE}')."),
-            "description": ActionParameterDoc(
-                "str", "One line describing the node; defaults to the instruction, and becomes the result message."
+            "title": ActionParameterDoc(
+                "str", f"Short title of the question (default '{DEFAULT_TITLE}').", template=True
             ),
-            "goal": ActionParameterDoc("str", "The objective the answer serves."),
-            "context": ActionParameterDoc("str", "Context the answerer needs."),
-            "options": ActionParameterDoc("list", "The answers to choose from."),
-            "requirements": ActionParameterDoc("list", "What the answer must satisfy."),
-            "constraints": ActionParameterDoc("list", "What the answerer must not do."),
-            "examples": ActionParameterDoc("list", "Example answers."),
-            "hints": ActionParameterDoc("list", "Hints for the answerer."),
+            "description": ActionParameterDoc(
+                "str",
+                "One line describing the node; defaults to the instruction, and becomes the result message.",
+                template=True,
+            ),
+            "goal": ActionParameterDoc("str", "The objective the answer serves.", template=True),
+            "context": ActionParameterDoc("str", "Context the answerer needs.", template=True),
+            "options": ActionParameterDoc("list", "The answers to choose from.", template=True),
+            "requirements": ActionParameterDoc("list", "What the answer must satisfy.", template=True),
+            "constraints": ActionParameterDoc("list", "What the answerer must not do.", template=True),
+            "examples": ActionParameterDoc("list", "Example answers.", template=True),
+            "hints": ActionParameterDoc("list", "Hints for the answerer.", template=True),
             "errors": _ERRORS_DOC,
             "function_name": _FUNCTION_NAME_DOC,
             "function_parameters": _FUNCTION_PARAMETERS_DOC,
@@ -164,10 +171,9 @@ def _string_map(data: dict[str, object], key: str) -> dict[str, str]:
                     "action_parameters": {
                         "title": "Approve the report",
                         "instruction": (
-                            "Read the report and answer with 'approved' or 'rejected' as the answer text, "
-                            "naming yourself in 'reviewer'."
+                            "Read the report at ${artifact.report_csv} and answer with 'approved' or "
+                            "'rejected' as the answer text, naming yourself in 'reviewer'."
                         ),
-                        "context": "artifact.report_csv",
                         "options": ["approved", "rejected"],
                         "answer": [{"name": "reviewer", "description": "Who reviewed the report"}],
                         "errors": {"report_unreadable": "The report could not be opened."},
@@ -217,6 +223,28 @@ class AskAction(BaseInteractiveAction):
                 f"'{FUNCTION_PARAMETERS_KEY}' configures a function this node does not run; "
                 f"declare '{FUNCTION_NAME_KEY}' or remove it",
             )
+        self._validate_template_fields()
+
+    def _validate_template_fields(self) -> None:
+        """Check the syntax of every presentation field while the node is built. See ADR 016 §1a.
+
+        All ten presentation fields are template text, so a malformed one is reported here, among the
+        node configuration errors the engine collects before the run starts, instead of reaching the
+        answerer inside a published question. The instruction is checked first because a defaulted
+        description repeats it, and the error must name the field the author actually wrote.
+        """
+        for field_name, text in (
+            ("instruction", self.instruction),
+            ("title", self.title),
+            ("description", self.description),
+            ("goal", self.goal),
+            ("context", self.context),
+        ):
+            if text is not None:
+                validate_template_text(self.ACTION_TYPE, field_name, text)
+        for key, items in self.lists.items():
+            for index, item in enumerate(items or ()):
+                validate_template_text(self.ACTION_TYPE, f"{key}[{index}]", item)
 
     def _process_answer(self, state: StateReadOnlyView, output: ActionNodeOutput) -> ActionNodeOutput:
         """Run the configured function on the accepted answer and return its result. See ADR 015 §4."""
@@ -229,15 +257,15 @@ class AskAction(BaseInteractiveAction):
 
     def present(self, state: StateReadOnlyView) -> PresentResponse:
         resolved_lists = {
-            key: None if value is None else [_resolve_text(state, item) for item in value]
+            key: None if value is None else [resolve_template_text(state, item) for item in value]
             for key, value in self.lists.items()
         }
         return PresentResponse(
-            title=_resolve_text(state, self.title),
-            description=_resolve_text(state, self.description),
-            instruction=_resolve_text(state, self.instruction),
-            goal=None if self.goal is None else _resolve_text(state, self.goal),
-            context=None if self.context is None else _resolve_text(state, self.context),
+            title=resolve_template_text(state, self.title),
+            description=resolve_template_text(state, self.description),
+            instruction=resolve_template_text(state, self.instruction),
+            goal=None if self.goal is None else resolve_template_text(state, self.goal),
+            context=None if self.context is None else resolve_template_text(state, self.context),
             answer=self.answer_contract(),
             **resolved_lists,
         )
