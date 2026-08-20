@@ -94,7 +94,16 @@ Two things the ADR has to state plainly, because they are already inconsistent i
   and in the ADR 009 surface, not in folklore.
 - **How the answered values are reached.** In the output object they are `param_writes`, so a
   normalizing function would write `output.param_writes["decision"].value` — bus internals in
-  application code. Whether the values also arrive as a plain mapping is an open point below.
+  application code. Whether the values also arrive as a plain mapping was an open point; it is
+  settled below — they do not, and the ergonomic consequence lives with the implementation notes.
+
+Where the stage sits was pinned against the code rather than assumed (session
+`2026-08-20-investigation-1`): inside `_start_engine`, after `_set_parameters` has applied the node's
+own parameter block and the state view is built, and before `_proceed_with_output` selects the
+transition. Placed earlier — in `start_workflow`, between `bind_answer` and the engine — the function
+would read parameters that `set_parameters` had not yet applied. Placed where it is, the state the
+function reads is the view the guards read, and the output it returns is the one `state.update`
+applies, so there is no second ordering question.
 
 ### 3a. One place says what a registered function is given
 
@@ -124,11 +133,31 @@ normally.
 That is what removes both workarounds at once: putting the decision into `output_text` makes it
 routable, and returning an `APPEND` write makes the node accumulate.
 
+The `APPEND` write is allowed, and what that does to ADR 013 alternative H is stated plainly: the
+rejected thing was an *answer document* choosing its write mode, and it stays rejected — the
+restriction sits on the answer document, not on the node. Accumulating was one of the two motivating
+workarounds and one of the five uses the ADR-0083 flow produced (settles open point 3). Whether an
+`APPEND` may create a collection that does not exist yet is collection-handler semantics outside this
+ADR; the honest node count of that flow is therefore eleven to seven, not eleven to six.
+
+A consequence to state rather than discover: `save_as` on a node that gains a post function stores the
+node's output text, which is then the function's text and no longer the answer's. That is consistent —
+`save_as` has always kept what the node produced — but on an interactive node it changes what an
+author gets, and the operator help of the shape in §8 has to say it.
+
 ### 5. A failing post function is a node failure
 
 A post function reports an error the way every registered function does: an error code in its result,
 or an exception the engine turns into a node error. The node then routes on that code like any other
 failure, and its `max_attempts` allowance applies.
+
+What that does to an already-journaled answer needed no new rule, and the investigation proved it
+against the engine rather than reading it off: the engine applies a node's writes before it looks at
+whether the step failed, so a success answer routed into a `fail` target already leaves both the
+`interactive_answered` event and its values on the bus, with `save_as` the one thing skipped because
+the output carries an error code (`tests/test_adr0083_scenario.py`). An accepted answer next to a
+failed node is the shape the engine already has, and a failing post function lands in it (settles
+open point 4).
 
 ### 6. Refusal comes first, and is untouched
 
@@ -143,35 +172,57 @@ codecs. What the post function made of it is the node's output, journaled the wa
 is. The audit distinction between "what was supplied from outside" and "what the engine computed"
 (ADR 006) is what makes this the right split.
 
-### Open points to settle before leaving Draft
+On that split rests the answer to whether a post function may change an answered value: it may.
+Normalizing is not the rare case — it was two of the five uses the ADR-0083 flow produced, and the
+half that stalled its live run twice — and forbidding it would leave the motivating case, a model's
+nearly-right answer, outside the mechanism. The consequence is stated rather than implied: the answer
+declaration is a contract about what was *supplied*, and `interactive_answered` means the name was
+answered — not that the stored value is what was supplied. What was stored is the node's output, which
+is where the journal already looks for what the engine computed (settles open point 2).
 
-1. **Shape.** A separate action (`ask_function`, mirroring how the automatic side separates
-   `ActionWithFunction` from the rest), or optional configuration keys on `ask` (mirroring `stop`,
-   which runs a function only when one is configured). Both have a precedent in this core. A separate
-   action keeps `ask` and its help card simple; optional keys avoid a second interactive action an
-   author has to choose between.
-2. **May a post function change the answered values, or only add to them?** Returning `param_writes`
-   freely means the value written for a declared name can differ from the value the caller sent, while
-   the journal records the name as answered. That may be exactly the point (normalization) or a hole
-   in the audit story, and the answer decides whether the declaration is a contract about what was
-   *supplied* or about what was *stored*.
-3. **Write modes.** ADR 013 alternative H rejected letting an answer choose its write mode. A post
-   function returning `APPEND` reintroduces that by the back door — deliberately, since accumulation
-   is one of the two motivating cases — so the ADR has to say plainly that the restriction is on the
-   *answer document*, not on the node.
-4. **Is the answer consumed when the post function fails?** The answer was accepted and journaled, and
-   then the node failed. On a retry the same question is asked again, which is right; but the journal
-   then holds an `interactive_answered` for an answer whose values never reached the bus.
-5. **One function or several.** The automatic side needed `functions` as well as `function`. Whether
-   the interactive side needs the same is unknown; the default should be one until it is not.
-6. **When pre-processing is reconsidered**, and against which decision — the templating question, or
-   evidence from the first flows that a question genuinely has to be computed rather than composed.
-7. **In what shape the answered values reach the function.** The output object carries them as
-   `param_writes`, which is the bus's shape and not the author's. Options: leave it, since the object
-   is already there; hand the values as a plain mapping beside it; or give the post function the
-   `Answer` itself, which also carries the status, the message and the actor that `param_writes`
-   cannot express. The third is the most useful and the least uniform, so it needs deciding rather
-   than drifting.
+### 8. The shape: optional keys on `ask`
+
+One interactive action. `ask` gains optional configuration keys for the post function, mirroring
+`stop`, which runs a function only when one is configured; no second action is added. The evidence is
+the ADR-0083 flow: all four of its questions want a function, so a separate `ask_function` would make
+the plain form the exception an author never picks, and the flow that motivated this ADR would contain
+zero uses of `ask` itself. The `stop` precedent fits what was observed; the `ActionWithFunction`
+precedent — a separate class for the function-carrying form — does not (settles open point 1, session
+`2026-08-20-investigation-1`).
+
+The known weakness is the sample: one flow, though one chosen in advance as the conformance yardstick
+rather than written to favour the mechanism. If real flows turn out to be mostly plain questions, the
+keys stay unused and nothing is lost; the choice is cheap to be wrong about, which is the other reason
+not to spend a second action on it.
+
+### Open points — all settled
+
+The Draft opened with seven. Points 1 to 4 were settled from the ADR-0083 evidence (session
+`2026-08-20-investigation-1`): the shape in §8, the mutability of answered values in §7, the write
+modes in §4, and failure after an accepted answer in §5. The last three were settled in session
+`2026-08-20-architecture-2`:
+
+5. **One function.** The automatic side needed `functions` as well as `function`; the interactive
+   side gets one until evidence arrives. Several are imaginable — variant post-processing of a
+   model's answer instead of one function that handles everything on earth — but one function keeps
+   the configuration of the trivial case trivial, the ADR-0083 flow never wanted a second, and a
+   several-function form is a cheap, additive extension to make when such a scenario actually
+   appears.
+6. **Pre-processing is not this ADR's point to settle.** Its reconsideration waits on the templating
+   decision, which the ADR-0083 count (three references shown as bare values) has now unblocked; the
+   possibility remains and the arguments against are on record in §1. Moved out of this list to
+   Leaves open, where the Consequences already carried it — a Draft must not stay open for a question
+   it cannot answer.
+7. **The standard injection is the whole contract.** The post function receives `state` and `output`
+   and nothing more. Handing it the `Answer` itself is off the table by the evidence: the decisive
+   case of the flow — a decision node that declares no values, whose decision travels in the answer
+   text — is served by the output object, and nothing in the flow needed the actor, the status or the
+   message. A plain mapping beside the object is rejected on argument: it solves only the read half,
+   since a normalizing function still returns `ParamWrite`s in its output; it reintroduces an
+   interactive-only injected parameter, which §3 already retracted once; and it puts two
+   representations of one truth in the same call, diverging as soon as the function edits the output.
+   Ergonomic access to the values belongs to the output object's API, not to the injection — see the
+   implementation notes.
 
 ## Alternatives considered
 
@@ -237,12 +288,19 @@ blurring it to save four lines is the expensive kind of tidiness.
   that asked; normalizing a model's reply before it decides anything; turning an answer into an
   artifact in one node.
 - Costs: a second way to do things that the graph can already do, which needs the boundary of §2 to be
-  stated and held in review; a new injected parameter for registered functions; operator metadata and
-  help for whichever shape §1 of the open points chooses.
+  stated and held in review; a second source for the `output` slot, which the operator help has to
+  explain; operator metadata and help for the keys of §8.
+- Costs, found by running the ADR-0083 flow: a folded-away check node takes its guard record and its
+  visit count out of the journal (§2 prices this), and the retries a post function bounds by
+  `max_attempts` leave no count behind them, because `attempt_counters` reset on every departure from
+  the node — afterwards only the `interactive_answered` events say the question was asked twice.
+  Either the counters stop resetting or the event carries the attempt; that fix is scoped with the
+  per-node cap work (`2026-08-19-hard-node-cap-scoping.md`), but the cost belongs to this ADR.
 - Closes off: nothing in ADR 013. The answer contract, the refusal rules and the journal are unchanged;
   this adds a stage after them.
-- Leaves open: pre-processing, and with it the question of whether re-presenting a question may run
-  code.
+- Leaves open: pre-processing — reconsidered against the templating decision, which the ADR-0083
+  count has unblocked, with the arguments against it on record in §1 — and with it the question of
+  whether re-presenting a question may run code.
 
 ## Related ADRs
 
@@ -262,7 +320,15 @@ The evidence that should settle open point 6, and probably 1, comes from the fir
 building the ADR-0083 scenario as a real flow
 (`docs/architecture/notes/2026-08-19-adr0083-scenarios-coverage.md`). This ADR should not leave Draft
 before that flow exists, so that the shape is chosen against a written flow rather than against an
-imagined one.
+imagined one. That flow now exists (`tests/test_adr0083_scenario.py`, session
+`2026-08-20-investigation-1`), and the open points were settled against it.
+
+The ergonomics that open point 7 left with the object are an accessor pair on `ActionNodeOutput` —
+read one value, SET one value — with `APPEND` kept explicit so a helper never hides a write mode.
+That serves both sides equally, since an automatic-side function reads the previous node's output the
+same way, and it keeps `ParamWrite` internal rather than frozen by external use. Whether the pair
+ships is decided at implementation time; it is additive and does not change the contract of §3. If it
+ships, the two methods enter the ADR 009 surface.
 
 ## Change log
 
@@ -278,3 +344,19 @@ imagined one.
   is extracted as a function and the hierarchy stays, because `ActionWithFunction` is itself an
   automatic action and the engine dispatches on that type. Open point 7 records the remaining question
   of what shape the answered values reach the function in.
+- 2026-08-20: open points 1 to 4 settled in session `2026-08-20-architecture-2` from the evidence of
+  the ADR-0083 flow (session `2026-08-20-investigation-1`, `tests/test_adr0083_scenario.py`): the
+  shape is optional keys on `ask` (§8); a post function may change an answered value, with the journal
+  meaning stated (§7); `APPEND` is allowed, with the ADR 013 restriction kept on the answer document
+  (§4); failure after an accepted answer is the engine's existing shape, proven by test (§5). The
+  placement of the stage is pinned in §3 and the `save_as` consequence recorded in §4. The
+  Consequences now carry the counters cost and no longer claim a new injected parameter, which the §3
+  rewrite had already retracted. Open point 7 is narrowed: the `Answer` option is not justified by the
+  evidence; the mapping fork remains open.
+- 2026-08-20: open points 5 to 7 settled in the same session `2026-08-20-architecture-2`, closing the
+  list. One function until evidence demands several (5); the pre-processing reconsideration moved out
+  of the blocking list to Leaves open, since it waits on the templating decision and cannot be
+  settled here (6); the standard injection is the whole contract — `Answer` rejected by the evidence,
+  a parallel mapping rejected on argument, ergonomic access moved to the output object's API as an
+  implementation note (7). §3's second bullet updated accordingly. The ADR is ready for Implementing;
+  the status changes when the feature branch opens, per the process.
