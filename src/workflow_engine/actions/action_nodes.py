@@ -4,6 +4,7 @@ from typing import Annotated, ClassVar
 
 from workflow_engine.actions.base_actions import ActionWithFunction, BaseAutomaticAction
 from workflow_engine.collection_param_handlers import WriteParamMode
+from workflow_engine.function_injection import run_action_function
 from workflow_engine.models.state import StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput, ParamWrite
 from workflow_engine.registry.action_registry import (
@@ -226,9 +227,7 @@ class StopAction(BaseAutomaticAction):
 
     def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         if self.registered_function is not None:
-            return self.registered_function.execute(
-                parameters_modified=state.set_parameters_with_updater({"output": prev_output, "state": state})
-            )
+            return run_action_function(self.registered_function, state, prev_output)
         return ActionNodeOutput(output_text=prev_output.output_text if prev_output else "")
 
 

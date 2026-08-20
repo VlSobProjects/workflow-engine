@@ -7,13 +7,20 @@ from typing import ClassVar
 from workflow_engine.actions.action_present import AnswerContract, PresentResponse
 from workflow_engine.actions.base_actions import BaseInteractiveAction
 from workflow_engine.exceptions import ActionConfigurationError
+from workflow_engine.function_injection import run_action_function
 from workflow_engine.models.state import StateReadOnlyView
 from workflow_engine.models.workflow import validate_input_declarations
+from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.action_registry import (
     ActionExample,
     ActionOperatorMetadata,
     ActionParameterDoc,
     register_action,
+)
+from workflow_engine.registry.function_registry import (
+    FUNCTION_NAME_KEY,
+    FUNCTION_PARAMETERS_KEY,
+    RegisteredFunctionExecutor,
 )
 from workflow_engine.tools import (
     parameter_from_dict,
@@ -37,6 +44,34 @@ _ERRORS_DOC = ActionParameterDoc(
     "dict",
     "Error catalogue of the node: failure code to description. A failure answer must use one of these "
     "codes or the generic 'answer_failed'.",
+)
+_FUNCTION_NAME_DOC = ActionParameterDoc(
+    "str",
+    "Registered function run on an accepted answer, before that answer becomes the output of the "
+    "node. Its result is the node output: the text value guards compare, the parameter writes that "
+    "land on the state, the artifacts it registered and the error code that routes a failure. A "
+    "failure answer routes on its own code and never reaches the function.",
+)
+_FUNCTION_PARAMETERS_DOC = ActionParameterDoc(
+    "dict",
+    "Parameters passed to that function. Values support 'param.<name>', 'output.<node_id>' and "
+    "'artifact.<logical_name>' references resolved from the workflow state, as in any node. The "
+    "answered values are not among them: they have not reached the state yet and arrive through the "
+    "injected 'output'.",
+)
+
+_POST_FUNCTION_NOTES = (
+    "A function configured here is given the accepted answer as the injected 'output' parameter: an "
+    "ActionNodeOutput whose 'output_text' is the answer text and whose parameter writes hold the "
+    "answered values. Declare 'output' in the function signature to receive it, and 'state' for the "
+    "read-only state view; both are injected and neither is configured.",
+    "What the function returns is the whole output of the node, parameter writes included: a function "
+    "that builds a fresh result instead of editing the one it was given drops the answered values "
+    "before they reach the state.",
+    "'save_as' stores the output text of the node, which with a function configured here is the text "
+    "the function returned and no longer the text that was answered.",
+    "The answer is journaled as it was supplied. What the function made of it is the output of the "
+    "node, journaled the way any node output is.",
 )
 
 
@@ -70,6 +105,7 @@ def _string_map(data: dict[str, object], key: str) -> dict[str, str]:
 
 @register_action(
     "Asks a question and pauses the run until a typed answer arrives.",
+    notes=list(_POST_FUNCTION_NOTES),
     metadata=ActionOperatorMetadata(
         description=(
             "Presents a question to whoever runs the workflow — an operator, an agent, or a program — "
@@ -77,7 +113,9 @@ def _string_map(data: dict[str, object], key: str) -> dict[str, str]:
             "question and the declared answer in 'data.question'. The run continues with "
             "'resume --answer' or 'resume --answer-file': a success answer binds its declared values "
             "into the state and routes through the node's transitions, a failure answer routes on its "
-            "error code, and a plain 'resume' presents the same question again."
+            "error code, and a plain 'resume' presents the same question again. With 'function_name' a "
+            "registered function runs on an accepted answer and its result becomes the output of the "
+            "node, so the answer can be routed on, accumulated or normalized without a second node."
         ),
         required_parameters={
             "instruction": ActionParameterDoc("str", "The question itself: what the answerer has to do."),
@@ -96,6 +134,8 @@ def _string_map(data: dict[str, object], key: str) -> dict[str, str]:
             "examples": ActionParameterDoc("list", "Example answers."),
             "hints": ActionParameterDoc("list", "Hints for the answerer."),
             "errors": _ERRORS_DOC,
+            "function_name": _FUNCTION_NAME_DOC,
+            "function_parameters": _FUNCTION_PARAMETERS_DOC,
         },
         node_template={
             "id": "<node-id>",
@@ -112,6 +152,8 @@ def _string_map(data: dict[str, object], key: str) -> dict[str, str]:
             "plus the generic 'answer_failed'.",
             "Value guards compare the optional answer 'text', which is the output text of the node.",
             "A transition back to the node itself asks again and is bounded by 'max_attempts'.",
+            "With 'function_name' the guards route on what the function returned, not on what was "
+            "answered, and a function that reports an error code fails the node under it.",
         ),
         examples=(
             ActionExample(
@@ -145,9 +187,14 @@ class AskAction(BaseInteractiveAction):
 
     The action is indifferent to who answers: an operator, an agent, or a calling program all use one
     contract, and who answered is recorded as data about the answer. See ADR 013 §1.
+
+    An optional registered function computes on the answer once it is accepted, the way 'stop' runs
+    one only when it is configured. Composition, not a second action and not a second hierarchy: the
+    question stays declarative when no function is configured. See ADR 015 §8.
     """
 
     ACTION_TYPE: ClassVar[str] = "ask"
+    registered_function: RegisteredFunctionExecutor[ActionNodeOutput] | None
 
     def __init__(self, data: dict[str, object]) -> None:
         if _ANSWER_KEY not in data:
@@ -163,6 +210,19 @@ class AskAction(BaseInteractiveAction):
         self.lists = {key: _string_list(data, key) for key in _LIST_KEYS}
         self.error_catalogue = _string_map(data, "errors")
         self.declarations = validate_input_declarations(data.get(_ANSWER_KEY), _ANSWER_KEY)
+        self.registered_function = self.get_registered_action_function(data) if FUNCTION_NAME_KEY in data else None
+        if self.registered_function is None and FUNCTION_PARAMETERS_KEY in data:
+            raise ActionConfigurationError(
+                self.ACTION_TYPE,
+                f"'{FUNCTION_PARAMETERS_KEY}' configures a function this node does not run; "
+                f"declare '{FUNCTION_NAME_KEY}' or remove it",
+            )
+
+    def _process_answer(self, state: StateReadOnlyView, output: ActionNodeOutput) -> ActionNodeOutput:
+        """Run the configured function on the accepted answer and return its result. See ADR 015 §4."""
+        if self.registered_function is None:
+            return output
+        return run_action_function(self.registered_function, state, output)
 
     def answer_contract(self) -> AnswerContract:
         return AnswerContract(declarations=self.declarations, error_catalogue=dict(self.error_catalogue))

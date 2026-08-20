@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from typing import Final
 
 from workflow_engine.exceptions import WorkflowParameterConfigurationError, WorkflowParameterError
+from workflow_engine.function_injection import run_guard_function
 from workflow_engine.models.state import GuardRecord, StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
@@ -162,11 +163,7 @@ class FunctionGuard(BaseGuard):
     def _check(self, output: ActionNodeOutput, state: StateReadOnlyView, trace: list[GuardRecord] | None) -> bool:
         # The state is deliberately not handed to the function. A guard reads the state only through
         # the parameter references the engine resolves for it, so it cannot write to it. See ADR 002.
-        return self.registered_validator.execute(
-            parameters_modified=state.set_parameters_with_updater(
-                {"output": output.output_text, "action_output": output}
-            )
-        )
+        return run_guard_function(self.registered_validator, state, output)
 
 
 class ErrorCodeGuard(BaseGuard):

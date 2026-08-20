@@ -157,6 +157,16 @@ on. In this template an answer text that is neither `approved` nor `rejected` se
 the same node, which is bounded by its `max_attempts` (`2` here) and then fails under
 `max_attempts_exceeded`.
 
+An `ask` node may also carry `function_name` and `function_parameters`, the same keys a `function` or
+a `stop` node carries. The registered function then runs on an accepted answer, before that answer
+becomes the output of the node: it is given the answer as its injected `output` argument, and what it
+returns *is* the node output — the text the guards compare, the values written to the state, the
+artifacts it registered, and the error code that fails the node. A failure answer routes on its own
+code and never reaches the function. This is how one node routes on a declared answer value, keeps
+every answer of a loop, or normalizes a reply that is nearly right, instead of a second node doing it;
+`help-component --component-type actions --component-name ask` prints the keys and what the function
+receives.
+
 `--input NAME[:TYPE]=VALUE` is repeatable; `TYPE` names a registered codec. `help-components` lists
 codecs under their Python module path (e.g. `pathlib._local.Path` for `Path` on this Python version);
 the bare name shown above (`Path`) also resolves and is what the examples use. `set-input` only binds

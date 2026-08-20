@@ -231,6 +231,12 @@ def _start_engine(
             # The action of the node the engine resumes at has not run yet. Running it is not an
             # attempt, so the state is not updated for it.
             if output is not None:
+                if isinstance(cur_node.action, BaseInteractiveAction):
+                    # The output at an interactive node is an accepted answer, and this is the only
+                    # place one arrives: the action may compute on it before its own guards see it.
+                    # Here the function reads the state view the guards read and returns the output
+                    # `state.update` applies, so there is no second ordering question. See ADR 015 §3.
+                    output = cur_node.action.process_answer(state_read_only, output)
                 step = _proceed_with_output(workflow_nodes, output, cur_node, state, state_read_only)
                 next_node = step.next_node
                 state.update(cur_node.id, cur_node.config.save_as, output, next_node.id if next_node else None)
