@@ -23,14 +23,14 @@ actually be run and checked, not argued about. It was first written while ADR 01
 
 | ADR-0083 | Carried by | Verdict |
 | --- | --- | --- |
-| `Q` — one prepared question to the operator | `ask` node: text and options in the presentation, a typed `answer` entry; `input_mode` is expressed by the codec (`path` → `pathlib.Path`) | full |
+| `Q` — one prepared question to the operator | `ask` node: text and options in the presentation, a typed `answer` entry; `input_mode` is expressed by the codec (`path` → `pathlib.Path`) | full for asking and binding; the node cannot check what it bound — see "What building it found" |
 | `A` — agent branch decision, no dialogue | the same `ask` node, answered by an agent; `allowed_values` is an `any_of` of `equals` guards **over the answer text**; `default` with `require_reason` is a `failure` answer with a code and a message; `auto_log_stop` is a `FailTarget` plus the `interactive_answered` event | full when the decision travels in `text`; a decision that travels as a declared value needs an `echo_value` node in front of the guards |
 | `I` — instruction to the agent to act and report | the same `ask` node: the presentation is the instruction, the agent acts outside the engine and answers with the aggregated result; node `validators` already exist | full |
 | `S` — deterministic script with parameters | a `function` node over an external registered function that runs the script; `script_output_match` is several transitions with `contains` guards, whose configured value resolves `param.` references | needs one external function |
 | `STOP` | `stop` / `stop_on_error` and the `EndTarget` / `FailTarget` transition targets; `handoff_ref` is a deliverable (ADR 011); `cleanup_scripts` is a node before the end | full |
 | `FQ` — up to N agent-generated questions | a loop `CHECK → ask → COLLECT → CHECK`: `append_to_param` accumulates each answer and the `is_collection_size_at_least` guard on the head node leaves the loop once there are enough. A question repeated in place instead, without collecting, is bounded by `attempts` | full, at the cost of two nodes around the question; covered end to end by `tests/test_bounded_accumulating_loop.py` |
 | typed validators (`non_empty`, `regex`, `enum`, `path_exists`) | node `validators`, value guards, function guards | full |
-| `attempt_counters`, `max_visits`, retry actions | `attempt_counters` / `max_attempts`, `visit_counters` — the same mechanism, which came from there | full |
+| `attempt_counters`, `max_visits`, retry actions | `attempt_counters` / `max_attempts` for the retries; `visit_counters` is counted per node but never read, and the field is not on `StateReadOnlyView` | partial: retries are carried, `max_visits` is not — a loop is bounded by what it collects or by the global hard cap (ADR 010), not per node |
 | logging: engine-authored vs agent-authored fields per node | `session_events` (the engine/operator actor split), `guard_results`, `outputs`, `errors`; the agent's verbal part is the answer's `text` and `message` | in substance, but the verbal part lives in the state, not in the journal: the journal deliberately never stores values |
 | `recommended_answer` | presentation fields (`options`, `examples`, `hints`, `context`) | full |
 | persistence `set` / `append`, artifacts vs structured facts | `WriteParamMode.SET` / `APPEND`, `state.params` for facts, artifacts and deliverables for documents (ADR 011) | the result is the same; the stance is the opposite — see below |
@@ -74,6 +74,41 @@ dictionaries, so the one-node form of `FQ` (the agent returns all question/answe
 nothing beyond the core. And the node error catalogue plus the generic `answer_failed` covers the
 per-node error taxonomy of ADR-0083, which the first version of this note did not call out.
 
+## What building it found
+
+Written and run in session `2026-08-20-investigation-1`. The mapping above survived: every ADR-0083
+node type the flow covers is reachable, the run completes, and the handoff leaves the session as a real
+exported deliverable. Four things the table could not have known, all of them about the `ask` node.
+
+1. **The node that asks cannot check what it bound.** A `validators` entry and a transition guard both
+   read the node's output, and an answered value is not in the output text — it is in `param_writes`,
+   which the bus applies only after the transition has been selected. So a typed answer is checked one
+   node later, by a node that surfaces it. That node is not decoration: without it a declared `Path`
+   answer is bound and used unverified.
+
+2. **The retry that follows is unbounded.** Sending the check back to the question re-enters it as a
+   fresh *visit*, and `attempt_counters` is reset on every departure, so `max_attempts` never counts up.
+   The flow's own test gives the same wrong answer five times and the question keeps coming back;
+   nothing bounds it but the global hard cap of ADR 010. This is the first concrete argument for a
+   per-node visit cap, which until now had none — `visit_counters` is written and read by nobody.
+
+3. **A re-presented question says nothing about why.** Both stalls the live run hit — a relative path,
+   and a decision word with an explanation attached — returned the identical question block with an
+   empty `errors` map. The answerer gets no signal that the previous answer was rejected and no reason,
+   so an agent answers the same thing again. ADR 013 §6 defines re-presenting as consuming nothing; it
+   does not say what the answerer is told, and the answer today is "nothing".
+
+4. **The exactness of a decision is carried by the wording, not by the contract.** Four places in the
+   flow had to constrain the answer in prose — the shape of a list element, "put nothing else in the
+   answer text", the keys of a `dict`, and "answer with exactly 'approved' or 'rejected'". Two of the
+   four were violated by the first natural answer a model gave. A `dict` codec has no key schema, so the
+   columns of the exported handoff table rest entirely on a sentence in the instruction.
+
+Also observed, smaller: a declared `Path` is published to the answerer as `pathlib._local.Path`, the
+private CPython 3.13 module name, which is not a name an answerer can be expected to send back — the
+same Python-version-dependent codec name recorded in `2026-08-18-adr012-deferred-questions.md`, now
+visible in the caller-facing `question` block rather than only in the state.
+
 ## What is still missing, in order
 
 The first goal of phase 2 is to run these scenarios for real. Nothing blocks that; this is the order
@@ -81,10 +116,11 @@ the work takes.
 
 1. ~~`append_to_param` in the core.~~ Done in session `2026-08-19-implementation-15`, together with
    the `is_collection_size_at_least` guard the bound turned out to need.
-2. **Build the scenario and run it.** One workflow covering `Q`, `A`, `I`, `FQ`, `STOP`, the counters,
-   the validators and the error catalogue, exercised both by a scripted end-to-end test and by a live
-   agent. This is the check itself, and it is what turns the remaining questions from predictions into
-   evidence — the last three defects were all found by building an example, not by reasoning about one.
+2. ~~Build the scenario and run it.~~ Done in session `2026-08-20-investigation-1`:
+   `tests/test_adr0083_scenario.py` is one workflow of eleven nodes covering `Q`, `A`, `I`, `FQ`,
+   `STOP`, the counters, the `validators` and the error catalogue, run both by the scripted test and by
+   an agent answering the published question blocks. It turned the remaining questions into evidence,
+   as predicted — see "What building it found".
 3. **Decide text interpolation**, with the count of composing nodes that step 2 produces as the
    argument. Friction 1 below.
 4. **The script-running function for `S`**, as an external module rather than a core component: it is
@@ -112,6 +148,13 @@ the transition targets.
    approve?" therefore costs an extra node that composes the text into a parameter which the
    presentation then references. This is the load-bearing scenario of `loop-start`, so the templating
    question deserves to be decided rather than inherited.
+
+   The count the decision was waiting for: in the eleven-node flow, **three of the four questions had to
+   show a prior value as a field of its own** (`context`) because it could not be written into the
+   sentence, and each instruction had to be bent around it — "the folder named below", "the issues
+   below". Only the first question, which needs no prior state, escaped. A list shown this way also
+   reaches the answerer as a Python repr (`"['a', 'b']"`), so what interpolation has to decide is not
+   only where a reference may appear but how a non-string value renders once it is inside a sentence.
 2. **The budget checkpoint is outside the graph.** ADR-0083 routes budget exhaustion to a declared
    node offering continue / summarize / finish, and "continue" raises the budget through a parameter.
    Here the run pauses (`workflow_paused_limit`, exit code 2) and the operator raises the limit with
