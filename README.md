@@ -155,7 +155,10 @@ run that is not waiting for one. `resume` **without** an answer presents the sam
 consuming neither an attempt nor a visit — that is how a caller who cannot answer hands the question
 on. In this template an answer text that is neither `approved` nor `rejected` sends the run back to
 the same node, which is bounded by its `max_attempts` (`2` here) and then fails under
-`max_attempts_exceeded`.
+`max_attempts_exceeded`. That bound covers one visit only: leaving the node resets it, so a
+correction routed through another node comes back as a fresh visit and starts the attempts over. A
+node that a loop can re-enter that way is bounded by the optional `max_visits` — see "Bounding a loop
+through one node".
 
 Every field of the question is template text: `${param.<name>}`, `${output.<node_id>}` and
 `${artifact.<logical_name>}` are replaced by the value they name when the question is presented, so
@@ -251,6 +254,27 @@ code `2`) well before a short task flow would, because the hard node cap
 run continues from where it paused. The cap's long-term scope (host vs. workflow vs. workflow class)
 is open, tracked in
 [`docs/architecture/notes/2026-08-19-hard-node-cap-scoping.md`](docs/architecture/notes/2026-08-19-hard-node-cap-scoping.md).
+
+## Bounding a loop through one node
+
+A node may declare `max_visits`, a whole number beside `max_attempts`:
+
+```json
+{ "id": "ASK_ROOT", "action_type": "ask", "action_parameters": {}, "max_visits": 3 }
+```
+
+The engine refuses to enter the node once it has completed that many visits and fails the run with
+`"error_code": "max_visits_exceeded"` (exit code `3`), naming the node. The check happens before the
+action, so a question beyond the cap is never published and never paid for, and the node's own
+transitions cannot route the exhaustion — it is a failure of the workflow, like
+`max_attempts_exceeded`.
+
+There is no default: a node without the key is bounded only by the run-wide node caps above, which
+stop the run at whatever node the budget ran out on rather than at the loop that ate it. Declare
+`max_visits` as a seatbelt, an order beyond the passes the flow expects — a loop designed for up to
+ten follow-ups declares, say, thirty. How many passes a task actually needs is flow logic, not a
+safety cap: keep that number in the flow data, as a parameter that a guard or a function compares
+against, so a run can decide "enough" from its own context.
 
 ## Writing a custom function
 

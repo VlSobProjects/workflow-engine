@@ -654,14 +654,24 @@ class StateModel:
                 return value
         return None
 
+    def record_node_error(self, node_id: str, error_code: str, error_msg: str | None) -> None:
+        """Record a node failure in the state without an action result behind it.
+
+        A node that never ran has no ``ActionNodeOutput`` to carry its error, and the engine's entry
+        checks produce exactly that kind of failure. Routing it through the normal write path would
+        also count a visit the node never made, so the error is recorded on its own here and the
+        counters stay untouched. See ADR 017 §1.
+        """
+        self.errors[node_id] = f"[{datetime.now(tz=UTC)}]({error_code}) {error_msg}"
+        self.error_code = error_code
+        self.error_msg = error_msg
+
     def _update_cur_node(self, curr_node_id: str, output: ActionNodeOutput | None, save_as: str | None) -> None:
         if output:
             if output.output_text:
                 self.outputs[curr_node_id] = output.output_text
             if output.error_code:
-                self.errors[curr_node_id] = f"[{datetime.now(tz=UTC)}]({output.error_code}) {output.error_msg}"
-                self.error_code = output.error_code
-                self.error_msg = output.error_msg
+                self.record_node_error(curr_node_id, output.error_code, output.error_msg)
             else:
                 self.outputs[curr_node_id] = output.output_text
                 if save_as:

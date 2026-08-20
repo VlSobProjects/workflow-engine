@@ -44,6 +44,11 @@ WORKFLOW: dict[str, object] = {
                 "answer": [{"name": "review_root", "type": "Path", "description": "Folder to review"}],
                 "errors": {"root_unavailable": "The folder cannot be reached from where you are."},
             },
+            # The seatbelt above the flow's own logic: the check that catches a bad answer is a node
+            # away, so every correction re-enters this question as a fresh visit and its
+            # `max_attempts` never counts up. Three passes is an order beyond what the flow expects,
+            # and it is what stops an answerer who cannot produce a reachable folder. See ADR 017.
+            "max_visits": 3,
             "transitions": [
                 {"errors": ["root_unavailable", "answer_failed"], "fail": "review_root_missing"},
                 # ADR-0083 `auto_log_stop`: the answerer walks away and the run is failed on the spot.
@@ -62,7 +67,7 @@ WORKFLOW: dict[str, object] = {
                 # The check has to be a routing transition rather than a `validators` entry: a
                 # `validators` entry fails the node, and the question the answer came from is two
                 # nodes back. Going back re-enters ASK_ROOT as a fresh visit, so its `max_attempts`
-                # is reset every time and nothing bounds this loop but the global hard cap.
+                # is reset every time; what bounds this loop is the `max_visits` ASK_ROOT declares.
                 {
                     "next": "ASK_INSPECT",
                     "validator": {"function_name": "is_output_exist_folder"},
@@ -387,21 +392,29 @@ def test_a_failure_answer_routes_on_its_declared_code(workspace, capsys):
     assert "review_root_missing" in json.dumps(response)
 
 
-def test_a_bad_answer_is_caught_one_node_later_and_the_retry_is_unbounded(workspace, capsys):
+def test_a_bad_answer_is_caught_one_node_later_and_the_retry_is_bounded_by_the_visit_cap(workspace, capsys):
     """The answered value is checked one node later, because the ask node's guards cannot see it.
 
-    The consequence is the point: the retry re-enters the question as a fresh visit, so the node's own
-    `max_attempts` never counts up. The same wrong answer can be given forever, and only the global
-    hard cap of ADR 010 stands in the way.
+    The consequence used to be unbounded: the retry re-enters the question as a fresh visit, so the
+    node's own `max_attempts` never counts up and the same wrong answer could be given until the
+    global hard cap of ADR 010 stopped the run far from the node that ate it. The `max_visits` the
+    question declares is what ends it now, at the question itself. See ADR 017.
     """
     session_id, _ = start(workspace, capsys)
-    for _ in range(5):
+    for _ in range(2):
         code, response = resume(
             workspace, session_id, capsys, answer(values={"review_root": workspace["review_root"] + "/missing"})
         )
         assert code == 2, response
         assert question_of(response)["node_id"] == "ASK_ROOT"
 
+    code, response = resume(
+        workspace, session_id, capsys, answer(values={"review_root": workspace["review_root"] + "/missing"})
+    )
+    assert code == 3, response
+    assert "max_visits_exceeded" in json.dumps(response)
+    assert "question" not in cast(dict[str, object], response["data"])
+
     state = state_of(workspace, session_id)
     assert cast(dict[str, object], state["attempt_counters"])["ASK_ROOT"] == 0
-    assert cast(dict[str, object], state["visit_counters"])["ASK_ROOT"] == 5
+    assert cast(dict[str, object], state["visit_counters"])["ASK_ROOT"] == 3

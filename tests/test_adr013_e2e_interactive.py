@@ -142,6 +142,8 @@ class TestAnswering:
         assert answered["actor"] == "operator"
         assert answered["details"] == {
             "node_id": "ASK_APPROVAL",
+            "visit": 1,
+            "attempt": 1,
             "status": "success",
             "actor": "operator",
             "names": ["reviewer"],
