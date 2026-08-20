@@ -9,7 +9,8 @@
   session `2026-08-19-architecture-2`; §4 was found while fixing its text rendering — session
   `2026-08-19-implementation-14`),
   ADR 018 (session read surfaces — removes the `inputs` field of `show-state`, sharpening the missing
-  workflow-definition introspection surface)
+  workflow-definition introspection surface; Accepted 2026-08-21, publishing the full codec name on two
+  new read surfaces — see §2)
 
 Four model choices that outlive the ADR 012 session and are not decisions yet. The facts behind them
 are recorded in the ADR 012 change log; this note carries only the open questions a frozen ADR cannot
@@ -39,6 +40,22 @@ Question: should the codec registry own stable public aliases (always `pathlib.P
 decoupled from `__module__`, so persisted definitions and the help contract are portable across
 interpreter versions? Touches the ADR 006 codec round-trip and the ADR 009 help contract. (Hardening,
 low urgency.)
+
+Widened by ADR 018 (session `2026-08-21-implementation-1`): the full codec name is now contract on two
+read surfaces — the `type` field of `list-parameters` and the `object_type` of the `show-parameter`
+envelope — where before it reached the outside only through `state.json`. Every new publisher raises
+the price of a later rename, so the urgency is no longer low.
+
+Direction under discussion (2026-08-21): the registry keys each codec by one stable short name
+(`Path`, `int`) and keeps the full names as synonyms. An interpreter transition adds the new spelling
+as one more synonym instead of replacing the old one, so definitions and states persisted under an
+older interpreter keep resolving — backward compatibility by accretion. The published surfaces carry
+only the short name; the synonyms exist for resolution — persisted state and machine readers — not
+for publishing. For the core codecs that already exist this promotes the bare-name fallback from a
+fallback to the contract. Open edges: whether the `object_type` of the persisted envelope changes its
+spelling, which is a state-migration question; and how an external module claims a short name without
+colliding with the core, which touches the entry-point discovery note
+(`2026-08-19-entry-point-discovery.md`).
 
 ## 3. No introspection surface for the workflow definition
 
