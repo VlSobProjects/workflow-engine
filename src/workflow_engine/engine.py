@@ -36,6 +36,7 @@ from workflow_engine.workflow import WorkflowNode, workflow_node_factory
 
 NO_TRANSITION_ERROR = "no_transition_matched"
 ATTEMPTS_EXCEEDED_ERROR = "max_attempts_exceeded"
+VISITS_EXCEEDED_ERROR = "max_visits_exceeded"
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +173,45 @@ def _state_hints(state: StateModel) -> list[str]:
     ]
 
 
+def _visit_cap_reached(node: WorkflowNode, state: StateModel) -> bool:
+    """Whether the node has already completed the visits it declared. See ADR 017 §1.
+
+    ``visit_counters`` count departures, so they hold the completed visits and the node runs exactly
+    ``max_visits`` times. A re-presented question consumes no visit (ADR 013 §6), which is why asking
+    the same question again can never move this answer.
+    """
+    max_visits = node.config.max_visits
+    return max_visits is not None and state.visit_counters.get(node.id, 0) >= max_visits
+
+
+def _visit_cap_response(node: WorkflowNode, state: StateModel, storage: Storage) -> PresentResponse:
+    """Fail the run at the node the cap belongs to, before its action runs.
+
+    The failure is the workflow's, not the node's: the check precedes the action, so there is no
+    output for the node's own transitions to route on, and the code is reported the way
+    ``max_attempts_exceeded`` is. See ADR 017 §3.
+    """
+    visits = state.visit_counters.get(node.id, 0)
+    failure = f"{node.id}: Node {node.id} failed: {VISITS_EXCEEDED_ERROR} after {visits} visits"
+    state.record_node_error(node.id, VISITS_EXCEEDED_ERROR, f"Node {node.id} failed: {VISITS_EXCEEDED_ERROR}")
+    state.record_session_event(
+        SessionEvent.engine_event(
+            SessionEventCode.WORKFLOW_FAILED,
+            {"node_id": node.id, "failure": failure, "visits": visits, "max_visits": node.config.max_visits},
+        )
+    )
+    storage.save_state(state)
+    return PresentResponse(
+        title="Node visit cap reached",
+        description=f"Node '{node.id}' has completed the {node.config.max_visits} visits it declares "
+        f"in 'max_visits', so it was not entered again and the workflow failed.",
+        instruction="Fix the loop that keeps returning to this node, or raise its 'max_visits' if the "
+        "run legitimately needs more passes through it.",
+        hints=_state_hints(state),
+        errors={node.id: failure},
+    )
+
+
 def _start_engine(
     workflow_nodes: MappingProxyType[str, WorkflowNode],
     storage: Storage,
@@ -259,6 +299,13 @@ def _start_engine(
                     )
 
                 cur_node = next_node
+
+            # The entry check of the per-node cap, and the reason it sits here rather than at the top
+            # of the loop: the node about to run is only known once the transition has been taken, and
+            # at the top of an iteration `cur_node` is still the node whose output is being routed.
+            # See ADR 017 §1.
+            if cur_node is not None and _visit_cap_reached(cur_node, state):
+                return _visit_cap_response(cur_node, state, storage)
 
             if cur_node and isinstance(cur_node.action, BaseAutomaticAction):
                 output = cur_node.action.execute(state_read_only, output)
@@ -398,15 +445,23 @@ def _run_entry_event(state: StateModel) -> SessionEvent:
     )
 
 
-def _answered_event(node_id: str, answer: Answer, bound: BoundAnswer) -> SessionEvent:
+def _answered_event(state: StateModel, answer: Answer, bound: BoundAnswer) -> SessionEvent:
     """Journal the answer as an operator-side event. See ADR 013 §9.
 
     It records who answered and which names were bound with which codecs, never the values, mirroring
     ``inputs_set``. The label rides in the details because ``SessionEvent.actor`` stays the two-valued
     engine/operator distinction of ADR 006: who supplied an answer is a property of the answer.
+
+    ``visit`` and ``attempt`` place the answer in the run: the visit of the node it belongs to, and the
+    ordinal of the answer within that visit. The counters keep their enforcement semantics — attempts
+    reset on departure — so the retries that reset away are recorded here instead of being
+    reconstructible only by counting events between visit boundaries. See ADR 017 §4.
     """
+    node_id = state.current_node_id
     details: dict[str, object] = {
         "node_id": node_id,
+        "visit": state.visit_counters.get(node_id, 0) + 1,
+        "attempt": state.attempt_counters.get(node_id, 0) + 1,
         "status": answer.status.value,
         "actor": answer.actor,
         "names": list(bound.codecs),
@@ -538,7 +593,7 @@ class WorkflowEngine:
 
         runtime.state.record_session_event(_run_entry_event(runtime.state))
         if answer is not None and bound is not None:
-            runtime.state.record_session_event(_answered_event(runtime.state.current_node_id, answer, bound))
+            runtime.state.record_session_event(_answered_event(runtime.state, answer, bound))
         self._commit(runtime)
         output = bound.output if bound is not None else None
         response = _start_engine(runtime.nodes, runtime.storage, runtime.state, output, self.hard_max_nodes_visited)

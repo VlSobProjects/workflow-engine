@@ -32,6 +32,13 @@ soft limit pauses the run with `workflow_paused_limit`; reaching the hard cap pa
 `workflow_paused_safety_limit`. The hard cap cannot be changed by a session command: continuing past
 it requires raising the value in the configuration file before the resume.
 
+Beside the two run-wide budgets a single node may declare its own ceiling, `max_visits` (see
+ADR 017). The engine checks it when it is about to run the node, before the action, and fails the
+workflow under `max_visits_exceeded` naming that node. There is no default: a node without the key is
+bounded only by the budgets above. The two answer different questions — the budgets protect the host
+from any definition, `max_visits` stops one loop at the node that causes it — and a business bound,
+which is dynamic, belongs in the flow data instead: a parameter that guards and functions resolve.
+
 ## A node
 
 A node is **one action and an ordered list of guarded transitions**. See ADR 002.
@@ -58,6 +65,13 @@ spent, a self-targeting transition fails the node under `max_attempts_exceeded`,
 carries `attempts` towards another node finally takes that route. A failure target's code is optional:
 when the transition configuration omits `fail`, the node fails under the error code the action already
 produced instead of a new one.
+
+`max_attempts` bounds one visit, and leaving the node resets it, so a loop that returns through
+another node is not bounded by it. The optional `max_visits` bounds the visits themselves: the engine
+refuses to enter the node once it has completed that many, and fails the workflow under
+`max_visits_exceeded`. The check runs before the action, so the node has no output at that point and
+its own transitions never see the code — the exhaustion is not routable, exactly as
+`max_attempts_exceeded` is not. A declared `max_visits` below `1` is a configuration error.
 
 ## Guards
 
@@ -130,7 +144,9 @@ node's own transitions route like any other failure. Either way the answer goes 
 guards and transitions, never around them, and is journaled as the operator event
 `interactive_answered` with the answered names and their codecs, never the values; the actor label
 rides in the event details because `SessionEvent.actor` stays the two-valued engine/operator
-distinction of ADR 006.
+distinction of ADR 006. The event also places the answer in the run, as the `visit` of the node and
+the `attempt` ordinal within that visit: the counters are enforcement state and reset on departure,
+so the journal is where a retry leaves a record that survives (see ADR 017).
 
 **Computing on the answer.** An interactive action may carry a registered function, and `ask` does:
 with `function_name` (plus optional `function_parameters`) the function runs on an accepted answer
@@ -149,9 +165,11 @@ codec cannot decode, and an error code outside the node's catalogue. Every refus
 nothing and journals nothing — a refused command did not happen to the run.
 
 **Asking again.** `resume` without an answer presents the same question again, consuming neither an
-attempt nor a visit, which is all an escalation needs. A transition back to the node consumes an
-attempt and is bounded by `max_attempts` like anywhere else. A question waiting for an answer is not
-engine work, so the ADR 010 node budget does not bound how long it stays open.
+attempt nor a visit, which is all an escalation needs — and because it consumes no visit it can never
+exhaust the node's `max_visits` either. A transition back to the node consumes an attempt and is
+bounded by `max_attempts` like anywhere else; a correction routed through another node comes back as
+a fresh visit, which is what `max_visits` bounds. A question waiting for an answer is not engine work,
+so the ADR 010 node budget does not bound how long it stays open.
 
 ## Registries
 
@@ -179,7 +197,8 @@ Guards and transitions are not registries: their classes are listed in their own
 ## State
 
 `StateModel` carries everything a resumed run needs: session identity (`session_id`, `flow_id`,
-`schema_version`, `timestamp`), the current node, the node visit/attempt counters and the
+`schema_version`, `timestamp`), the current node, the node visit/attempt counters — enforcement state
+owned by the engine, which is why a node cannot write them — and the
 `max_nodes_visited`/`nodes_visited` soft-limit budget (see ADR 010), the output and error of each
 node plus the latest `error_code`/`error_msg`, the guard results of the latest attempt of each node,
 the parameters saved through `save_as`, and the working directory.

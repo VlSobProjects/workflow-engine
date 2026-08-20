@@ -55,6 +55,12 @@ Any default that fits an interactive retry loop (tens) is false for a recursive 
 nodes legitimately complete hundreds of visits; a safety default that half the flows must silence as
 routine is worse than an opt-in, because silencing becomes a habit exactly where the cap matters.
 
+Absence of the key is therefore the only spelling of "unbounded". A declared value below `1` would
+refuse the node on its very first entry, which nobody means by writing the key, so it is refused as a
+configuration error rather than accepted as a second way to say "no cap" — the engine-wide
+`max_nodes_visited`, where `0` does mean "no soft limit", is an operator setting on the session and
+not a statement an author writes into a definition.
+
 ### 3. The failure is a workflow failure, not a routable one
 
 `max_visits_exceeded` behaves like `max_attempts_exceeded`: a failure with its own code, not a node
@@ -124,8 +130,13 @@ counter only implies it.
 - Enables: a declared ceiling on any loop through a node, held by the engine; an interactive retry
   loop stopped at the culprit node for the price of one config key, instead of at the host cap far
   from it; self-describing answer events.
-- Costs: a node key and an error code in the help surface (ADR 009); one check on the engine's entry
+- Costs: a node key and an error code an author has to be told about; one check on the engine's entry
   path; two ordinals on `interactive_answered`.
+- The ADR 009 help contract does not carry it. That contract is per component — actions, functions,
+  guards, codecs — and publishes no node keys at all: `max_attempts` appears in it only as a
+  transition hint of `ask`. `max_visits` is documented the same way, plus `README.md` and the
+  architecture overview. Publishing node keys as a help surface of their own is a change to a stable
+  contract and belongs to its own decision, not to this one.
 - Additive to ADR 010: the session limit and the host cap stay; the scope question of the global cap
   (host vs workflow vs workflow type) stays open in the cap-scoping note on its own merits.
 - Settles: the counters cost carried by ADR 015's Consequences.
@@ -143,16 +154,27 @@ counter only implies it.
 
 ## Implementation notes
 
-No POC; the counter half of the mechanism already exists. The entry check reads
-`visit_counters` — maintained at every departure — in `_start_engine` before the action dispatch;
-the error constant sits beside `ATTEMPTS_EXCEEDED_ERROR`; the ordinals are read from
+No POC; the counter half of the mechanism already existed. The entry check reads `visit_counters` —
+maintained at every departure, so they hold the completed visits — in `_start_engine`; the error
+constant sits beside `ATTEMPTS_EXCEEDED_ERROR`; the ordinals are read from
 `visit_counters`/`attempt_counters` when the answer event is recorded. The scenario flow's
-unbounded-retry test (`tests/test_adr0083_scenario.py`) becomes the bounded case: the same wrong
-answer five times must end in `max_visits_exceeded` at the question node. The key applies to any
-node, automatic or interactive — nothing in it is specific to `ask`; the evidence merely came from
-an interactive loop.
+unbounded-retry test (`tests/test_adr0083_scenario.py`) became the bounded case: the same wrong
+answer now ends in `max_visits_exceeded` at the question node. The key applies to any node,
+automatic or interactive — nothing in it is specific to `ask`; the evidence merely came from an
+interactive loop.
 
-No open points: the decision is small enough to implement directly once its turn comes.
+Two things the build settled, neither of them a change to the decision:
+
+1. **The check sits at the action dispatch, not at the top of the run loop.** The loop begins an
+   iteration with `cur_node` still holding the node whose output is being routed; the node that is
+   about to run is known only after the transition has been taken. Checking at the top would test the
+   node being left.
+2. **A node that never ran has no `ActionNodeOutput` to carry its error.** Routing the failure
+   through the normal write path would count a visit the node never made, so the state records the
+   error directly (`StateModel.record_node_error`, which `_update_cur_node` now shares) and the
+   counters stay untouched.
+
+No open points: the decision was small enough to implement directly.
 
 ## Change log
 
@@ -162,3 +184,10 @@ No open points: the decision is small enough to implement directly once its turn
   static, with no default and no routing. Counters-as-parameters was proposed for universality and
   rejected (alternative F) — universality comes from the bound being a parameter, not from exposing
   engine state to user code.
+- 2026-08-20: moved to Implementing and built in session `2026-08-20-implementation-3`. Two
+  amendments, both refinements of what was already decided: §2 states that a declared value below `1`
+  is a configuration error, so absence of the key stays the only spelling of "unbounded"; and the
+  Consequences correct the help-surface cost — the ADR 009 contract is per component and publishes no
+  node keys at all, so `max_visits` is documented where `max_attempts` already is instead. The
+  Implementation notes record the two questions the build answered: where the entry check sits in the
+  run loop, and how a node that never ran records its error without counting a visit.

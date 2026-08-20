@@ -159,6 +159,8 @@ def _string_map(data: dict[str, object], key: str) -> dict[str, str]:
             "plus the generic 'answer_failed'.",
             "Value guards compare the optional answer 'text', which is the output text of the node.",
             "A transition back to the node itself asks again and is bounded by 'max_attempts'.",
+            "A correction routed through another node re-enters the question as a fresh visit, which "
+            "resets 'max_attempts'; the node key that bounds that loop is 'max_visits'.",
             "With 'function_name' the guards route on what the function returned, not on what was "
             "answered, and a function that reports an error code fails the node under it.",
         ),
