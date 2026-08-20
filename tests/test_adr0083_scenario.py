@@ -6,9 +6,12 @@ into a run: one workflow covering `Q`, `A`, `I`, `FQ` and `STOP`, the attempt co
 process-running function.
 
 The flow is a release readiness review answered by an agent: an operator names the folder, the agent
-inspects it and reports, asks itself follow-up questions until it has enough, and decides. What the
-flow is *for*, beyond running green, is the evidence ADR 015 asks for: which of its nodes exist only
-to adjust data, and where the answer had to be constrained by wording instead of by code.
+inspects it and reports, asks itself follow-up questions until it has enough, and decides. It was
+written as eleven nodes, four of which existed only to adjust data beside a question; with the post
+function pair of ADR 015 in the core those four are folded into the questions they served and seven
+are left, each of which asks, produces or stops. What the flow is *for*, beyond running green, is
+that measurement and the one it did not answer: where an answer still has to be constrained by
+wording instead of by code.
 """
 
 import json
@@ -36,47 +39,39 @@ WORKFLOW: dict[str, object] = {
         },
         {
             # ADR-0083 `Q`: one prepared question to the operator, answered as a typed value.
+            # The question checks what it bound: 'echo_answer' puts the answered folder into the
+            # output text before the transitions are selected, so the check that used to cost the
+            # CHECK_ROOT node is a guard on this node's own routing (ADR 015).
             "id": "ASK_ROOT",
             "action_type": "ask",
             "action_parameters": {
                 "title": "Folder to review",
                 "instruction": "Name the folder that holds the release candidate.",
                 "answer": [{"name": "review_root", "type": "Path", "description": "Folder to review"}],
-                "errors": {"root_unavailable": "The folder cannot be reached from where you are."},
+                "errors": {
+                    "root_unavailable": "The folder cannot be reached from where you are.",
+                    # ADR-0083 `auto_log_stop`: the answerer walks away. With the check folded in,
+                    # the node routes on the folder rather than on the answer text, so walking away
+                    # is the declared refusal the contract always had, not a word in the text.
+                    "review_abandoned": "The review is abandoned; no folder will be named.",
+                },
+                "function_name": "echo_answer",
+                "function_parameters": {"name": "review_root"},
             },
-            # The seatbelt above the flow's own logic: the check that catches a bad answer is a node
-            # away, so every correction re-enters this question as a fresh visit and its
-            # `max_attempts` never counts up. Three passes is an order beyond what the flow expects,
-            # and it is what stops an answerer who cannot produce a reachable folder. See ADR 017.
-            "max_visits": 3,
+            # A rejected folder now re-asks in place, so the bound is the node's own attempts. The
+            # visit cap that used to save this loop is not needed: nothing leaves and comes back.
+            "max_attempts": 2,
             "transitions": [
                 {"errors": ["root_unavailable", "answer_failed"], "fail": "review_root_missing"},
-                # ADR-0083 `auto_log_stop`: the answerer walks away and the run is failed on the spot.
-                {"validator": {"equals": "abort"}, "fail": "review_abandoned"},
-                {"next": "CHECK_ROOT"},
-            ],
-        },
-        {
-            # Data only. The answered value is not on the bus while the ask node's own guards run, and
-            # a node `validators` entry reads the output text, so checking that the folder exists
-            # costs a node that surfaces the value into an output text.
-            "id": "CHECK_ROOT",
-            "action_type": "function",
-            "action_parameters": {"function_name": "echo_value", "function_parameters": {"value": "param.review_root"}},
-            "transitions": [
-                # The check has to be a routing transition rather than a `validators` entry: a
-                # `validators` entry fails the node, and the question the answer came from is two
-                # nodes back. Going back re-enters ASK_ROOT as a fresh visit, so its `max_attempts`
-                # is reset every time; what bounds this loop is the `max_visits` ASK_ROOT declares.
-                {
-                    "next": "ASK_INSPECT",
-                    "validator": {"function_name": "is_output_exist_folder"},
-                },
+                {"errors": ["review_abandoned"], "fail": "review_abandoned"},
+                {"next": "ASK_INSPECT", "validator": {"function_name": "is_output_exist_folder"}},
                 {"next": "ASK_ROOT"},
             ],
         },
         {
             # ADR-0083 `I`: an instruction to act outside the engine and report the aggregate.
+            # The answered issue list is surfaced by the node itself, so the branch on "anything to
+            # follow up?" is taken here instead of in a CHECK_ISSUES node behind it.
             "id": "ASK_INSPECT",
             "action_type": "ask",
             "action_parameters": {
@@ -90,45 +85,24 @@ WORKFLOW: dict[str, object] = {
                     {"name": "issues", "type": "list", "description": "One short string per issue found"},
                     {"name": "report_text", "description": "The report paragraph"},
                 ],
+                "function_name": "echo_answer",
+                "function_parameters": {"name": "issues"},
             },
+            # With a post function configured, 'save_as' keeps what the function returned rather than
+            # what was answered: the surfaced issue list, not the answer text (ADR 015).
             "save_as": "inspect_text",
-            "transitions": [{"next": "CHECK_ISSUES"}],
-        },
-        {
-            # Data only. Routing on how many issues came back needs the answered list in an output.
-            "id": "CHECK_ISSUES",
-            "action_type": "function",
-            "action_parameters": {"function_name": "echo_value", "function_parameters": {"value": "param.issues"}},
             "transitions": [
-                {
-                    "next": "FQ_CHECK",
-                    "validator": {
-                        "function_name": "is_collection_size_at_least",
-                        "function_parameters": {"collection": "param.issues", "minimum": 1},
-                    },
-                },
-                {"next": "ASK_APPROVE"},
-            ],
-        },
-        {
-            # Data only, and the head of the FQ loop: the size check cannot live on the node that
-            # appends, because a guard sees the state as it was before its own node wrote to it.
-            "id": "FQ_CHECK",
-            "action_type": "function",
-            "action_parameters": {"function_name": "echo_value", "function_parameters": {"value": "param.qa_log"}},
-            "transitions": [
-                {
-                    "next": "ASK_APPROVE",
-                    "validator": {
-                        "function_name": "is_collection_size_at_least",
-                        "function_parameters": {"collection": "param.qa_log", "minimum": 2},
-                    },
-                },
+                # A surfaced collection is compact JSON (ADR 016), so an empty issue list is
+                # literally '[]'. Counting it is not expressible here: 'is_collection_size_at_least'
+                # resolves its collection from the state, where an answered value has not landed yet.
+                {"next": "ASK_APPROVE", "validator": {"equals": "[]"}},
                 {"next": "ASK_FOLLOWUP"},
             ],
         },
         {
-            # ADR-0083 `FQ`: the agent generates its own next question and answers it.
+            # ADR-0083 `FQ`: the agent generates its own next question and answers it. One node:
+            # 'collect_answer' appends the pair and reports whether the loop has enough, which is
+            # what the FQ_CHECK head and the FQ_COLLECT tail used to do between them.
             "id": "ASK_FOLLOWUP",
             "action_type": "ask",
             "action_parameters": {
@@ -141,27 +115,23 @@ WORKFLOW: dict[str, object] = {
                 ),
                 "answer": [{"name": "qa_pair", "type": "dict", "description": "Keys 'question' and 'answer'"}],
                 "errors": {"followup_unanswerable": "The question cannot be answered from the material at hand."},
+                "function_name": "collect_answer",
+                "function_parameters": {"param_name": "qa_log", "minimum": 2, "name": "qa_pair"},
             },
-            "max_attempts": 2,
+            # The loop now runs in place, so it spends the attempts the node declares: two collected
+            # pairs are one attempt, and what is left bounds the unanswerable retry below.
+            "max_attempts": 3,
             "transitions": [
                 {"errors": ["followup_unanswerable"], "next": "ASK_APPROVE", "attempts": True},
                 {"errors": ["answer_failed"], "fail": "followup_failed"},
-                {"next": "FQ_COLLECT"},
+                {"next": "ASK_APPROVE", "validator": {"equals": "enough"}},
+                {"next": "ASK_FOLLOWUP"},
             ],
         },
         {
-            # Data only: the ask node cannot append its own answer to a collection.
-            "id": "FQ_COLLECT",
-            "action_type": "function",
-            "action_parameters": {
-                "function_name": "append_to_param",
-                "function_parameters": {"param_name": "qa_log", "value": "param.qa_pair"},
-            },
-            "transitions": [{"next": "FQ_CHECK"}],
-        },
-        {
             # ADR-0083 `A`: a branch decision with no dialogue. The decision travels in the answer
-            # text, so the node's own guards route on it and 'save_as' keeps it — no surfacing node.
+            # text, so the node's own guards route on it and 'save_as' keeps it — and no post
+            # function belongs here, because one would replace the very text the guards compare.
             "id": "ASK_APPROVE",
             "action_type": "ask",
             "action_parameters": {
@@ -196,9 +166,8 @@ WORKFLOW: dict[str, object] = {
                     "table_format": "csv",
                 },
             },
-            # A `validators` entry is the right shape here and the wrong shape at CHECK_ROOT: it
-            # expands to a leading failure transition, so it asserts and cannot be routed around.
-            # A node that must not silently produce no handoff wants exactly that.
+            # A `validators` entry asserts and cannot be routed around: it expands to a leading
+            # failure transition. A node that must not silently produce no handoff wants exactly that.
             "validators": [
                 {"function_name": "is_output_contains_str", "function_parameters": {"substring": "pretty_table"}}
             ],
@@ -290,6 +259,13 @@ def param_value(state: dict[str, object], name: str) -> object:
     return stored
 
 
+def test_the_flow_is_the_seven_nodes_the_coverage_note_predicted():
+    """Eleven nodes minus the four that only adjusted data beside a question. See the note, item 5."""
+    node_ids = [cast(dict, node)["id"] for node in cast(list[object], WORKFLOW["nodes"])]
+
+    assert node_ids == ["INIT_LOG", "ASK_ROOT", "ASK_INSPECT", "ASK_FOLLOWUP", "ASK_APPROVE", "HANDOFF", "FINISH"]
+
+
 def test_the_flow_runs_through_every_adr0083_node_type(workspace, capsys):
     """Q, I, FQ twice, A, the handoff deliverable and STOP, in one pass."""
     session_id, response = start(workspace, capsys)
@@ -332,7 +308,8 @@ def test_the_flow_runs_through_every_adr0083_node_type(workspace, capsys):
 
     state = state_of(workspace, session_id)
     assert param_value(state, "decision") == "approved"
-    assert param_value(state, "inspect_text") == "reported"
+    # The node asked and computed, so what it produced is the surfaced issue list, not "reported".
+    assert param_value(state, "inspect_text") == '["no changelog entry","version not bumped"]'
     assert len(cast(list[object], param_value(state, "qa_log"))) == 2
     assert "handoff_table" in cast(dict[str, object], state["artifacts"])
 
@@ -362,62 +339,56 @@ def test_a_rejected_release_fails_the_run_under_its_own_code(workspace, capsys):
     assert "review_rejected" in json.dumps(response)
 
 
-def test_an_answer_whose_node_then_fails_is_journaled_and_its_values_are_applied(workspace, capsys):
-    """The precedent ADR 015 open point 4 needs: this already happens, and the values do land.
+@pytest.mark.parametrize(
+    ("declared_code", "failure_code"),
+    [("root_unavailable", "review_root_missing"), ("review_abandoned", "review_abandoned")],
+)
+def test_a_failure_answer_routes_on_its_declared_code(workspace, capsys, declared_code, failure_code):
+    """Both refusals the first question declares, including the answerer who walks away.
 
-    The engine applies a node's writes before it looks at whether the step failed, so a success answer
-    that routes straight into a `fail` target leaves both an `interactive_answered` event and the
-    values it carried on the bus. What it does not leave is `save_as`, which is skipped once the output
-    carries an error code.
+    Walking away is a failure answer rather than a word in the answer text: the question now computes
+    on what it bound, so its own guards compare the folder that was named and no longer the text that
+    came with it. ADR-0083 `auto_log_stop` is the `FailTarget` this routes into, plus the
+    `interactive_answered` event the refusal leaves behind.
     """
-    session_id, _ = start(workspace, capsys)
-    code, response = resume(
-        workspace, session_id, capsys, answer(values={"review_root": workspace["review_root"]}, text="abort")
-    )
-    assert code == 3, response
-    assert "review_abandoned" in json.dumps(response)
-
-    state = state_of(workspace, session_id)
-    answered = [event for event in cast(list[dict], state["session_events"]) if event["code"] == "interactive_answered"]
-    assert [event["details"]["names"] for event in answered] == [["review_root"]]
-    assert param_value(state, "review_root") == workspace["review_root"]
-
-
-def test_a_failure_answer_routes_on_its_declared_code(workspace, capsys):
     session_id, response = start(workspace, capsys)
     assert question_of(response)["error_catalogue"] == {
-        "root_unavailable": "The folder cannot be reached from where you are."
+        "root_unavailable": "The folder cannot be reached from where you are.",
+        "review_abandoned": "The review is abandoned; no folder will be named.",
     }
     code, response = resume(
-        workspace, session_id, capsys, failure("root_unavailable", "No such folder here.", actor="operator:release")
+        workspace, session_id, capsys, failure(declared_code, "Not going further.", actor="operator:release")
     )
     assert code == 3, response
-    assert "review_root_missing" in json.dumps(response)
+    assert failure_code in json.dumps(response)
 
 
-def test_a_bad_answer_is_caught_one_node_later_and_the_retry_is_bounded_by_the_visit_cap(workspace, capsys):
-    """The answered value is checked one node later, because the ask node's guards cannot see it.
+def test_the_question_checks_what_it_bound_and_its_own_attempts_bound_the_retry(workspace, capsys):
+    """What used to cost a node behind the question, and an unbounded retry, is one node again.
 
-    The consequence used to be unbounded: the retry re-enters the question as a fresh visit, so the
-    node's own `max_attempts` never counts up and the same wrong answer could be given until the
-    global hard cap of ADR 010 stopped the run far from the node that ate it. The `max_visits` the
-    question declares is what ends it now, at the question itself. See ADR 017.
+    The check that catches an unreachable folder is a guard on this node's own routing, because the
+    post function surfaces the answered value before the transitions are selected (ADR 015). The
+    correction therefore re-asks in place, which is an *attempt*, so `max_attempts` bounds it at the
+    question itself — the `max_visits` seatbelt of ADR 017 is not what saves this run any more, and
+    the node no longer declares one.
+
+    It also carries the precedent ADR 015 open point 4 needed: the answers were accepted, so their
+    values are on the bus and the journal records them, even though the node they belong to failed.
     """
     session_id, _ = start(workspace, capsys)
+    missing = workspace["review_root"] + "/missing"
     for _ in range(2):
-        code, response = resume(
-            workspace, session_id, capsys, answer(values={"review_root": workspace["review_root"] + "/missing"})
-        )
+        code, response = resume(workspace, session_id, capsys, answer(values={"review_root": missing}))
         assert code == 2, response
         assert question_of(response)["node_id"] == "ASK_ROOT"
 
-    code, response = resume(
-        workspace, session_id, capsys, answer(values={"review_root": workspace["review_root"] + "/missing"})
-    )
+    code, response = resume(workspace, session_id, capsys, answer(values={"review_root": missing}))
     assert code == 3, response
-    assert "max_visits_exceeded" in json.dumps(response)
-    assert "question" not in cast(dict[str, object], response["data"])
+    assert "max_attempts_exceeded" in json.dumps(response)
 
     state = state_of(workspace, session_id)
-    assert cast(dict[str, object], state["attempt_counters"])["ASK_ROOT"] == 0
-    assert cast(dict[str, object], state["visit_counters"])["ASK_ROOT"] == 3
+    # One visit: the correction never left the node, which is why the attempts are what ran out.
+    assert cast(dict[str, object], state["visit_counters"])["ASK_ROOT"] == 1
+    answered = [event for event in cast(list[dict], state["session_events"]) if event["code"] == "interactive_answered"]
+    assert [event["details"]["names"] for event in answered] == [["review_root"]] * 3
+    assert param_value(state, "review_root") == missing

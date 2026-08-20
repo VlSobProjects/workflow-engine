@@ -30,11 +30,11 @@ twice, most recently against ADR 015, ADR 016 and ADR 017 together.
 | ADR-0083 | Carried by | Verdict |
 | --- | --- | --- |
 | `Q` — one prepared question to the operator | `ask` node: text and options in the presentation, a typed `answer` entry; `input_mode` is expressed by the codec (`path` → `pathlib.Path`). A prior value stands inside the question text as `${param.x}` (ADR 016) | full: since ADR 015 the node checks what it bound, because a post function reads the answered value and its result is what the node's own guards route on |
-| `A` — agent branch decision, no dialogue | the same `ask` node, answered by an agent; `allowed_values` is an `any_of` of `equals` guards **over the answer text**; `default` with `require_reason` is a `failure` answer with a code and a message; `auto_log_stop` is a `FailTarget` plus the `interactive_answered` event | full: a decision in `text` routes directly, and one that travels as a declared value is surfaced by the node's own post function (ADR 015) instead of by an `echo_value` node in front of the guards. No such function ships in the core — see "What is still missing" |
+| `A` — agent branch decision, no dialogue | the same `ask` node, answered by an agent; `allowed_values` is an `any_of` of `equals` guards **over the answer text**; `default` with `require_reason` is a `failure` answer with a code and a message; `auto_log_stop` is a `FailTarget` plus the `interactive_answered` event | full: a decision in `text` routes directly, and one that travels as a declared value is surfaced by the node's own post function (ADR 015) instead of by an `echo_value` node in front of the guards. That function is `echo_answer`, and it ships in the core |
 | `I` — instruction to the agent to act and report | the same `ask` node: the presentation is the instruction, the agent acts outside the engine and answers with the aggregated result; node `validators` already exist | full |
 | `S` — deterministic script with parameters | a `function` node over an external registered function that runs the script; `script_output_match` is several transitions with `contains` guards, whose configured value resolves `param.` references | needs one external function |
 | `STOP` | `stop` / `stop_on_error` and the `EndTarget` / `FailTarget` transition targets; `handoff_ref` is a deliverable (ADR 011); `cleanup_scripts` is a node before the end | full |
-| `FQ` — up to N agent-generated questions | one `ask` node whose post function appends the answer and returns whether the loop has enough, so the node routes its own loop (ADR 015); the two-node form `CHECK → ask → COLLECT → CHECK` over `append_to_param` and `is_collection_size_at_least` still works and is what the core components alone can express. A question repeated in place is bounded by `max_attempts`, a loop that leaves and returns by `max_visits` (ADR 017) | full, and no longer at the cost of two nodes; the one-node form is covered by `tests/test_adr015_post_function.py`, the two-node form by `tests/test_bounded_accumulating_loop.py` |
+| `FQ` — up to N agent-generated questions | one `ask` node whose post function appends the answer and returns whether the loop has enough, so the node routes its own loop (ADR 015) — `collect_answer` in the core; the two-node form `CHECK → ask → COLLECT → CHECK` over `append_to_param` and `is_collection_size_at_least` still works and is what the core components alone can express. A question repeated in place is bounded by `max_attempts`, a loop that leaves and returns by `max_visits` (ADR 017) | full, and no longer at the cost of two nodes; the one-node form is covered by `tests/test_adr015_post_function.py`, the two-node form by `tests/test_bounded_accumulating_loop.py` |
 | typed validators (`non_empty`, `regex`, `enum`, `path_exists`) | node `validators`, value guards, function guards | full |
 | `attempt_counters`, `max_visits`, retry actions | `attempt_counters` / `max_attempts` bounds a question repeated in place; `visit_counters` is read by the engine on entry against the `max_visits` a node declares, and exhaustion fails the run under `max_visits_exceeded` before the action runs (ADR 017). Neither counter is on `StateReadOnlyView` | full for the bounds. What ADR-0083 spells as a retry *action* is still a transition here, and a guard cannot read either counter — the ordinals are journaled on `interactive_answered`, not exposed to the graph |
 | logging: engine-authored vs agent-authored fields per node | `session_events` (the engine/operator actor split), `guard_results`, `outputs`, `errors`; the agent's verbal part is the answer's `text` and `message`. `interactive_answered` carries the visit and the attempt ordinal (ADR 017 §4) | in substance, but the verbal part lives in the state, not in the journal: the journal deliberately never stores values. The retries that the counters reset away are now readable from the journal itself |
@@ -155,19 +155,36 @@ rewritten, so the last item below separates what is verified from what is predic
    same map. What was "the engine gives the answerer no way to know" is now "the author has a way and
    the engine still has no rule".
 
-5. **What is verified, and what is not.** Every statement above was read in the delivered code —
-   `BaseInteractiveAction.process_answer` with the `AskAction` hook under it and the engine's call to
-   both, `AskAction.present`, `_visit_cap_reached`,
+5. **The prediction was measured, and it held.** Every mechanism above was first read in the
+   delivered code — `BaseInteractiveAction.process_answer` with the `AskAction` hook under it and the
+   engine's call to both, `AskAction.present`, `_visit_cap_reached`,
    `ActionNodeOutput.get_param`/`set_param`, and the ADR 015 tests that exercise the one-node
-   accumulating loop. The interpolation half of the rewrite has since been done
-   (session `2026-08-20-implementation-4`); the fold has not, so this is still the prediction the fold
-   has to confirm: four of the flow's eleven nodes — `CHECK_ROOT`, `CHECK_ISSUES`, `FQ_CHECK`,
-   `FQ_COLLECT` — exist only to adjust data next to a question, and all four fold into the post
-   function of the question they serve, leaving seven. A second effect falls out of the same fold: with
-   the check inside `ASK_ROOT`, a rejected path re-asks as an *attempt* rather than as a fresh visit, so
-   `max_attempts` bounds the loop and `max_visits` there stops being the thing that saves the run. The
-   cap keeps its purpose for loops that genuinely leave and return; it stops being the only bound on a
-   check that could have lived in the node.
+   accumulating loop. Both halves of the rewrite have since been run: the interpolation half in
+   session `2026-08-20-implementation-4`, the fold in `2026-08-20-implementation-5`. Four of the
+   flow's eleven nodes — `CHECK_ROOT`, `CHECK_ISSUES`, `FQ_CHECK`, `FQ_COLLECT` — existed only to
+   adjust data next to a question, and all four folded into the post function of the question they
+   served. **Seven nodes**, as predicted, and the flow covers what it covered before.
+
+   The second effect held too: with the check inside `ASK_ROOT`, a rejected folder re-asks as an
+   *attempt* rather than as a fresh visit, so `max_attempts` bounds the loop at the question and the
+   node no longer declares `max_visits` at all — nothing in the folded flow leaves a node and comes
+   back, which is the only thing the cap is for. The scenario therefore stops exercising ADR 017,
+   which is now covered only by `tests/test_adr017_max_visits.py`.
+
+   Two costs the prediction did not name, both paid at the questions that were folded into:
+
+   - **A node that computes cannot also route on the answer text.** The post function's result is the
+     whole output, so the surfaced value replaces the text the answerer wrote. `ASK_ROOT` used to read
+     the word "abort" out of a success answer; walking away is now the declared failure answer the
+     contract always had (`review_abandoned` in the node's catalogue), which is what row `A` maps
+     `auto_log_stop` to anyway. `save_as` moves with it: at `ASK_INSPECT` it now keeps the surfaced
+     issue list rather than the answer text.
+   - **The size of an answered collection is not checkable inside the node that asked.**
+     `is_collection_size_at_least` resolves its collection from the state, where an answered value has
+     not landed. `CHECK_ISSUES` therefore folded as an equality on the rendered value — an empty issue
+     list is literally `[]` (ADR 016) — rather than as the count it used to be. Deliberate: the pair
+     was what the decision named, and a guard reading the pending writes of the output is a component
+     with its own contract, to be decided when a second flow asks for it.
 
 ## What is still missing, in order
 
@@ -191,13 +208,18 @@ the work takes.
    rendering of a list where the bare field used to show a Python repr. Nothing else changed: no node
    was removed, no engine code was touched, and the flow still runs on the shipped core alone.
 
-   **The node-folding half is not done**, because it needs a function that does not exist — see the
-   next item. Until it is, item 5 of "What ADR 015, 016 and 017 changed" is a prediction and this
-   note's node count of eleven is still the current one.
-5. **The post function has a mechanism and no component — decided: the pair goes into the core**
-   (session `2026-08-20-architecture-6`). Every fold predicted above needs a function that takes the
-   injected `output` — surfacing an answered value, or appending it and reporting "enough" — and no
-   core function takes one: they were shipped with the mechanism only, and the two that prove it live
+   ~~The node-folding half is not done~~ — it is, in session `2026-08-20-implementation-5`, once the
+   functions of the next item shipped. The flow is seven nodes; what the fold measured is item 5 of
+   "What ADR 015, 016 and 017 changed".
+5. ~~**The post function has a mechanism and no component.**~~ Decided into the core in session
+   `2026-08-20-architecture-6` and built in `2026-08-20-implementation-5`: `echo_answer` surfaces a
+   declared answer value into the output text, `collect_answer` appends the answer to a collection
+   parameter and reports `enough` or `more`. Both live in `actions/answer_functions`, and both keep
+   the writes the answer carried rather than returning a fresh output. What the decision was, and
+   why, is kept below.
+
+   Every fold predicted above needs a function that takes the injected `output` — surfacing an
+   answered value, or appending it and reporting "enough" — and no core function takes one: they were shipped with the mechanism only, and the two that prove it live
    in `tests/test_adr015_post_function.py`. `echo_value`, the obvious candidate, cannot serve: it
    reads its value from the state, where the answer has not landed, and returns a fresh output that
    would drop the answered writes. The question the previous re-measurement deliberately left open is

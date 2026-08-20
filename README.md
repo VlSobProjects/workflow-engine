@@ -182,6 +182,13 @@ every answer of a loop, or normalizes a reply that is nearly right, instead of a
 `help-component --component-type actions --component-name ask` prints the keys and what the function
 receives.
 
+Two core functions take that injected answer, and a flow needs no code of its own to use the stage:
+`echo_answer` puts a declared answer value into the output text, so the question that asked routes on
+what it bound; `collect_answer` appends the answer to a list parameter prepared by `init_list_param`
+and answers `enough` or `more`, so the question that asks accumulates its own answers and decides
+when the loop is over. Both keep the writes the answer carried, and both fail the node under a code
+rather than routing a value that is not there.
+
 `--input NAME[:TYPE]=VALUE` is repeatable; `TYPE` names a registered codec. `help-components` lists
 codecs under their Python module path (e.g. `pathlib._local.Path` for `Path` on this Python version);
 the bare name shown above (`Path`) also resolves and is what the examples use. `set-input` only binds
