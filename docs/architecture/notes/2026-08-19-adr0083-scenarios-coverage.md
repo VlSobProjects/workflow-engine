@@ -7,9 +7,10 @@
   before it went its own way. Can its *scenarios* (not its contract) be realized here once ADR 013
   ships, given some external registered functions?
 - **Status:** open
-- **Affected:** ADR 010 (budget checkpoint shape), ADR 012 (deferred §1, shallow reference
-  resolution), ADR 013 (Accepted and delivered; the table below was re-verified against the code —
-  see "What the implementation changed"), ADR 014 (Draft, decides prompt templating)
+- **Affected:** ADR 010 (budget checkpoint shape, and now a per-node visit cap), ADR 012 (deferred §1,
+  shallow reference resolution), ADR 013 (Accepted and delivered; the table below was re-verified
+  against the code — see "What the implementation changed"), ADR 014 (Draft, decides prompt
+  templating), ADR 015 (Draft; the run below is the evidence its open points were waiting for)
 
 The answer is yes for the substance, with one core gap, one shape difference, and one function to
 write. Recorded here because the mapping keeps being re-derived, and because two of the three
