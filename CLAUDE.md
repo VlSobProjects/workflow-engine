@@ -31,7 +31,8 @@ Do not read unrelated docs, and create documents only inside the map defined in
 - No scope creep: change only what the task requires; do not fix unrelated problems unasked.
 - Before changing code, give a short explanation and wait for confirmation.
 - Never commit without showing the full commit message first and waiting: the user confirms it,
-  corrects it, or commits themselves. Merge and registry commits included.
+  corrects it, or commits themselves. Merge and registry commits included. Present the message as a
+  file, so it can be copied and extended without being retyped.
 - Architecture is discussed in critical mode: state at least two alternatives, the trade-offs, and
   the cost. Architectural changes happen under an ADR; an accepted ADR is frozen and only superseded.
 - A `feature/`, `fix/` or `refactor/` branch also carries the documentation its change made

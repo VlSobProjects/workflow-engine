@@ -21,7 +21,8 @@ completed
 ## Result
 `general-rules.md` gained section 12, `Commit confirmation`: the message, subject and body, is
 presented and the session waits, and the user confirms it, corrects it or commits themselves. It
-covers every commit, including a merge commit and a one line registry commit.
+covers every commit, including a merge commit and a one line registry commit, and the message is
+presented as a file rather than inline.
 
 `git-workflow.md` refers to it from the end of its `Commit messages` section. `CLAUDE.md` carries the
 same statement as a bullet of its non-negotiable summary, next to the existing rule that code changes
@@ -32,6 +33,10 @@ are explained before they are made.
   while `git-workflow.md` describes the form of git artifacts rather than the protocol with the user.
   The considered alternative, placing it next to the message form, keeps the topic together but hides
   the rule from every task that does not route to the git document.
+- The message is presented as a file. Presenting it inline was tried first and failed on the way
+  back: the terminal pads a rendered block to the width of the window, so the copied text arrives
+  with trailing whitespace on every line and cannot be extended comfortably. A file also matches the
+  `git commit -F <file>` habit the message form already states.
 - `.github/copilot-instructions.md` is left untouched: it routes and carries no rule content.
 
 ## Open questions
