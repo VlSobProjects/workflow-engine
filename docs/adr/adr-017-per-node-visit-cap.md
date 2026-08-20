@@ -1,10 +1,10 @@
 # ADR 017: Per-node visit cap
 
 ## Status
-Implementing
+Accepted
 
 ## Active branch
-`feature/adr_017-per-node-visit-cap`
+—
 
 ## Context
 
