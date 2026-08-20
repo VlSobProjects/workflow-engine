@@ -44,6 +44,25 @@ class ActionNodeOutput:
     param_writes: dict[str, ParamWrite] = field(default_factory=dict)
     artifacts: dict[str, WorkflowArtifact] = field(default_factory=dict)
 
+    def get_param(self, name: str, default: object = None) -> object:
+        """Read one value this output writes to the bus, without reading the write modes.
+
+        The counterpart of ``StateReadOnlyView.get_param`` for a value that has not landed yet: a
+        function post-processing an answer reads what was answered here, because an answer reaches
+        the bus only after the transition is selected. See ADR 015 §3.
+        """
+        param_write = self.param_writes.get(name)
+        return default if param_write is None else param_write.value
+
+    def set_param(self, name: str, value: object, allow_overwrite: bool = True) -> None:
+        """Write one value as a ``SET``, replacing whatever this output wrote under that name.
+
+        ``SET`` only, on purpose: every other write mode stays spelled out in ``param_writes``, so no
+        helper ever hides what a node does to a collection. Overwriting is allowed by default because
+        a question asked again in a loop answers the same names.
+        """
+        self.param_writes[name] = ParamWrite(mode=WriteParamMode.SET, value=value, allow_overwrite=allow_overwrite)
+
     def on_error(self) -> str:
         output_part = f", output: {self.output_text if self.output_text else ''}"
         return f"Error code {self.error_code}, message: {self.error_msg}{output_part}."

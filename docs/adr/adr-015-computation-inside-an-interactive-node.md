@@ -140,12 +140,18 @@ workarounds and one of the five uses the ADR-0083 flow produced (settles open po
 `APPEND` may create a collection that does not exist yet is collection-handler semantics outside this
 ADR; the honest node count of that flow is therefore eleven to seven, not eleven to six.
 
+"The function's result is the node's output" means all of it, which is where an author meets this
+decision first: a function that builds a fresh `ActionNodeOutput` instead of editing the one it was
+given returns an output without the answer's writes, and the answered values never reach the bus.
+Editing the given output and returning it is therefore the normal shape — and the reason the
+ergonomic accessors of the implementation notes serve reading *and* writing.
+
 A consequence to state rather than discover: `save_as` on a node that gains a post function stores the
 node's output text, which is then the function's text and no longer the answer's. That is consistent —
 `save_as` has always kept what the node produced — but on an interactive node it changes what an
 author gets, and the operator help of the shape in §8 has to say it.
 
-### 5. A failing post function is a node failure
+### 5. A failing post function is a node failure, and a failed answer never reaches it
 
 A post function reports an error the way every registered function does: an error code in its result,
 or an exception the engine turns into a node error. The node then routes on that code like any other
@@ -158,6 +164,12 @@ whether the step failed, so a success answer routed into a `fail` target already
 the output carries an error code (`tests/test_adr0083_scenario.py`). An accepted answer next to a
 failed node is the shape the engine already has, and a failing post function lands in it (settles
 open point 4).
+
+The other direction was left implicit by the Draft and is settled here: a *failure* answer does not
+reach the function at all. It carries a code the node declared, and the node's own transitions route
+it (ADR 013 §4); there is nothing of the exchange to transform, and a function running there could
+replace a declared refusal with a success of its own. The stage runs on an accepted success answer,
+and an interactive action returns a failure output untouched.
 
 ### 6. Refusal comes first, and is untouched
 
@@ -325,11 +337,18 @@ imagined one. That flow now exists (`tests/test_adr0083_scenario.py`, session
 `2026-08-20-investigation-1`), and the open points were settled against it.
 
 The ergonomics that open point 7 left with the object are an accessor pair on `ActionNodeOutput` —
-read one value, SET one value — with `APPEND` kept explicit so a helper never hides a write mode.
-That serves both sides equally, since an automatic-side function reads the previous node's output the
-same way, and it keeps `ParamWrite` internal rather than frozen by external use. Whether the pair
-ships is decided at implementation time; it is additive and does not change the contract of §3. If it
-ships, the two methods enter the ADR 009 surface.
+read one value, SET one value — with `APPEND` kept explicit so a helper never hides a write mode. That
+serves both sides equally, since an automatic-side function reads the previous node's output the same
+way, and it keeps `ParamWrite` internal rather than frozen by external use. The pair shipped with the
+implementation as `get_param` and `set_param`: `get_param` carries the name the read-only state view
+already uses, so a function reads a pending value and a stored one the same way, and `set_param`
+writes `SET` only and allows overwriting by default, because a question asked again in a loop answers
+the same names.
+
+The injection convention of §3a lives in `function_injection`, with the guard's differing convention
+beside it in the same module, so the difference between the two is read rather than remembered. The
+callers are the function-carrying action, the stop action, the interactive action and the function
+guard.
 
 ## Change log
 
@@ -357,6 +376,12 @@ ships, the two methods enter the ADR 009 surface.
 - 2026-08-20: the counters cost in the Consequences is settled by ADR 017 (session
   `2026-08-20-architecture-4`): the answer event carries the visit and attempt ordinals, and the
   counters keep their reset semantics.
+- 2026-08-20: implemented in session `2026-08-20-implementation-1`. Two contract points the decision
+  carried implicitly are now stated where they belong, because the code had to answer them either
+  way: a failure answer never reaches the post function (§5), and the function's result is the whole
+  node output, so a function that does not keep the answer's writes drops the answered values (§4).
+  The accessor pair of the implementation notes shipped, and the injection convention was extracted
+  as §3a asked.
 - 2026-08-20: open points 5 to 7 settled in the same session `2026-08-20-architecture-2`, closing the
   list. One function until evidence demands several (5); the pre-processing reconsideration moved out
   of the blocking list to Leaves open, since it waits on the templating decision and cannot be

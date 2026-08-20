@@ -86,7 +86,7 @@ entry becomes a leading transition `all_of(no_error, not P)` targeting failure u
 The transitions built from it no longer reference `validators`, but the raw list stays on
 `WorkflowNode.config` as part of the node's own definition.
 
-## Interactive exchange (see ADR 013)
+## Interactive exchange (see ADR 013, ADR 015)
 
 A node whose action is interactive asks a question and the run stops there. There is one contract
 whoever answers: an operator, an agent, or a calling program. Who answered is data about the answer,
@@ -119,6 +119,16 @@ guards and transitions, never around them, and is journaled as the operator even
 rides in the event details because `SessionEvent.actor` stays the two-valued engine/operator
 distinction of ADR 006.
 
+**Computing on the answer.** An interactive action may carry a registered function, and `ask` does:
+with `function_name` (plus optional `function_parameters`) the function runs on an accepted answer
+before the answer becomes the output the node's guards see. What it returns is the node output, all
+of it — output text, parameter writes, artifacts and error code — so a function that does not keep
+the writes it was given drops the answered values. It runs between the state view and the transition
+selection, which is why the state it reads is the state the guards read; a failure answer routes on
+its declared code and never reaches it, and a failing function fails the node the way any registered
+function does. The journal is unchanged: `interactive_answered` records what was supplied, and what
+the function made of it is the node's output, journaled as any output is.
+
 **Refusing.** An answer is accepted only when the current node's action is interactive and the last
 session event is `workflow_paused_interactive`; otherwise it would be a fabricated node output.
 Refused as well: a malformed document, an undeclared or missing required name, a value the declared
@@ -143,6 +153,13 @@ Components are registered at import time by decorators and looked up by name fro
 
 A module that registers something has to be imported by bootstrap before workflow execution.
 `ComponentLoader` loads built-in core modules first and then configured external modules.
+
+Beside its own resolved `function_parameters`, a registered function is given what its caller injects,
+and the two conventions differ on purpose: an action's function receives `state`, the read-only view,
+and `output`, the `ActionNodeOutput` the node received — the previous node's output, or the accepted
+answer at an interactive node — while a guard's validator receives the output *text* as `output` and
+the object as `action_output`, and never the state. Both live in `function_injection`, so a caller
+adds a call rather than a copy.
 
 Guards and transitions are not registries: their classes are listed in their own modules.
 

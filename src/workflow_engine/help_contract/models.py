@@ -51,7 +51,11 @@ COMPONENT_TYPE_DESCRIPTION: Final[MappingProxyType[ComponentType, str]] = Mappin
         ComponentType.FUNCTION: (
             "A registered function executed by a function-running action. A node selects it by "
             "'function_name' and passes 'function_parameters'. Parameter values support "
-            "'param.<name>' and 'output.<node_id>' references resolved from the workflow state."
+            "'param.<name>' and 'output.<node_id>' references resolved from the workflow state. "
+            "Beside them the engine injects two arguments no node configures, for a function that "
+            "declares them: 'state', the read-only state view, and 'output', the ActionNodeOutput "
+            "the node received - the previous node's output, or the accepted answer at an "
+            "interactive node."
         ),
         ComponentType.VALIDATOR: (
             "A registered function returning a boolean, used by the 'function_name' guard and by "

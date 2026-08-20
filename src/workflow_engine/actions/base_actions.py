@@ -14,6 +14,7 @@ from workflow_engine.exceptions import (
     ArtifactPathError,
     WorkflowConfigurationError,
 )
+from workflow_engine.function_injection import run_action_function
 from workflow_engine.models.state import StateModel, StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput
 from workflow_engine.registry.function_registry import (
@@ -142,6 +143,25 @@ class BaseInteractiveAction(BaseAction):
         """
         return AnswerContract()
 
+    def process_answer(self, state: StateReadOnlyView, output: ActionNodeOutput) -> ActionNodeOutput:
+        """Turn an accepted answer into the output of the node. See ADR 015 §3.
+
+        The engine calls this after it has bound the answer and before it selects the transition, so
+        what comes back is the output the guards see and the engine applies. A failure answer is
+        returned untouched: it carries a code the node declared and its own transitions route it, and
+        computing on it would let an action mask a declared refusal.
+        """
+        if output.error_code is not None:
+            return output
+        try:
+            return self._process_answer(state, output)
+        except (ArtifactPathError, ArtifactNotFoundError) as e:
+            return ActionNodeOutput(output_text="", error_code=e.error_code, error_msg=str(e))
+
+    def _process_answer(self, state: StateReadOnlyView, output: ActionNodeOutput) -> ActionNodeOutput:
+        """Compute on the answer. The base returns it unchanged: asking is declarative by default."""
+        return output
+
     @classmethod
     def execution_mode(cls) -> ExecutionMode:
         return ExecutionMode.INTERACTIVE
@@ -161,6 +181,4 @@ class ActionWithFunction(BaseAutomaticAction):
 
     def _execute(self, state: StateReadOnlyView, prev_output: ActionNodeOutput | None) -> ActionNodeOutput:
         """Execute the registered function with the current state and previous output."""
-        return self.registered_function.execute(
-            parameters_modified=state.set_parameters_with_updater({"output": prev_output, "state": state})
-        )
+        return run_action_function(self.registered_function, state, prev_output)
