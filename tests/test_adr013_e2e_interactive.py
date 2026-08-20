@@ -86,7 +86,9 @@ class TestPausing:
             "source_unreadable": "The file cannot be read, so no decision can be made."
         }
         assert question["generic_error_code"] == ANSWER_FAILED
-        assert question["context"] == workspace["source"]
+        # The file and its size stand inside the instruction, not beside it (ADR 016).
+        assert workspace["source"] in cast(str, question["instruction"])
+        assert "context" not in question and "hints" not in question
         assert response["errors"] == {}
 
     def test_the_pause_is_journaled_with_the_declared_names(self, workspace, capsys):

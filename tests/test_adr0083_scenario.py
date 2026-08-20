@@ -82,12 +82,10 @@ WORKFLOW: dict[str, object] = {
             "action_parameters": {
                 "title": "Inspect the release candidate",
                 "instruction": (
-                    "Inspect the folder named below, then answer with 'issues' as a list of short "
-                    "strings and 'report_text' as one paragraph. Put nothing else in the answer text."
+                    "Inspect the folder '${param.review_root}', then answer with 'issues' as a list "
+                    "of short strings and 'report_text' as one paragraph. Put nothing else in the "
+                    "answer text."
                 ),
-                # The folder can only be shown as a field of its own: a reference does not resolve
-                # inside a sentence.
-                "context": "param.review_root",
                 "answer": [
                     {"name": "issues", "type": "list", "description": "One short string per issue found"},
                     {"name": "report_text", "description": "The report paragraph"},
@@ -135,12 +133,12 @@ WORKFLOW: dict[str, object] = {
             "action_type": "ask",
             "action_parameters": {
                 "title": "Follow-up question",
+                # The issue list is a collection, so ADR 016 renders it into the sentence as compact
+                # JSON rather than as the Python repr a bare field used to carry.
                 "instruction": (
-                    "Ask yourself the next question the issues below raise, answer it, and report the "
-                    "pair as 'qa_pair' with exactly the keys 'question' and 'answer'."
+                    "Ask yourself the next question these issues raise: ${param.issues}. Answer it, "
+                    "and report the pair as 'qa_pair' with exactly the keys 'question' and 'answer'."
                 ),
-                # The issue list, likewise, can only be shown as a field of its own.
-                "context": "param.issues",
                 "answer": [{"name": "qa_pair", "type": "dict", "description": "Keys 'question' and 'answer'"}],
                 "errors": {"followup_unanswerable": "The question cannot be answered from the material at hand."},
             },
@@ -168,9 +166,10 @@ WORKFLOW: dict[str, object] = {
             "action_type": "ask",
             "action_parameters": {
                 "title": "Approve the release",
-                "instruction": "Answer with exactly 'approved' or 'rejected' as the answer text, and nothing else.",
-                # The report can only be shown as a field of its own.
-                "context": "param.report_text",
+                "instruction": (
+                    "The review reported: ${param.report_text}. Answer with exactly 'approved' or "
+                    "'rejected' as the answer text, and nothing else."
+                ),
                 "options": ["approved", "rejected"],
                 "answer": [],
                 "errors": {"review_blocked": "The decision cannot be taken."},
@@ -300,8 +299,9 @@ def test_the_flow_runs_through_every_adr0083_node_type(workspace, capsys):
     assert code == 2, response
     question = question_of(response)
     assert question["node_id"] == "ASK_INSPECT"
-    # The folder reaches the agent as a field of its own, not inside the instruction.
-    assert question["context"] == workspace["review_root"]
+    # The folder reaches the agent inside the sentence that tells it what to do (ADR 016).
+    assert workspace["review_root"] in cast(str, question["instruction"])
+    assert "context" not in question
 
     code, response = resume(
         workspace,
@@ -315,13 +315,16 @@ def test_the_flow_runs_through_every_adr0083_node_type(workspace, capsys):
     assert code == 2, response
     assert question_of(response)["node_id"] == "ASK_FOLLOWUP"
 
+    # The issue list stands inside the follow-up question as compact JSON, not as a Python repr.
+    assert '["no changelog entry","version not bumped"]' in cast(str, question_of(response)["instruction"])
+
     for index in (1, 2):
         code, response = resume(workspace, session_id, capsys, qa(index))
         assert code == 2, response
 
     question = question_of(response)
     assert question["node_id"] == "ASK_APPROVE"
-    assert question["context"] == "Two issues found."
+    assert "Two issues found." in cast(str, question["instruction"])
     assert question["answer"] == []
 
     code, response = resume(workspace, session_id, capsys, answer(text="approved"))

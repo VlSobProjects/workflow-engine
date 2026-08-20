@@ -159,8 +159,9 @@ rewritten, so the last item below separates what is verified from what is predic
    `BaseInteractiveAction.process_answer` with the `AskAction` hook under it and the engine's call to
    both, `AskAction.present`, `_visit_cap_reached`,
    `ActionNodeOutput.get_param`/`set_param`, and the ADR 015 tests that exercise the one-node
-   accumulating loop. The scenario flow itself was **not** rewritten, so this is the prediction the
-   rewrite has to confirm: four of its eleven nodes — `CHECK_ROOT`, `CHECK_ISSUES`, `FQ_CHECK`,
+   accumulating loop. The interpolation half of the rewrite has since been done
+   (session `2026-08-20-implementation-4`); the fold has not, so this is still the prediction the fold
+   has to confirm: four of the flow's eleven nodes — `CHECK_ROOT`, `CHECK_ISSUES`, `FQ_CHECK`,
    `FQ_COLLECT` — exist only to adjust data next to a question, and all four fold into the post
    function of the question they serve, leaving seven. A second effect falls out of the same fold: with
    the check inside `ASK_ROOT`, a rejected path re-asks as an *attempt* rather than as a fresh visit, so
@@ -183,13 +184,16 @@ the work takes.
 3. ~~Decide text interpolation.~~ Done in session `2026-08-20-architecture-3` and delivered in
    `2026-08-20-implementation-2`: ADR 016 resolves references inside declared template fields, and
    collections render as compact JSON instead of a Python repr. Friction 1 below is closed.
-4. **Rewrite the flow against the three decisions.** The scenario and the shipped `ask` example were
-   written before them and still show the pre-interpolation, pre-post-function shape. The interpolation
-   half is free — the mechanism is core, so the three `context: param.x` fields of the scenario and the
-   one in `examples/approve-and-copy.json` can move inside the sentence with nothing else changing, and
-   the shipped example is the first thing an author copies. The node-folding half is not free; see the
-   next item. Until it is done, item 5 of "What ADR 015, 016 and 017 changed" is a prediction and this
-   note's node count is out of date.
+4. **Rewrite the flow against the three decisions.** Half done in session
+   `2026-08-20-implementation-4`: ~~the interpolation half~~ is delivered — the three `context: param.x`
+   fields of the scenario and the `context` and `hints` of `examples/approve-and-copy.json` now stand
+   inside the instruction each question publishes, and the follow-up question shows the ADR 016 JSON
+   rendering of a list where the bare field used to show a Python repr. Nothing else changed: no node
+   was removed, no engine code was touched, and the flow still runs on the shipped core alone.
+
+   **The node-folding half is not done**, because it needs a function that does not exist — see the
+   next item. Until it is, item 5 of "What ADR 015, 016 and 017 changed" is a prediction and this
+   note's node count of eleven is still the current one.
 5. **The post function has a mechanism and no component.** Every fold predicted above needs a function
    that takes the injected `output` — surfacing an answered value, or appending it and reporting
    "enough" — and no core function takes one: they were shipped with the mechanism only, and the two
@@ -233,8 +237,9 @@ the transition targets.
    only where a reference may appear but how a non-string value renders once it is inside a sentence.
 
    Both halves were decided: the braced `${...}` form resolves in every presentation field of `ask`,
-   and a list or a dict renders as compact JSON through the state's own encoder. The flows written
-   before the decision have not been rewritten to use it — item 4 above.
+   and a list or a dict renders as compact JSON through the state's own encoder. The flows have since
+   been rewritten to use it (session `2026-08-20-implementation-4`): none of the four fields the count
+   measured is left, and the measured cost — an extra node composing the text — was never paid.
 2. **The budget checkpoint is outside the graph.** ADR-0083 routes budget exhaustion to a declared
    node offering continue / summarize / finish, and "continue" raises the budget through a parameter.
    Here the run pauses (`workflow_paused_limit`, exit code 2) and the operator raises the limit with

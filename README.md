@@ -117,13 +117,15 @@ workflow-engine run --workflow-file examples/approve-and-copy.json \
 ```
 
 The paused result carries the question under `data.question`: the node, the text of the question, the
-declared answer, and the error codes the node accepts.
+declared answer, and the error codes the node accepts. Every presentation field is template text, so
+the file and the size the previous node measured stand inside the instruction the answerer reads
+rather than beside it.
 
 ```json
 "question": {
   "node_id": "ASK_APPROVAL",
   "title": "Approve the copy",
-  "instruction": "Answer 'approved' or 'rejected' as the answer text, and name the decision maker in 'reviewer'.",
+  "instruction": "Decide whether '<file-to-copy>' (1.20 KB) may be copied. Answer 'approved' or 'rejected' as the answer text, and name the decision maker in 'reviewer'.",
   "options": ["approved", "rejected"],
   "answer": [{"name": "reviewer", "type": null, "required": true, "description": "Who made the decision"}],
   "error_catalogue": {"source_unreadable": "The file cannot be read, so no decision can be made."},
