@@ -1,10 +1,10 @@
 # ADR 016: Reference interpolation in text
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+`feature/adr_016-reference-interpolation-in-text`
 
 ## Context
 
