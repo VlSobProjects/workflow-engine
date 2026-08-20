@@ -407,8 +407,12 @@ class TestShowStateCommand:
         assert response["command_status"] == "error"
         assert response["command"] == "show-state"
 
-    def test_show_state_returns_full_data(self, tmp_path: Path, create_config, capsys):
-        """show-state must return full state data including artifacts, parameters, outputs."""
+    def test_show_state_returns_the_state_of_the_run(self, tmp_path: Path, create_config, capsys):
+        """show-state carries the state of the run: artifacts, deliverables and the guard traces.
+
+        The parameters, the node outputs and the declared inputs left the result for their own read
+        surfaces; a caller reading them from here would be reading a contract ADR 018 removed.
+        """
         scan_root = tmp_path / "scan-root"
         create_scan_fixture(scan_root)
         workflow_path = tmp_path / "workflow.json"
@@ -439,8 +443,13 @@ class TestShowStateCommand:
         assert code == 0
         data = cast(dict[str, object], response["data"])
         assert "artifacts" in data
-        assert "parameters" in data
-        assert "outputs" in data
+        assert "artifacts_absolute" in data
+        assert "artifacts_path" in data
+        assert "deliverables" in data
+        assert "guard_results" in data
+        assert "parameters" not in data
+        assert "outputs" not in data
+        assert "inputs" not in data
 
 
 class TestListSessionsCommand:

@@ -265,7 +265,9 @@ the session has not started; a started run rejects it. When an assignment names 
 declaration names one too, both must resolve to the same codec, otherwise the binding is rejected.
 Starting a session with an unbound `required` input fails at setup with the missing names before any
 node executes (exit code `4`), after journaling a `workflow_setup_failed` event that carries them. The
-declared inputs surface in the `run`/`resume`/`show-state` result data next to `deliverables`.
+declared inputs surface in the `run`/`resume` result data next to `deliverables`; they left the
+`show-state` result with ADR 018, and until a workflow-definition introspection surface exists the
+definition itself is the reference for what a run must have bound.
 
 ## Storage
 
@@ -362,7 +364,10 @@ written in, rather than as the Python repr `str()` would produce (ADR 016).
 - `set-limit` to update the per-session `max_nodes_visited` soft limit; it refuses any value below the
   current limit, and `0` is the one exception, disabling the soft limit while the run stays bounded by
   the global hard safety cap. The number of nodes already visited does not enter the rule;
-- `show-state` to render persisted session state;
+- `show-state` to render the state of a run (see "Session read surfaces");
+- `list-parameters` to name the parameters of a session, and `show-parameter` to read one value;
+- `show-journal` to read the session event journal, optionally bounded by `--tail` and filtered by
+  `--node`;
 - `list-sessions` to list sessions discoverable under the configured `work_dir`;
 - `help-components` to list registered components;
 - `help-component` to show one component by type and name;
@@ -383,6 +388,35 @@ what actually failed, so a caller may read a non-empty map as a failure and a co
 none. The same holds for a malformed command line: the argument parser writes its message and the
 usage to standard error, and under `--json` standard output still carries one command result with
 `command_status: error`.
+
+## Session read surfaces
+
+Four commands read a session, one shape of result each, and none of them moves the run. See ADR 018.
+
+`show-state` is the state of the run and nothing else: the envelope, the timestamp, `flow_id`,
+`schema_version`, `work_dir`, `current_node`, the visit counters and budget, the error fields, the
+artifacts in the three ADR 011 spellings, `deliverables`, and `guard_results` — the guard answers of
+the latest attempt per node. Artifacts, deliverables and guard traces stay because each is bounded by
+the workflow's declaration or by construction, while `parameters`, `outputs` and `inputs` grew with
+the run and left the result.
+
+`list-parameters` answers with `{name, type, source_node}` per parameter, the codec name and the
+writing node, never a value. `show-parameter --name` answers with one: the ADR 016 rendering as plain
+text, and under `--json` the codec envelope the state persists (`object`, `object_type`) beside the
+name and the writing node, so a machine reader keeps the type and can feed the value into `set-input`
+of another session. A name that is not set is a resolution error, `command_status: error` and exit
+code `4`, the answer `help-component` gives for an unregistered component.
+
+`show-journal` publishes `session_events` as persisted — timestamp, code, actor, event id and
+details. The whole journal by default, because asking for it is an explicit act; `--node` filters to
+the events that name a node and `--tail` then keeps the last `n` of them, and the answer reports its
+own size next to the size of the whole journal. A non-positive `--tail` is a command error rather
+than an empty answer. The journal holds names, codec names and ordinals and never values (ADR 013
+§9), so no read surface can publish the values of an exchange.
+
+All four are info commands: they report `workflow_status` and `event_code` informationally, exit `0`
+on command success wherever the workflow stands, and `4` on a session or a name that does not
+resolve.
 
 ## Operator help contract
 

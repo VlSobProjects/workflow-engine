@@ -245,8 +245,37 @@ Three ways to get the file itself:
 - Run `export-artifact --session-id <SESSION_ID> --target-dir <dir> --all` (or `--artifact-name
   <name>` for one artifact) after the fact. Works for completed, paused and failed sessions.
 
-`show-state --session-id <SESSION_ID>` renders the full persisted state: `parameters`, `outputs`,
-`artifacts_absolute`, `deliverables` and `inputs`.
+## Reading a session
+
+Four commands read a session, each with one shape of result. All four are info commands: they report
+where the workflow stands in `workflow_status` without taking its exit code, so they answer `0` on
+command success and `4` on an unresolvable session or name.
+
+- `show-state --session-id <SESSION_ID>` is the state of the run and nothing else: status, last
+  event, errors, current node, the visit counters and budget, the guard answers of the latest attempt
+  per node in `guard_results`, and what there is to fetch — `deliverables`, `artifacts`,
+  `artifacts_absolute` and `artifacts_path`. It carries no `parameters`, no `outputs` and no `inputs`;
+  those grow with the run and have their own doors below.
+- `list-parameters --session-id <SESSION_ID>` names what the run accumulated — `name`, the codec
+  `type` and the `source_node` that wrote it — and never a value.
+- `show-parameter --session-id <SESSION_ID> --name <NAME>` returns one value: the plain output is the
+  rendered value, and `--json` carries the codec envelope exactly as the state keeps it, so the value
+  feeds `set-input` of another session unchanged. An unknown name is an error, not an empty answer.
+
+  ```json
+  "data": {
+    "name": "reviewer",
+    "source_node": "ASK_APPROVAL",
+    "value": {"object": "ops", "object_type": "builtins.str"}
+  }
+  ```
+
+  `object_type` is the registered codec name, the same one `help-component --component-type codecs`
+  lists and `--input NAME:TYPE=VALUE` accepts.
+- `show-journal --session-id <SESSION_ID>` prints the session event journal — timestamp, code, actor,
+  event id and details. The whole journal by default; `--tail <n>` keeps the last `n` events and
+  `--node <NODE_ID>` keeps the events that name a node, and the two compose. The journal records
+  names, codec names and ordinals, never the values themselves.
 
 Exit codes: `0` success, `2` workflow paused, `3` workflow failed, `4` command-level setup or
 resolution error. A malformed command line is a `4` too: the message and the usage go to stderr, and

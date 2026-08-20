@@ -11,6 +11,9 @@ class CommandName(Enum):
     SET_INPUT = "set-input"
     SET_LIMIT = "set-limit"
     SHOW_STATE = "show-state"
+    LIST_PARAMETERS = "list-parameters"
+    SHOW_PARAMETER = "show-parameter"
+    SHOW_JOURNAL = "show-journal"
     LIST_SESSIONS = "list-sessions"
     HELP_COMPONENTS = "help-components"
     HELP_COMPONENT = "help-component"
@@ -27,6 +30,9 @@ INFO_COMMANDS = (
     CommandName.HELP_COMPONENTS,
     CommandName.HELP_COMPONENT,
     CommandName.SHOW_STATE,
+    CommandName.LIST_PARAMETERS,
+    CommandName.SHOW_PARAMETER,
+    CommandName.SHOW_JOURNAL,
     CommandName.SET_INPUT,
     CommandName.SET_LIMIT,
     CommandName.EXPORT_ARTIFACT,
@@ -79,12 +85,14 @@ class CommandResult:
             data["error_message"] = state.error_msg
 
         if full:
-            # show-state keeps the stable artifacts_path and relative-path map, and additively gains
-            # the absolute path per artifact. See ADR 011.
+            # show-state is the state of the run and nothing else (ADR 018): the artifacts are bounded
+            # by the workflow's declaration and the guard traces by construction, while the parameters,
+            # the outputs and the declared inputs left for their own read surfaces. The artifacts keep
+            # the stable artifacts_path and relative-path map next to the absolute path per artifact,
+            # as ADR 011 shaped them.
             data.update(
                 {
-                    "outputs": state.outputs(),
-                    "parameters": state.get_parameters(),
+                    "guard_results": state.get_guard_results(),
                     "artifacts_path": state.get_artifacts_path(),
                     "artifacts": state.get_artifacts(),
                     "artifacts_absolute": state.get_artifacts_detail(),
