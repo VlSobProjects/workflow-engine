@@ -70,6 +70,8 @@ Verified: <the commands that were run and their result>
 A multi line message is written to a file and committed with `git commit -F <file>`, to keep the
 shell's quoting out of the message.
 
+The message is shown to the user before the commit is made: see `docs/rules/general-rules.md` §12.
+
 ## Merging
 
 - Task branches are merged into `development`.
