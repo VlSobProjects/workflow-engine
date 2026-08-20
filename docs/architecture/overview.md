@@ -158,6 +158,15 @@ its declared code and never reaches it, and a failing function fails the node th
 function does. The journal is unchanged: `interactive_answered` records what was supplied, and what
 the function made of it is the node's output, journaled as any output is.
 
+Two core functions are written for that injection and register in `actions/answer_functions`:
+`echo_answer` surfaces a declared answer value into the output text, and `collect_answer` appends the
+answer to a collection parameter and reports `enough` or `more` against a minimum. They are the
+components of the stage rather than new mechanism: each replaces a node that existed only to adjust
+data beside a question — the surfacing node in front of the guards, and the append-and-check pair at
+the head and the tail of an accumulating loop. Both edit the output they are given, because a
+function that builds a fresh one drops the answered values, and both fail the node under a code when
+the value or the collection they were configured with is not there.
+
 **Refusing.** An answer is accepted only when the current node's action is interactive and the last
 session event is `workflow_paused_interactive`; otherwise it would be a fabricated node output.
 Refused as well: a malformed document, an undeclared or missing required name, a value the declared
@@ -330,8 +339,9 @@ and config at the runtime root. Relative paths are resolved against the current 
 paths remain in POSIX form regardless of OS (ADR 008).
 
 The same rule holds wherever the engine turns a state value into text, not only where it stores one:
-`render_value_as_text` renders a path with `as_posix()`, and the three surfaces that render go through
-it — a value guard comparing against a resolved reference, the `echo_value` function, and the
+`render_value_as_text` renders a path with `as_posix()`, and the surfaces that render go through
+it — a value guard comparing against a resolved reference, the functions that surface a value into an
+output text (`echo_value` from the state, `echo_answer` from an accepted answer), and the
 presentation of an interactive node. Without it a `Path` parameter would compare and print with native
 separators on Windows while the same value is persisted and serialized as POSIX, so a guard could fail
 against the very path the previous node had just written. The same function renders a list or a dict
