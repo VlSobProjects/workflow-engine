@@ -7,34 +7,37 @@
   before it went its own way. Can its *scenarios* (not its contract) be realized here once ADR 013
   ships, given some external registered functions?
 - **Status:** open
-- **Affected:** ADR 010 (budget checkpoint shape, and now a per-node visit cap), ADR 012 (deferred §1,
-  shallow reference resolution), ADR 013 (Accepted and delivered; the table below was re-verified
-  against the code — see "What the implementation changed"), ADR 014 (Draft; its open point 1 is
-  decided by ADR 016 for the in-text case), ADR 015 (Draft; the run below is the evidence its open
-  points were waiting for, settled in session `2026-08-20-architecture-2`), ADR 016 (Draft, decides
-  text interpolation — friction 1 below)
+- **Affected:** ADR 010 (budget checkpoint shape; the per-node visit cap left it and became ADR 017),
+  ADR 012 (deferred §1, shallow reference resolution — the in-text half of it is now decided by
+  ADR 016), ADR 013 (Accepted and delivered), ADR 014 (Draft; its open point 1 is decided by ADR 016
+  for the in-text case), ADR 015 (Accepted and delivered — computation on an accepted answer),
+  ADR 016 (Accepted and delivered — text interpolation, friction 1 below), ADR 017 (Accepted and
+  delivered — the per-node visit cap). The table below was re-verified against the code twice; see
+  "What the implementation changed" and "What ADR 015, 016 and 017 changed"
 
-The answer is yes for the substance, with one core gap, one shape difference, and one function to
-write. Recorded here because the mapping keeps being re-derived, and because two of the three
-frictions belong to decisions that are still open.
+The answer is yes for the substance. What was one core gap, one shape difference and one function to
+write is now one shape difference and one function to write: the core gap — a value could not stand
+inside a sentence — was closed by ADR 016. Recorded here because the mapping keeps being re-derived,
+and because the two frictions that remain belong to decisions that are still open.
 
 This note is the yardstick for the first goal of phase 2: reaching a state where these scenarios can
 actually be run and checked, not argued about. It was first written while ADR 013 was still
-`Implementing` and no code existed; the table has since been re-verified against the delivered engine.
+`Implementing` and no code existed; the table has since been re-verified against the delivered engine
+twice, most recently against ADR 015, ADR 016 and ADR 017 together.
 
 ## What ADR-0083 asks for, and what carries it here
 
 | ADR-0083 | Carried by | Verdict |
 | --- | --- | --- |
-| `Q` — one prepared question to the operator | `ask` node: text and options in the presentation, a typed `answer` entry; `input_mode` is expressed by the codec (`path` → `pathlib.Path`) | full for asking and binding; the node cannot check what it bound — see "What building it found" |
-| `A` — agent branch decision, no dialogue | the same `ask` node, answered by an agent; `allowed_values` is an `any_of` of `equals` guards **over the answer text**; `default` with `require_reason` is a `failure` answer with a code and a message; `auto_log_stop` is a `FailTarget` plus the `interactive_answered` event | full when the decision travels in `text`; a decision that travels as a declared value needs an `echo_value` node in front of the guards |
+| `Q` — one prepared question to the operator | `ask` node: text and options in the presentation, a typed `answer` entry; `input_mode` is expressed by the codec (`path` → `pathlib.Path`). A prior value stands inside the question text as `${param.x}` (ADR 016) | full: since ADR 015 the node checks what it bound, because a post function reads the answered value and its result is what the node's own guards route on |
+| `A` — agent branch decision, no dialogue | the same `ask` node, answered by an agent; `allowed_values` is an `any_of` of `equals` guards **over the answer text**; `default` with `require_reason` is a `failure` answer with a code and a message; `auto_log_stop` is a `FailTarget` plus the `interactive_answered` event | full: a decision in `text` routes directly, and one that travels as a declared value is surfaced by the node's own post function (ADR 015) instead of by an `echo_value` node in front of the guards. No such function ships in the core — see "What is still missing" |
 | `I` — instruction to the agent to act and report | the same `ask` node: the presentation is the instruction, the agent acts outside the engine and answers with the aggregated result; node `validators` already exist | full |
 | `S` — deterministic script with parameters | a `function` node over an external registered function that runs the script; `script_output_match` is several transitions with `contains` guards, whose configured value resolves `param.` references | needs one external function |
 | `STOP` | `stop` / `stop_on_error` and the `EndTarget` / `FailTarget` transition targets; `handoff_ref` is a deliverable (ADR 011); `cleanup_scripts` is a node before the end | full |
-| `FQ` — up to N agent-generated questions | a loop `CHECK → ask → COLLECT → CHECK`: `append_to_param` accumulates each answer and the `is_collection_size_at_least` guard on the head node leaves the loop once there are enough. A question repeated in place instead, without collecting, is bounded by `attempts` | full, at the cost of two nodes around the question; covered end to end by `tests/test_bounded_accumulating_loop.py` |
+| `FQ` — up to N agent-generated questions | one `ask` node whose post function appends the answer and returns whether the loop has enough, so the node routes its own loop (ADR 015); the two-node form `CHECK → ask → COLLECT → CHECK` over `append_to_param` and `is_collection_size_at_least` still works and is what the core components alone can express. A question repeated in place is bounded by `max_attempts`, a loop that leaves and returns by `max_visits` (ADR 017) | full, and no longer at the cost of two nodes; the one-node form is covered by `tests/test_adr015_post_function.py`, the two-node form by `tests/test_bounded_accumulating_loop.py` |
 | typed validators (`non_empty`, `regex`, `enum`, `path_exists`) | node `validators`, value guards, function guards | full |
-| `attempt_counters`, `max_visits`, retry actions | `attempt_counters` / `max_attempts` for the retries; `visit_counters` is counted per node but never read, and the field is not on `StateReadOnlyView` | partial: retries are carried, `max_visits` is not — a loop is bounded by what it collects or by the global hard cap (ADR 010), not per node |
-| logging: engine-authored vs agent-authored fields per node | `session_events` (the engine/operator actor split), `guard_results`, `outputs`, `errors`; the agent's verbal part is the answer's `text` and `message` | in substance, but the verbal part lives in the state, not in the journal: the journal deliberately never stores values |
+| `attempt_counters`, `max_visits`, retry actions | `attempt_counters` / `max_attempts` bounds a question repeated in place; `visit_counters` is read by the engine on entry against the `max_visits` a node declares, and exhaustion fails the run under `max_visits_exceeded` before the action runs (ADR 017). Neither counter is on `StateReadOnlyView` | full for the bounds. What ADR-0083 spells as a retry *action* is still a transition here, and a guard cannot read either counter — the ordinals are journaled on `interactive_answered`, not exposed to the graph |
+| logging: engine-authored vs agent-authored fields per node | `session_events` (the engine/operator actor split), `guard_results`, `outputs`, `errors`; the agent's verbal part is the answer's `text` and `message`. `interactive_answered` carries the visit and the attempt ordinal (ADR 017 §4) | in substance, but the verbal part lives in the state, not in the journal: the journal deliberately never stores values. The retries that the counters reset away are now readable from the journal itself |
 | `recommended_answer` | presentation fields (`options`, `examples`, `hints`, `context`) | full |
 | persistence `set` / `append`, artifacts vs structured facts | `WriteParamMode.SET` / `APPEND`, `state.params` for facts, artifacts and deliverables for documents (ADR 011) | the result is the same; the stance is the opposite — see below |
 
@@ -87,30 +90,83 @@ exported deliverable. Four things the table could not have known, all of them ab
    read the node's output, and an answered value is not in the output text — it is in `param_writes`,
    which the bus applies only after the transition has been selected. So a typed answer is checked one
    node later, by a node that surfaces it. That node is not decoration: without it a declared `Path`
-   answer is bound and used unverified.
+   answer is bound and used unverified. — *Answered by ADR 015.*
 
 2. **The retry that follows is unbounded.** Sending the check back to the question re-enters it as a
    fresh *visit*, and `attempt_counters` is reset on every departure, so `max_attempts` never counts up.
    The flow's own test gives the same wrong answer five times and the question keeps coming back;
    nothing bounds it but the global hard cap of ADR 010. This is the first concrete argument for a
    per-node visit cap, which until now had none — `visit_counters` is written and read by nobody.
+   — *Answered by ADR 017; `visit_counters` now has its reader.*
 
 3. **A re-presented question says nothing about why.** Both stalls the live run hit — a relative path,
    and a decision word with an explanation attached — returned the identical question block with an
    empty `errors` map. The answerer gets no signal that the previous answer was rejected and no reason,
    so an agent answers the same thing again. ADR 013 §6 defines re-presenting as consuming nothing; it
-   does not say what the answerer is told, and the answer today is "nothing".
+   does not say what the answerer is told, and the answer today is "nothing". — *Half answered: an
+   author can now say why, ADR 013 §6 still says nothing on its own.*
 
 4. **The exactness of a decision is carried by the wording, not by the contract.** Four places in the
    flow had to constrain the answer in prose — the shape of a list element, "put nothing else in the
    answer text", the keys of a `dict`, and "answer with exactly 'approved' or 'rejected'". Two of the
    four were violated by the first natural answer a model gave. A `dict` codec has no key schema, so the
-   columns of the exported handoff table rest entirely on a sentence in the instruction.
+   columns of the exported handoff table rest entirely on a sentence in the instruction. — *Softened by
+   ADR 015: a post function can normalize a nearly-right answer and refuse a wrong shape, so the node
+   no longer depends on the wording being obeyed. The `dict` codec still has no key schema.*
 
 Also observed, smaller: a declared `Path` is published to the answerer as `pathlib._local.Path`, the
 private CPython 3.13 module name, which is not a name an answerer can be expected to send back — the
 same Python-version-dependent codec name recorded in `2026-08-18-adr012-deferred-questions.md`, now
-visible in the caller-facing `question` block rather than only in the state.
+visible in the caller-facing `question` block rather than only in the state. Unchanged by the three
+decisions: ADR 016 decided how a *value* renders inside text, not how a codec names itself in the
+answer declaration.
+
+## What ADR 015, 016 and 017 changed
+
+Re-measured in session `2026-08-20-investigation-2`, after the three decisions the findings above
+produced were accepted and delivered. Each mechanism was checked in the code; the flow itself was not
+rewritten, so the last item below separates what is verified from what is predicted.
+
+1. **The node that asks can now check what it bound** (ADR 015). An `ask` node may carry
+   `function_name`, and the engine runs that function on an accepted answer *before* the node's own
+   transitions are selected. The function is handed the answer as the injected `output`, so it reads
+   the answered value that has not reached the bus yet, and what it returns is the whole node output —
+   the text the guards compare and the writes the engine applies. Finding 1 and the `echo_value`-in-front
+   pattern of row `A` are both consequences of an ordering that no longer holds.
+
+2. **A value can stand inside the sentence** (ADR 016). All ten presentation fields of `ask` are
+   template text: `${param.x}`, `${output.NODE}` and `${artifact.name}` are replaced when the question
+   is presented, a malformed template refuses the node at build time, an unresolved reference fails the
+   run at the question, and a list or a dict renders as compact JSON instead of a Python repr. The count
+   friction 1 was waiting for — three of four questions forced to show a prior value as a bare `context`
+   field — is answered.
+
+3. **A node bounds its own re-entry** (ADR 017). `max_visits` is checked on entry, before the action,
+   so a question beyond the cap is never published; exhaustion fails the run under
+   `max_visits_exceeded` and is not routable. Finding 2 is closed where it was measured: `ASK_ROOT` of
+   the scenario declares `max_visits: 3` and the same wrong answer now ends at the question node
+   instead of at the ADR 010 hard cap.
+
+4. **The re-presented question can be told why, but not by the engine** (finding 3). Presentation
+   fields resolve against the state *at presentation time*, so a node on the way back can write the
+   reason into a parameter and the question carries it inside its own text. That is composition by the
+   author. A plain `resume`, which re-presents without any node in between, still changes nothing and
+   still says nothing: ADR 013 §6 is untouched, and the empty `errors` map the finding observed is the
+   same map. What was "the engine gives the answerer no way to know" is now "the author has a way and
+   the engine still has no rule".
+
+5. **What is verified, and what is not.** Every statement above was read in the delivered code —
+   `BaseInteractiveAction.process_answer` with the `AskAction` hook under it and the engine's call to
+   both, `AskAction.present`, `_visit_cap_reached`,
+   `ActionNodeOutput.get_param`/`set_param`, and the ADR 015 tests that exercise the one-node
+   accumulating loop. The scenario flow itself was **not** rewritten, so this is the prediction the
+   rewrite has to confirm: four of its eleven nodes — `CHECK_ROOT`, `CHECK_ISSUES`, `FQ_CHECK`,
+   `FQ_COLLECT` — exist only to adjust data next to a question, and all four fold into the post
+   function of the question they serve, leaving seven. A second effect falls out of the same fold: with
+   the check inside `ASK_ROOT`, a rejected path re-asks as an *attempt* rather than as a fresh visit, so
+   `max_attempts` bounds the loop and `max_visits` there stops being the thing that saves the run. The
+   cap keeps its purpose for loops that genuinely leave and return; it stops being the only bound on a
+   check that could have lived in the node.
 
 ## What is still missing, in order
 
@@ -124,10 +180,27 @@ the work takes.
    `STOP`, the counters, the `validators` and the error catalogue, run both by the scripted test and by
    an agent answering the published question blocks. It turned the remaining questions into evidence,
    as predicted — see "What building it found".
-3. ~~Decide text interpolation.~~ Done in session `2026-08-20-architecture-3`: ADR 016 opened as
-   Draft with the count of step 2 as its evidence — references resolve inside declared template
-   fields, and collections render as compact JSON instead of a Python repr. Friction 1 below.
-4. **The script-running function for `S`**, as an external module rather than a core component: it is
+3. ~~Decide text interpolation.~~ Done in session `2026-08-20-architecture-3` and delivered in
+   `2026-08-20-implementation-2`: ADR 016 resolves references inside declared template fields, and
+   collections render as compact JSON instead of a Python repr. Friction 1 below is closed.
+4. **Rewrite the flow against the three decisions.** The scenario and the shipped `ask` example were
+   written before them and still show the pre-interpolation, pre-post-function shape. The interpolation
+   half is free — the mechanism is core, so the three `context: param.x` fields of the scenario and the
+   one in `examples/approve-and-copy.json` can move inside the sentence with nothing else changing, and
+   the shipped example is the first thing an author copies. The node-folding half is not free; see the
+   next item. Until it is done, item 5 of "What ADR 015, 016 and 017 changed" is a prediction and this
+   note's node count is out of date.
+5. **The post function has a mechanism and no component.** Every fold predicted above needs a function
+   that takes the injected `output` — surfacing an answered value, or appending it and reporting
+   "enough" — and no core function takes one: they were shipped with the mechanism only, and the two
+   that prove it live in `tests/test_adr015_post_function.py`. `echo_value`, the obvious candidate,
+   cannot serve: it reads its value from the state, where the answer has not landed, and returns a
+   fresh output that would drop the answered writes. So an ADR-0083 flow written today either keeps the
+   extra nodes or ships an external module for two functions of four lines. Whether that pair belongs
+   in the core is a decision this note does not make: it is small, general and used by every
+   interactive loop, which argues for the core, and it is the first component whose contract is the
+   injected answer, which argues for proving it outside first.
+6. **The script-running function for `S`**, as an external module rather than a core component: it is
    a trust decision (friction 3), and shipping it outside the core exercises the ADR 005 external
    module path at the same time.
 
@@ -146,12 +219,11 @@ the transition targets.
 
 ## Where it rubs
 
-1. **Interpolation inside text — the one real gap in the core.** `${answer.X}` inside a sentence does
-   not resolve here: a reference is resolved as a whole configuration value, never as a template
-   inside a string (ADR 012 deferred §1; ADR 014 open point 1). "Here is the draft I produced, do you
-   approve?" therefore costs an extra node that composes the text into a parameter which the
-   presentation then references. This is the load-bearing scenario of `loop-start`, so the templating
-   question deserves to be decided rather than inherited.
+1. ~~**Interpolation inside text — the one real gap in the core.**~~ **Closed by ADR 016**, delivered
+   in session `2026-08-20-implementation-2`. Kept as the record of what was measured and of what the
+   decision cost. The gap was: a reference resolved as a whole configuration value, never as a template
+   inside a string (ADR 012 deferred §1; ADR 014 open point 1), so "Here is the draft I produced, do you
+   approve?" cost an extra node composing the text into a parameter the presentation then referenced.
 
    The count the decision was waiting for: in the eleven-node flow, **three of the four questions had to
    show a prior value as a field of its own** (`context`) because it could not be written into the
@@ -159,6 +231,10 @@ the transition targets.
    below". Only the first question, which needs no prior state, escaped. A list shown this way also
    reaches the answerer as a Python repr (`"['a', 'b']"`), so what interpolation has to decide is not
    only where a reference may appear but how a non-string value renders once it is inside a sentence.
+
+   Both halves were decided: the braced `${...}` form resolves in every presentation field of `ask`,
+   and a list or a dict renders as compact JSON through the state's own encoder. The flows written
+   before the decision have not been rewritten to use it — item 4 above.
 2. **The budget checkpoint is outside the graph.** ADR-0083 routes budget exhaustion to a declared
    node offering continue / summarize / finish, and "continue" raises the budget through a parameter.
    Here the run pauses (`workflow_paused_limit`, exit code 2) and the operator raises the limit with
