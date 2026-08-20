@@ -292,6 +292,10 @@ class StateReadOnlyView:
     _get_parameters: Final[Callable[[], MappingProxyType[str, object]]]
     _get_artifacts: Final[Callable[[], dict[str, str]]]
     _get_artifacts_detail: Final[Callable[[], dict[str, dict[str, str]]]]
+    _get_guard_results: Final[Callable[[], dict[str, list[dict[str, object]]]]]
+    _list_parameters: Final[Callable[[], list[dict[str, str]]]]
+    _get_parameter_envelope: Final[Callable[[str], dict[str, object] | None]]
+    _get_session_events: Final[Callable[[], list[dict[str, object]]]]
 
     timestamp: datetime
     work_dir: Path
@@ -353,6 +357,30 @@ class StateReadOnlyView:
                 for name, artifact in state.artifacts.items()
             }
 
+        def get_guard_results() -> dict[str, list[dict[str, object]]]:
+            return {
+                node_id: [record.to_dict() for record in records] for node_id, records in state.guard_results.items()
+            }
+
+        def list_parameters() -> list[dict[str, str]]:
+            return [
+                {"name": name, "type": param.codec.type_name(), "source_node": param.source_node_id}
+                for name, param in state.params.items()
+            ]
+
+        def get_parameter_envelope(name: str) -> dict[str, object] | None:
+            param = state.params.get(name)
+            if param is None:
+                return None
+            return {
+                "name": param.name,
+                "source_node": param.source_node_id,
+                "value": param.codec.convert_to_dict(param.value),
+            }
+
+        def get_session_events() -> list[dict[str, object]]:
+            return [event.to_dict() for event in state.session_events]
+
         return cls(
             get_param,
             get_output,
@@ -366,6 +394,10 @@ class StateReadOnlyView:
             get_parameters,
             get_artifacts,
             get_artifacts_detail,
+            get_guard_results,
+            list_parameters,
+            get_parameter_envelope,
+            get_session_events,
             work_dir=state.work_dir,
             timestamp=state.timestamp,
             schema_version=state.schema_version,
@@ -452,6 +484,22 @@ class StateReadOnlyView:
 
     def get_artifacts_detail(self) -> dict[str, dict[str, str]]:
         return self._get_artifacts_detail()
+
+    def get_guard_results(self) -> dict[str, list[dict[str, object]]]:
+        """The guard traces as persisted, the latest attempt per node. See ADR 018."""
+        return self._get_guard_results()
+
+    def list_parameters(self) -> list[dict[str, str]]:
+        """The parameters of the run as name, codec type and writing node, without their values."""
+        return self._list_parameters()
+
+    def get_parameter_envelope(self, name: str) -> dict[str, object] | None:
+        """One parameter as the state persists it: the codec envelope of the value, or None if unset."""
+        return self._get_parameter_envelope(name)
+
+    def get_session_events(self) -> list[dict[str, object]]:
+        """The session event journal as persisted, in the order it was recorded."""
+        return self._get_session_events()
 
 
 @dataclass

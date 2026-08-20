@@ -6,7 +6,9 @@ from workflow_engine.answers import load_answer, question_block
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import load_config_file
 from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
+from workflow_engine.cli.presenters import render_journal_text, render_parameters_list_text
 from workflow_engine.engine import WorkflowEngine
+from workflow_engine.exceptions import WorkflowEngineError
 from workflow_engine.help_contract.builder import (
     build_component_type_payload,
     build_components_payload,
@@ -21,6 +23,7 @@ from workflow_engine.help_contract.renderers import (
 )
 from workflow_engine.inputs import parse_input_assignment
 from workflow_engine.models.state import SessionEventCode, StateReadOnlyView
+from workflow_engine.tools import render_value_as_text
 
 
 def _get_config(args: Namespace):
@@ -202,8 +205,100 @@ def show_state(command_name: CommandName, args: Namespace) -> CommandResult:
         message=f"State for session {session_id}",
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
-    result.data["inputs"] = engine.get_inputs(session_id)
     return result
+
+
+def _read_result(
+    command_name: CommandName,
+    state: StateReadOnlyView,
+    session_id: str,
+    data: dict[str, object] | None,
+    message: str | None = None,
+) -> CommandResult:
+    """The envelope of a bounded read command: where the run stands, reported informationally.
+
+    A read surface never moves the workflow, so its exit code is the command's own; the workflow status
+    and the last event code travel with the answer because the reader of a parameter or of the journal
+    is normally the one deciding what to do next. See ADR 018 §4.
+    """
+    return CommandResult(
+        command=command_name,
+        command_status=CommandStatus.COMPLETED,
+        session_id=session_id,
+        workflow_status=state.get_workflow_status_code(),
+        event_code=state.get_last_event_code(),
+        message=message,
+        errors=state.get_errors(),
+        data=data,
+    )
+
+
+def list_parameters(command_name: CommandName, args: Namespace) -> CommandResult:
+    """The parameters of a session by name, codec type and writing node, never their values. See ADR 018."""
+    engine = _get_engine(args)
+    session_id = args.session_id
+    state = engine.get_status(session_id=session_id)
+    parameters = state.list_parameters()
+    if args.json:
+        return _read_result(command_name, state, session_id, {"parameters": parameters, "count": len(parameters)})
+    return _read_result(command_name, state, session_id, None, render_parameters_list_text(session_id, parameters))
+
+
+def show_parameter(command_name: CommandName, args: Namespace) -> CommandResult:
+    """One parameter value: the ADR 016 rendering as text, the persisted codec envelope under `--json`.
+
+    An unknown name is a resolution error rather than an empty success, so a typo in a script fails
+    where it was made instead of reading as an unset parameter. See ADR 018 §2.
+    """
+    engine = _get_engine(args)
+    session_id = args.session_id
+    name = args.name
+    state = engine.get_status(session_id=session_id)
+    envelope = state.get_parameter_envelope(name)
+    if envelope is None:
+        return CommandResult(
+            command=command_name,
+            command_status=CommandStatus.ERROR,
+            session_id=session_id,
+            workflow_status=state.get_workflow_status_code(),
+            event_code=state.get_last_event_code(),
+            message=f"Parameter '{name}' is not set in session {session_id}",
+            errors={"parameter": f"{name} not found"},
+            data=None,
+        )
+    if args.json:
+        return _read_result(command_name, state, session_id, envelope)
+    return _read_result(command_name, state, session_id, None, render_value_as_text(state.get_param(name)))
+
+
+def _names_node(event: dict[str, object], node_id: str) -> bool:
+    details = event.get("details")
+    return isinstance(details, dict) and details.get("node_id") == node_id
+
+
+def show_journal(command_name: CommandName, args: Namespace) -> CommandResult:
+    """The session event journal as persisted, whole unless `--node` filters or `--tail` bounds it.
+
+    The filter runs before the bound, so the two compose as "the last n events of this node". The
+    answer reports the size of the whole journal next to what it carries, because a bounded read that
+    does not say it is bounded reads as the full record. See ADR 018 §3.
+    """
+    engine = _get_engine(args)
+    session_id = args.session_id
+    tail = getattr(args, "tail", None)
+    if tail is not None and tail < 1:
+        raise WorkflowEngineError(f"--tail must be a positive integer, got {tail}")
+    state = engine.get_status(session_id=session_id)
+    events = state.get_session_events()
+    total = len(events)
+    node_id = getattr(args, "node", None)
+    if node_id is not None:
+        events = [event for event in events if _names_node(event, node_id)]
+    if tail is not None:
+        events = events[-tail:]
+    if args.json:
+        return _read_result(command_name, state, session_id, {"events": events, "count": len(events), "total": total})
+    return _read_result(command_name, state, session_id, None, render_journal_text(session_id, events, total))
 
 
 def list_of_sessions(command_name: CommandName, args: Namespace) -> CommandResult:

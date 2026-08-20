@@ -13,10 +13,13 @@ from workflow_engine.cli.use_cases import (
     help_components,
     init_session,
     list_of_sessions,
+    list_parameters,
     resume_workflow,
     run_workflow,
     set_input,
     set_limit,
+    show_journal,
+    show_parameter,
     show_state,
 )
 from workflow_engine.exceptions import WorkflowEngineError
@@ -212,6 +215,46 @@ def _get_commend(command_name: CommandName) -> Command:
                 help="Show a workflow state",
                 args=[_session_id_arg()],
                 runner=show_state,
+            )
+        case CommandName.LIST_PARAMETERS:
+            return Command(
+                command=CommandName.LIST_PARAMETERS,
+                help="List the parameters of a session by name, codec type and writing node",
+                args=[_session_id_arg()],
+                runner=list_parameters,
+            )
+        case CommandName.SHOW_PARAMETER:
+            return Command(
+                command=CommandName.SHOW_PARAMETER,
+                help="Show the value of one parameter of a session",
+                args=[
+                    _session_id_arg(),
+                    CommandArgs(
+                        key="--name",
+                        help="Name of the parameter to show (see list-parameters)",
+                    ),
+                ],
+                runner=show_parameter,
+            )
+        case CommandName.SHOW_JOURNAL:
+            return Command(
+                command=CommandName.SHOW_JOURNAL,
+                help="Show the session event journal",
+                args=[
+                    _session_id_arg(),
+                    CommandArgs(
+                        key="--tail",
+                        type=int,
+                        help="Show only the last N events; without it the whole journal is returned",
+                        required=False,
+                    ),
+                    CommandArgs(
+                        key="--node",
+                        help="Show only the events that name this node id",
+                        required=False,
+                    ),
+                ],
+                runner=show_journal,
             )
         case CommandName.EXPORT_ARTIFACT:
             return Command(

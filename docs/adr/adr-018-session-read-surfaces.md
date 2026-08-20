@@ -74,7 +74,9 @@ Removed from the result: `parameters`, `outputs`, `inputs`.
 - `show-parameter --session-id <id> --name <name>` returns one value. The plain output is the
   ADR 016 rendering. With `--json`, `data` carries the codec envelope exactly as the state persists
   it — the codec name and the encoded value — so a machine reader keeps the type and can feed the
-  value into `set-input` of another session without re-encoding.
+  value into `set-input` of another session without re-encoding. `data` names the parameter and its
+  writing node beside the envelope: the same two fields `list-parameters` publishes, so reading one
+  value does not require the listing as well.
 
 Two commands rather than one with a selector, because each then has a single shape of result — a
 list, or one value — rather than a `data` block that changes shape with a flag.
@@ -90,7 +92,10 @@ persisted: timestamp, code, actor, event id, details — names, codec names and 
 values, which is what the journal holds (ADR 013 §9). Without flags the whole journal is returned:
 asking for the journal is an explicit act, and the reader who performs it has chosen the size.
 `--tail` bounds the answer to the last `n` events; `--node` filters to the events that name the
-node. The two compose.
+node. The two compose: the filter runs first, so the pair reads as "the last `n` events of this
+node". The answer reports how many events it carries next to how many the whole journal holds,
+because a bounded read that does not say it is bounded reads as the full record. A `--tail` below
+`1` is a command error rather than an empty answer, for the reason an unknown parameter name is.
 
 ### 4. The new commands are info commands
 
@@ -168,11 +173,27 @@ where the workflow stands, `4` on resolution errors.
   `show-state`.
 - The three artifact spellings in `show-state` (`artifacts_path`, relative map, absolute detail) are
   kept as-is by this decision; consolidating them is a candidate the implementation discussion may
-  raise, since the result is breaking anyway.
-- `CONTRACT_VERSION` moves with the shape change.
+  raise, since the result is breaking anyway. The implementation kept them.
+- `CONTRACT_VERSION` does not move. The draft expected it to, but the only such constant versions the
+  operator help payloads (ADR 009) and is stamped into nothing this decision touches; raising it would
+  announce a change to help consumers that did not happen. Whether the command results as a whole
+  should carry a version of their own is a question this ADR leaves where it found it.
+- The `type` of a parameter is the registered codec name, the key the state persists in `object_type`
+  and the one `help-component --component-type codecs` lists. It is a fully qualified Python name, so
+  it can change with the interpreter (`pathlib.Path` reads as `pathlib._local.Path` on 3.13); a caller
+  that pins the literal pins a Python version, and the bare form (`Path`) is what `set-input` takes.
+- The plain output of each command is rendered by the command, as the help surfaces do, rather than
+  left to the generic `Data: {...}` line: a journal printed as one Python dict is not a surface a
+  human reads. `--json` remains the shape a machine reads.
 
 ## Change log
 
+- 2026-08-21 — Implemented on `feature/adr_018-session-read-surfaces`. Amendments made while
+  building it: `CONTRACT_VERSION` stays where it is, because it versions the help payloads and not the
+  command results; `show-parameter --json` carries the name and the writing node beside the envelope;
+  `show-journal` reports the size of its answer next to the size of the journal and refuses a `--tail`
+  below `1`; each command renders its own plain output. `README.md` and
+  `docs/architecture/overview.md` describe the delivered surfaces.
 - 2026-08-20 — Drafted from `docs/architecture/notes/2026-08-20-interview-continuation-context.md`
   and the decisions of session `2026-08-20-architecture-7`: the run-state boundary of `show-state`
   (artifacts and deliverables stay; parameters, outputs and inputs leave; guard traces join), the
