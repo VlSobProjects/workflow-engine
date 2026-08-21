@@ -11,7 +11,9 @@
   ADR 016 (what the question can carry inside its text), ADR 018 (read surfaces — how a returning
   agent catches up), `documentation-rules.md` §1 (the map does not admit this document),
   `2026-08-19-installation-and-distribution.md` (the engine has no delivery channel, and a Skill is
-  one), `2026-08-20-question-rendering-for-an-audience.md` (who the published text is written for)
+  one), `2026-08-20-question-rendering-for-an-audience.md` (who the published text is written for),
+  `2026-08-21-answer-document-and-its-audience.md` (the block does not publish the answer's form),
+  `2026-08-21-command-result-cost-for-a-machine-reader.md` (what the payload costs the agent)
 
 ## What is being proposed
 
@@ -39,8 +41,10 @@ What is already in place for that test:
   readable without knowing which parameters exist.
 - The outcome is unambiguous at the transport: exit `0` success, `2` paused, `3` failed workflow, `4`
   command-level error (`README.md`, "Exit codes").
-- The answer document has a fixed shape, including how a refusal is expressed (`README.md`,
-  "Answering an interactive workflow").
+- The answer document has a fixed shape, including how a refusal is expressed (ADR 013 §4) — but it
+  is documented, not published: the shape is in `README.md` and the overview and **not** in the
+  question block, so this line belongs under the gaps below rather than here. See
+  `2026-08-21-answer-document-and-its-audience.md`.
 - A returning agent can read the run's state and journal through the ADR 018 commands.
 
 What the instruction will have to answer, and where the answer is not obvious today:
@@ -62,6 +66,27 @@ What the instruction will have to answer, and where the answer is not obvious to
    `documentation-rules.md` §3, so the instruction has to be the *loop and the judgment* — what an
    agent does in what order and how it decides — and link for the contract. That boundary is easy to
    state and hard to hold, and it is the main risk to the document's quality.
+
+## Measured from the answerer's seat
+
+Session `2026-08-21-investigation-2` drove the synthetic ADR-0083 coverage scenario by hand, one
+question at a time, reading only what the commands returned. Three of the gaps above stopped being
+predictions.
+
+- **Gap 3 is worse than stated.** It said the *internal* shape of a `dict` or `list` value lives in
+  the wording. The envelope around every answer — `status`, `values`, `text`, `error_code`,
+  `message`, `actor` — is not in the published block either. An agent given only the paused result
+  cannot compose a valid answer at all, so the instruction is today load-bearing for the transport
+  and not only for the loop and the judgment. That collides with item 5 of this note, which forbids
+  restating `README.md`: the two cannot both hold, and choosing between them is what
+  `2026-08-21-answer-document-and-its-audience.md` is for.
+- **Gap 2 generalizes.** It is not only attempts. A collecting loop's `minimum` is a bound the author
+  sets, the answerer is judged against, and the block never mentions; an agent that has nothing more
+  to contribute has to express that as a declared refusal, because no success answer says "enough".
+  The general form: **every bound in this engine is invisible to the party it binds.**
+- **The block already carries a field for a different reader.** `node_id` cannot change what an
+  answerer sends — `resume` addresses a session, not a node — so it serves an orchestrator or a log.
+  Small, but it shows the block is not written for a single audience today.
 
 ## The map does not admit this document
 

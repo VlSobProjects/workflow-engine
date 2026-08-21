@@ -8,7 +8,9 @@
 - **Affected:** ADR 005 (a registered renderer is a component it loads), ADR 013 (§3, the
   published question block), ADR 009 (help contract), ADR 014
   (provider adapters format prompts for their model), the publishing-boundary note
-  (`2026-08-19-interactive-exchange-publishing-boundary.md`, §1 and §3)
+  (`2026-08-19-interactive-exchange-publishing-boundary.md`, §1 and §3),
+  `2026-08-21-answer-document-and-its-audience.md` (the same question asked of the return channel),
+  `2026-08-21-command-result-cost-for-a-machine-reader.md` (what the unrendered payload costs)
 
 ## The idea
 
@@ -55,6 +57,12 @@ Fixed points, argued in the session:
 
 ## Open
 
+- **The return direction is not in this note, and is not decided anywhere else.** This scheme adapts
+  the question to its audience; the answer has exactly one form for every audience (ADR 013 §4), and
+  whether that asymmetry is intended has never been asked. Recorded separately in
+  `2026-08-21-answer-document-and-its-audience.md`, because a parser is not a formatter: what an
+  external question format gets wrong is a sentence, what an external answer format gets wrong is the
+  state.
 - Where rendering executes: the engine publishes a rendered form next to the block, or the consumer
   renders the block itself (both work over the same typed class; the engine-side form needs a
   decision about what appears in `data`).
@@ -84,3 +92,11 @@ Fixed points, argued in the session:
 One ADR covering the typed block, its version and the renderer together — they are one decision
 about publishing the question, not three. Its evidence arrives with the first two real audiences:
 the CLI's human output and one model driver (ADR 014's adapters are the natural second consumer).
+
+## What exists in the code today
+
+One class, `renderers/simple_render.py`, formatting the internal `PresentResponse` into a fixed block
+of text, not registered, not selectable, and reached only by a `print` in one test. It is the shape
+this note argues against on its first fixed point — a formatter consuming the internal class rather
+than the published block — so it is a starting point to replace, not to build on. Observed in session
+`2026-08-21-investigation-2`.
