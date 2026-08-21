@@ -35,7 +35,10 @@ completed
 All six open points of ADR 014 are settled and recorded in its text and change log; the ADR stays
 Draft on `development`, ready to enter Implementing — the transition decision is "Implementing, no
 POC", executed when the implementation session opens its branch. The registry row gained ADR 016 in
-`Depends on`; the recovery note's `Affected` gained ADR 014. No code changed.
+`Depends on`; the recovery note's `Affected` gained ADR 014. A follow-up discussion in the same
+session amended the draft further: the `context_overflow` error class, the
+`pre_functions`/`post_functions` chains, and rejected alternative F (decisions 7–9). No code
+changed.
 
 ## Decisions
 All belong to ADR 014 (Draft); numbered by the draft's original open points.
@@ -59,6 +62,18 @@ All belong to ADR 014 (Draft); numbered by the draft's original open points.
    reproducibility.
 6. **(point 5)** The codec decoding of the reply is one code path with the ADR 013 answer binding;
    reply parsing (`format`) and failure semantics stay the action's own.
+7. **(follow-up)** `context_overflow` joins the §5 error classes, split from `invalid_request`: the
+   core carries no tokenizer, so the provider's refusal is the one honest overflow signal, and a
+   guard routes it into a chunking branch of the graph.
+8. **(follow-up)** The node gains optional `pre_functions`/`post_functions` chains — the call's own
+   tooling, in the composition-inside-one-action shape the `functions` node already practises; pre
+   writes overlay the prompt resolution and leave in the node's single output, the post chain
+   cleans the raw reply before parsing, a failing function is a routable node error value, and the
+   audit artifacts bracket the provider call. The ADR 015 rejection of an engine-level pre/post
+   stays untouched.
+9. **(follow-up)** An abstract `llm` with chunking subclasses is rejected (alternative F):
+   extension travels through registration, and chunking is a graph loop over splitter and
+   accumulator functions, deferred beside the instruction-formatting module.
 
 ## Open questions
 None new. Deferred items live in the ADR's Leaves open: artifact-sourced `prompt_ref`, the

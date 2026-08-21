@@ -49,6 +49,8 @@ A core action (working name `llm`) whose node configuration declares:
   authored file holding the same template text;
 - `answer`: the typed answer declaration of ADR 013 — which parameters the reply must yield and
   how they are typed — plus a `format` (`text` | `json`) that tells the action how to read the reply;
+- optional `pre_functions` and `post_functions`: ordered lists of registered function
+  configurations, the call's own tooling (below);
 - optional provider call options (temperature, max tokens, …) passed through opaquely.
 
 The prompt is template text under the ADR 016 contract, inherited whole rather than adapted: the
@@ -82,6 +84,27 @@ error out — is one code path shared with the ADR 013 answer binding, so the tw
 drift; the extraction of raw values from the reply (`format`) and the failure semantics stay the
 action's own: an invalid reply is a routable error value here, where a refused answer in `ask`
 changes nothing and re-presents. The action is automatic: the run does not pause.
+
+An LLM call is not a bare deterministic function: it needs preparations before and cleaning after,
+and those belong to the call, not to the process around it. The node may therefore declare
+`pre_functions` and `post_functions` — ordered lists of registered function configurations, the
+same composition of functions inside one automatic action that the `functions` node already
+practises. The engine sees none of it: one node, one `ActionNodeOutput`, one journal event, so
+ADR 002 holds — and the ADR 015 rejection of an engine-level pre/post concept for every node stays
+untouched, because this is the configuration of one action, not a node mechanism.
+
+Four semantics are fixed. The pre chain runs first and prepares the call: its `param_writes` are
+visible to the prompt's template resolution as an overlay over the state view and leave the node in
+the final output, applied by the engine at once as ADR 006 requires. The post chain runs on the raw
+reply text before parsing: each function receives the running text as the output text of its
+predecessor and hands its result onward, so a reply is stripped of markdown fences or cut down to
+its JSON before `format` reads it. A failing function anywhere is the node's error value, carrying
+the code the function reported, routable like every other — and a failed pre chain means the
+adapter is never called. The audit artifacts of §4 bracket the provider, not the chains: the prompt
+artifact records what was actually sent — after the pre chain and the template resolution — and the
+reply artifact the raw reply as received, before the post chain, so every post-processing stays
+reproducible from the recorded raw material. Both lists are optional; a bare `llm` node stays
+trivial.
 
 The `llm` action is the automatic counterpart of the interactive `ask` (ADR 013): the two share the
 answer declaration but sit on opposite sides of one boundary. `ask` binds an answer produced outside
@@ -151,10 +174,16 @@ added to the state model.
 ### 5. Error classes, not retry policy
 
 The adapter reports each failure as one of a fixed set of classes (`transient`, `rate_limited`,
-`permanent`, `invalid_request`, `timeout`) which the action surfaces as the node error code. This
-ADR does not decide delay or backoff: that is the retry-policy decision of the recovery note (b),
-which will consume these classes. Until then the existing `max_attempts`/self-loop allowance is the
-only retry.
+`permanent`, `invalid_request`, `timeout`, `context_overflow`) which the action surfaces as the
+node error code. This ADR does not decide delay or backoff: that is the retry-policy decision of
+the recovery note (b), which will consume these classes. Until then the existing
+`max_attempts`/self-loop allowance is the only retry.
+
+`context_overflow` is deliberately split from `invalid_request`. The engine cannot count a model's
+tokens — tokenizers are model-specific and the core carries none — so the provider's refusal is the
+one honest overflow signal, and a guard that sees the class can route the run into a branch that
+splits the data and loops the call per chunk. Chunking itself is that graph pattern, never the
+action's hidden behaviour (alternative F).
 
 ### 6. Testing
 
@@ -210,14 +239,26 @@ engine's trust boundary, `llm` for a call the engine owns. A driver over `ask` r
 a model that genuinely is outside (a human-supervised agent, a vendor UI) — it is a superstructure
 over the engine, not the sanctioned mechanism of a model step.
 
+### F. An abstract LLM action with chunking subclasses
+Make `llm` an abstract base with overridable steps and ship typical chunking strategies as
+subclasses. Rejected twice over. Extension in this architecture travels through registration, not
+inheritance: an external module may already subclass the action and register its variant under its
+own name — the point ADR 015 made as its alternative C — while declaring the base abstract would
+sanction a second extension axis and couple plugins to the core's internals. And chunking cannot be
+a method override at all: one node is one call and one journal event, so N chunks are N calls — a
+loop in the graph, with a splitter function filling a parameter, the `llm` node visiting once per
+chunk and an accumulating function collecting the replies, the accumulating pattern the engine
+already carries. The splitters and accumulators are registered functions, natural neighbours of the
+instruction-formatting module (Leaves open).
+
 ## Consequences
 
 - Enables: one node per model step, vendor-neutral workflows, typed model output on the bus, audit
   of every call, a place for credentials, and error classes a later retry policy can use.
 - Costs: a new core action, a registration kind with its registry and help-contract adapter, a
   `providers` config section, two or three session event codes, the `fake` adapter in the core, the
-  file loader for template-text fields, and a reference plugin package maintained in the same
-  repository.
+  file loader for template-text fields, the pre/post function chains of the action, and a reference
+  plugin package maintained in the same repository.
 - Closes off: vendor SDKs and provider adapters in the core (`fake` is the null implementation of
   the contract, not a provider); models as guards.
 - Leaves open: retry/backoff (recovery note (b)); token or cost budgets next to the node cap
@@ -226,8 +267,8 @@ over the engine, not the sanctioned mechanism of a model step.
   literal or templated, while a registered function assembling the prompt into a parameter is the
   sanctioned channel today; the instruction-formatting module the deferral protects — prompt
   template libraries and per-model formatting as external components, the same concern the
-  question-rendering note holds on the `ask` side; and extending the template-file channel to the
-  `ask` presentation fields.
+  question-rendering note holds on the `ask` side, with the chunking splitters and accumulators as
+  its natural neighbours; and extending the template-file channel to the `ask` presentation fields.
 
 ## Related ADRs
 
@@ -276,3 +317,12 @@ the ADR 008 path policy.
   reply is one code path with the ADR 013 answer binding, while reply parsing and failure semantics
   stay the action's own. With all six points settled, the Draft is ready to enter Implementing; no
   POC is needed.
+- 2026-08-21: amended in the same session after a follow-up discussion. §5 gains
+  `context_overflow`, split from `invalid_request` so a guard can route an overflow into a chunking
+  branch of the graph; §1 gains the optional `pre_functions`/`post_functions` chains — the call's
+  own tooling, in the composition-inside-one-action shape the `functions` node already practises,
+  with four semantics fixed: pre writes overlay the prompt resolution and leave in the node's
+  single output, the post chain cleans the raw reply before parsing, a failing function is a
+  routable node error value, and the audit artifacts bracket the provider call. An abstract action
+  family with chunking subclasses is rejected as alternative F — chunking is a graph pattern over
+  splitter and accumulator functions.
