@@ -12,7 +12,9 @@
   ADR 016), ADR 013 (Accepted and delivered), ADR 014 (Draft; its open point 1 is decided by ADR 016
   for the in-text case), ADR 015 (Accepted and delivered — computation on an accepted answer),
   ADR 016 (Accepted and delivered — text interpolation, friction 1 below), ADR 017 (Accepted and
-  delivered — the per-node visit cap). The table below was re-verified against the code twice; see
+  delivered — the per-node visit cap), ADR 005 (the external module path the final specific step
+  takes — friction 3), ADR 018 (Accepted and delivered — the read surfaces a returning answerer
+  pulls). The table below was re-verified against the code twice; see
   "What the implementation changed" and "What ADR 015, 016 and 017 changed"
 
 The answer is yes for the substance. What was one core gap, one shape difference and one function to
@@ -32,7 +34,7 @@ twice, most recently against ADR 015, ADR 016 and ADR 017 together.
 | `Q` — one prepared question to the operator | `ask` node: text and options in the presentation, a typed `answer` entry; `input_mode` is expressed by the codec (`path` → `pathlib.Path`). A prior value stands inside the question text as `${param.x}` (ADR 016) | full: since ADR 015 the node checks what it bound, because a post function reads the answered value and its result is what the node's own guards route on |
 | `A` — agent branch decision, no dialogue | the same `ask` node, answered by an agent; `allowed_values` is an `any_of` of `equals` guards **over the answer text**; `default` with `require_reason` is a `failure` answer with a code and a message; `auto_log_stop` is a `FailTarget` plus the `interactive_answered` event | full: a decision in `text` routes directly, and one that travels as a declared value is surfaced by the node's own post function (ADR 015) instead of by an `echo_value` node in front of the guards. That function is `echo_answer`, and it ships in the core |
 | `I` — instruction to the agent to act and report | the same `ask` node: the presentation is the instruction, the agent acts outside the engine and answers with the aggregated result; node `validators` already exist | full |
-| `S` — deterministic script with parameters | a `function` node over an external registered function that runs the script; `script_output_match` is several transitions with `contains` guards, whose configured value resolves `param.` references | needs one external function |
+| `S` — deterministic script with parameters | a `function` node over an external registered function that runs the script; `script_output_match` is several transitions with `contains` guards, whose configured value resolves `param.` references | outside the core by decision, not by omission: what a flow accumulates is universal, what the next step does with it is the receiving side's protocol — friction 3 |
 | `STOP` | `stop` / `stop_on_error` and the `EndTarget` / `FailTarget` transition targets; `handoff_ref` is a deliverable (ADR 011); `cleanup_scripts` is a node before the end | full |
 | `FQ` — up to N agent-generated questions | one `ask` node whose post function appends the answer and returns whether the loop has enough, so the node routes its own loop (ADR 015) — `collect_answer` in the core; the two-node form `CHECK → ask → COLLECT → CHECK` over `append_to_param` and `is_collection_size_at_least` still works and is what the core components alone can express. A question repeated in place is bounded by `max_attempts`, a loop that leaves and returns by `max_visits` (ADR 017) | full, and no longer at the cost of two nodes; the one-node form is covered by `tests/test_adr015_post_function.py`, the two-node form by `tests/test_bounded_accumulating_loop.py` |
 | typed validators (`non_empty`, `regex`, `enum`, `path_exists`) | node `validators`, value guards, function guards | full |
@@ -232,14 +234,40 @@ the work takes.
    the precedent is `append_to_param`, added in session `2026-08-19-implementation-15` without one —
    and the names and exact signatures are the implementation session's to choose. What the fold
    costs is unchanged and stays priced by ADR 015 §2.
-6. **The script-running function for `S`**, as an external module rather than a core component: it is
-   a trust decision (friction 3), and shipping it outside the core exercises the ADR 005 external
-   module path at the same time.
+6. **The final specific step (`S`), outside the core deliberately.** The reason this note carried
+   until session `2026-08-21-architecture-2` — that shipping it outside also exercises the ADR 005
+   external module path — is spent: ADR 014 §2 gave that role to the OpenAI-compatible provider
+   adapter, the reference plugin. What remains is the stronger reason, and it is not the trust
+   objection either: the step is specific by nature. Friction 3 carries the argument and the two
+   alternatives that lost to it.
+
+   This is not what stands between the scenario and a runnable example. The universal end of the
+   process is already in the core — accumulate into a collection, render it with
+   `dict_list_to_pretty_table`, export it as a declared deliverable — and that is how the flow
+   already ends. `S` is the step *after* the engine's end, taken by whoever receives the result.
 
 Not on this path, despite being next in the phase 2 plan: **ADR 014**. The agent-facing nodes of
 ADR-0083 are answered through the interactive contract, which exists; the engine does not need to call
 a model itself for these scenarios to work. The in-graph budget checkpoint (friction 2) is likewise a
 fidelity question, not a blocking one.
+
+## Not on the missing list: the interrupted interview
+
+A paused question already survives an interruption of the answerer, which is what these scenarios
+need long before crash recovery does. The session stays paused at its node, a `resume` without an
+answer re-presents the same question and consumes neither an attempt nor a visit (ADR 013 §6),
+nothing expires, and the ADR 010 budget does not count waiting.
+
+The context the returning answerer gets is pulled, not pushed (ADR 018): the parameters by name and
+by value, the journal, the state of the run. What the engine does not hand back is the exchange
+itself — the questions and the answers as text — because the journal stores no values (ADR 013 §9),
+so a transcript exists only where the flow author accumulated one. Here the author did: `qa_log` is
+the record of the interview and the payload of the final step at once, which is the same fact
+friction 3 rests on — the accumulation belongs to the engine, the consumption does not. ADR 018
+leaves the transcript question open and nothing in these scenarios forces it yet.
+
+Moving a *failed* automatic node forward by hand is a different capability — (a) of
+`2026-08-18-recovery-and-resilience-roadmap.md` — and is deliberately not on this path.
 
 ## The simplification
 
@@ -274,10 +302,37 @@ the transition targets.
    `set-limit` and resumes. The outcome is reachable — nothing is lost, deliverables can be exported,
    the limit can be raised — but the choice happens outside the graph, not in a node. An in-graph
    checkpoint would be a change to ADR 010, not to ADR 013.
-3. **`S` is a trust decision, not an architectural one.** Running a script with resolved parameters is
-   what ADR 005 external modules exist for. What it costs is a component that starts arbitrary
-   processes on behalf of a workflow definition, which is a boundary question worth answering
-   deliberately before such a function is written.
+3. **`S` is specific by nature, and that is why it stays outside.** Settled in session
+   `2026-08-21-architecture-2`, replacing the trust framing this entry carried before.
+
+   What a flow accumulates is universal, and it is the engine's business: a `dict`, a `list` or a
+   `list` of `dict`, grown by `append_to_param` or `collect_answer`, typed through codecs, readable
+   through the ADR 018 surfaces, and renderable into an exported deliverable by a core function.
+   What happens to it afterwards is not universal at all — a row in a database, a POST to an
+   endpoint, a set of files in a format the receiving process defines. That is the protocol of the
+   other side, and the engine has no shape to offer it. A core component could only be one
+   integration among many, which grows the core per protocol against general rule 9, or a bare
+   process runner, whose entire content is a command line the definition supplies.
+
+   Two alternatives were weighed before this was settled, and both lost:
+
+   - *A core `run_script` whose executable is named in the engine configuration* — the shape ADR 014
+     §3 uses for providers: the capability in the core, the permission in the environment, arguments
+     passed as an argv list rather than a shell string, so a value that came out of a model can never
+     become the program. It answers the trust objection cleanly, and it still loses on need: what
+     stands on the other side is written by whoever owns the receiving system, and a registered
+     function is already the cheapest way to call it. Generality nothing asked for.
+   - *A narrow core egress*, an HTTP function over `urllib`. Covers one protocol out of many and
+     starts exactly the per-integration growth the first alternative avoided.
+
+   The trust question does not vanish; it moves to where it belongs. A registered function that
+   starts processes or opens sockets is the plugin author's decision and the operator's
+   `external_modules` entry — both explicit, neither a property of a bare install.
+
+   The first consumer is named. The external ADR-0083 project takes this step with its own tools and
+   its own protocol; what it receives from here is the engine and the instructions for registering a
+   function (`README.md`, "Writing a custom function"), not a component. That makes it the first
+   client of the plugin model, ahead of the reference adapter of ADR 014.
 
 ## Not a gap: caller-owned writes
 
