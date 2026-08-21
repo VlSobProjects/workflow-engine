@@ -81,7 +81,8 @@ The message is shown to the user before the commit is made: see `docs/rules/gene
 - A `poc/` branch is never merged into `development`.
 - Before merging into `development`, the required tests and the linter must pass.
 - A `feature/`, `fix/` or `refactor/` branch synchronizes the documentation its change made
-  inaccurate, in the same branch: `README.md` for anything an operator or a calling program sees, and
+  inaccurate, in the same branch: `README.md` for anything an operator or a calling program sees,
+  the walkthrough in `examples/` for anything one of the shipped templates does, and
   `docs/architecture/overview.md` for anything the architecture description states. A change that
   affects neither needs no documentation edit; a change that does is not finished without one.
 - When merging into `development`, update every registry the branch touched: the ADR registry

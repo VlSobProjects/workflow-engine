@@ -12,7 +12,7 @@ be resumed.
 | --- | --- |
 | `src/workflow_engine/` | The engine |
 | `tests/` | Tests |
-| `examples/` | Example workflow definitions |
+| `examples/` | Example workflow definitions and a walkthrough for each |
 | `docs/` | Rules, architecture, ADRs and session notes |
 
 ## Requirements
@@ -62,83 +62,49 @@ writing the deliverable, with `pretty_table_write_error` and an `[Errno 2]` mess
 
 ## Running the examples
 
-`examples/` ships three validated templates. Each declares its `inputs`, and runs from any working
-directory the `workflow-engine` command is reachable from (see "Requirements"). Session data lands
-under `<cwd>/.workflow-engine/` unless the config file or `--work-dir` says otherwise.
+`examples/` ships three validated templates, each with its own walkthrough:
 
-The two batch templates treat a missing deliverable as a failed run: the node that writes the CSV
-fails under the error code it produced, so the run ends with exit code `3` and the code in `errors`
-instead of reporting success with no file. The third template stops mid-run and waits for an answer.
+| Template | What it does | Waits for an answer |
+| --- | --- | --- |
+| [`folder-inventory-to-csv`](examples/folder-inventory-to-csv.md) | Walks a folder tree and writes a CSV inventory of the files it finds | no |
+| [`flatten-copy-tree`](examples/flatten-copy-tree.md) | Copies every file of a tree into one flat directory and reports what it copied | no |
+| [`approve-and-copy`](examples/approve-and-copy.md) | Asks for a decision, and copies the file only if the answer approves it | yes |
 
-### folder-inventory-to-csv
+What holds for all of them is in [`examples/README.md`](examples/README.md). What follows here is the
+engine's own contract rather than any template's: how inputs are bound, how a question is answered,
+how the result is retrieved, and how a session is read.
 
-Walks a folder tree and writes a CSV inventory (path, size, MIME type, modified time, MD5) as the
-`file_scan_table` deliverable. Requires the input `scan_root` (`Path`). A tree that holds no file at
-all produces no table: the run fails with the error code `pretty_table_no_data`.
+## Binding inputs
 
-Step by step:
+`--input NAME[:TYPE]=VALUE` is repeatable; `TYPE` names a registered codec. `help-components` lists
+codecs under their Python module path (e.g. `pathlib._local.Path` for `Path` on this Python version);
+the bare name (`Path`) also resolves and is what the examples use. `set-input` only binds to a
+session that has not started yet; `run --input` binds and starts in one call.
 
-```
-workflow-engine init-new-session --workflow-file examples/folder-inventory-to-csv.json --json
-workflow-engine set-input --session-id <SESSION_ID> --input "scan_root:Path=<folder-to-scan>"
-workflow-engine resume --session-id <SESSION_ID> --json
-```
+### Writing a path on Windows
 
-Or in one shot:
+A `Path` input accepts native separators — `--input "src:Path=C:\data\in.txt"` binds the same value as
+`C:/data/in.txt` — because the codec builds a `pathlib.Path`, which normalizes them. From there the
+engine works in POSIX form everywhere: in `state.json`, in the JSON result, in a node output and in a
+guard comparison. **Forward slashes are still the safer form to write**, for two reasons:
 
-```
-workflow-engine run --workflow-file examples/folder-inventory-to-csv.json \
-  --input "scan_root:Path=<folder-to-scan>" --json
-```
+- A typed value is parsed as JSON before the codec sees it, with a fall back to the raw string. A bare
+  `C:\data\in.txt` is not valid JSON, so it falls back and arrives intact — but a value that carries
+  its own quotes (`--input 'src:Path="C:\data\in.txt"'`) *is* valid JSON, and there `\d` is rejected
+  while `\t` and `\f` are a tab and a form feed. The path then binds silently as something else. Do
+  not quote the value inside the assignment; the shell's own quotes around the whole `NAME=VALUE` are
+  fine. The same holds for a path inside a JSON answer, where a backslash must be written `\\`.
+- `pathlib` normalizes as it parses: `.\reports\out` binds as `reports/out`. The path still resolves
+  the same way, but the form you get back is not the form you wrote.
 
-### flatten-copy-tree
+## Answering an interactive workflow
 
-Walks a folder tree and copies every file into a flat target directory, writing a copy report
-(source, copied path, MD5) as the `copy_report` deliverable. Requires `source_root` and `target_dir`
-(both `Path`); **`target_dir` must already exist.** If it does not, the first copy fails the
-`COPY_FILE` node with the error code `target_folder_not_found`, the run stops as a failed workflow
-(exit code `3`) with that code under `errors.COPY_FILE`, and no file is copied; create the directory
-and start again. A file that cannot be copied fails the run the same way, under `copy_failed`.
+A run that reaches an `ask` node stops and waits: the command reports a paused workflow (exit code
+`2`) and carries the question under `data.question` — the node, the text of the question, the
+declared answer, and the error codes the node accepts. Nothing else happens until someone answers.
+[`approve-and-copy`](examples/approve-and-copy.md) shows a real one.
 
-```
-workflow-engine run --workflow-file examples/flatten-copy-tree.json \
-  --input "source_root:Path=<folder-to-copy>" --input "target_dir:Path=<destination-folder>" --json
-```
-
-### approve-and-copy
-
-Asks for a decision before it copies anything, which is what an `ask` node is for: the run stops, the
-command reports a paused workflow (exit code `2`), and nothing else happens until someone answers.
-Requires `source_file` and `target_dir`; **`target_dir` must already exist.**
-
-```
-workflow-engine run --workflow-file examples/approve-and-copy.json \
-  --input "source_file:Path=<file-to-copy>" --input "target_dir:Path=<destination-folder>" --json
-```
-
-The paused result carries the question under `data.question`: the node, the text of the question, the
-declared answer, and the error codes the node accepts. Every presentation field is template text, so
-the file and the size the previous node measured stand inside the instruction the answerer reads
-rather than beside it.
-
-```json
-"question": {
-  "node_id": "ASK_APPROVAL",
-  "title": "Approve the copy",
-  "instruction": "Decide whether '<file-to-copy>' (1.20 KB) may be copied. Answer 'approved' or 'rejected' as the answer text, and name the decision maker in 'reviewer'.",
-  "options": ["approved", "rejected"],
-  "answer": [{"name": "reviewer", "type": null, "required": true, "description": "Who made the decision"}],
-  "error_catalogue": {"source_unreadable": "The file cannot be read, so no decision can be made."},
-  "generic_error_code": "answer_failed"
-}
-```
-
-Answer it with `resume --answer` (or `--answer-file <path>` for the same document in a file):
-
-```
-workflow-engine resume --session-id <SESSION_ID> --json \
-  --answer "{\"status\": \"success\", \"values\": {\"reviewer\": \"me\"}, \"text\": \"approved\"}"
-```
+Answer it with `resume --answer <json>`, or `--answer-file <path>` for the same document in a file.
 
 The answer document has one required field, `status`:
 
@@ -155,12 +121,14 @@ Anything else is refused with exit code `4` and changes nothing: an undeclared o
 value the codec cannot decode, an undeclared error code, a malformed document, or an answer sent to a
 run that is not waiting for one. `resume` **without** an answer presents the same question again,
 consuming neither an attempt nor a visit — that is how a caller who cannot answer hands the question
-on. In this template an answer text that is neither `approved` nor `rejected` sends the run back to
-the same node, which is bounded by its `max_attempts` (`2` here) and then fails under
-`max_attempts_exceeded`. That bound covers one visit only: leaving the node resets it, so a
+on.
+
+An answer the node's transitions do not accept can be routed back to the same question, and the
+node's `max_attempts` bounds that: when the attempts run out the node fails under
+`max_attempts_exceeded`. The bound covers one visit only — leaving the node resets it, so a
 correction routed through another node comes back as a fresh visit and starts the attempts over. A
-node that a loop can re-enter that way is bounded by the optional `max_visits` — see "Bounding a loop
-through one node".
+node that a loop can re-enter that way is bounded by the optional `max_visits` — see "Bounding a
+loop through one node".
 
 Every field of the question is template text: `${param.<name>}`, `${output.<node_id>}` and
 `${artifact.<logical_name>}` are replaced by the value they name when the question is presented, so
@@ -188,27 +156,6 @@ what it bound; `collect_answer` appends the answer to a list parameter prepared 
 and answers `enough` or `more`, so the question that asks accumulates its own answers and decides
 when the loop is over. Both keep the writes the answer carried, and both fail the node under a code
 rather than routing a value that is not there.
-
-`--input NAME[:TYPE]=VALUE` is repeatable; `TYPE` names a registered codec. `help-components` lists
-codecs under their Python module path (e.g. `pathlib._local.Path` for `Path` on this Python version);
-the bare name shown above (`Path`) also resolves and is what the examples use. `set-input` only binds
-to a session that has not started yet; `run --input` binds and starts in one call.
-
-### Writing a path on Windows
-
-A `Path` input accepts native separators — `--input "src:Path=C:\data\in.txt"` binds the same value as
-`C:/data/in.txt` — because the codec builds a `pathlib.Path`, which normalizes them. From there the
-engine works in POSIX form everywhere: in `state.json`, in the JSON result, in a node output and in a
-guard comparison. **Forward slashes are still the safer form to write**, for two reasons:
-
-- A typed value is parsed as JSON before the codec sees it, with a fall back to the raw string. A bare
-  `C:\data\in.txt` is not valid JSON, so it falls back and arrives intact — but a value that carries
-  its own quotes (`--input 'src:Path="C:\data\in.txt"'`) *is* valid JSON, and there `\d` is rejected
-  while `\t` and `\f` are a tab and a form feed. The path then binds silently as something else. Do
-  not quote the value inside the assignment; the shell's own quotes around the whole `NAME=VALUE` are
-  fine. The same holds for a path inside a JSON answer, where a backslash must be written `\\`.
-- `pathlib` normalizes as it parses: `.\reports\out` binds as `reports/out`. The path still resolves
-  the same way, but the form you get back is not the form you wrote.
 
 ## Retrieving the result
 
