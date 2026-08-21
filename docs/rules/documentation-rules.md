@@ -8,6 +8,7 @@ Only the documents listed below may exist:
 | Location | Purpose |
 | --- | --- |
 | `README.md` | What the project is, what it is for, how to run it |
+| `examples/` | The shipped workflow templates: a registry of them and one walkthrough per template, beside the definitions themselves |
 | `AGENTS.md` | Agent entrypoint, routing only |
 | `.github/copilot-instructions.md` | Copilot entrypoint, routing only |
 | `CLAUDE.md` | Claude Code entrypoint; routes like `AGENTS.md`, plus a condensed non-negotiable-rules/commands summary for Claude Code's own use (stated exception to §4, kept in sync with the documents it summarizes) |

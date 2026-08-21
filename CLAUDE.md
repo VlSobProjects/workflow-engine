@@ -39,8 +39,9 @@ Do not read unrelated docs, and create documents only inside the map defined in
 - Architecture is discussed in critical mode: state at least two alternatives, the trade-offs, and
   the cost. Architectural changes happen under an ADR; an accepted ADR is frozen and only superseded.
 - A `feature/`, `fix/` or `refactor/` branch also carries the documentation its change made
-  inaccurate: `README.md` for what an operator or a calling program sees,
-  `docs/architecture/overview.md` for what the architecture description states.
+  inaccurate: `README.md` for what an operator or a calling program sees, the walkthrough in
+  `examples/` for what a shipped template does, `docs/architecture/overview.md` for what the
+  architecture description states.
 - Working tree hygiene: every file is either tracked or ignored; do not end a task with untracked or
   uncommitted files without raising it.
 - Verification means command-line runs of pytest and ruff; report what was actually run. Never claim

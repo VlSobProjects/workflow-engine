@@ -56,8 +56,8 @@ It requires explicit approval, is declared in `pyproject.toml`, and development 
 separately from runtime dependencies.
 
 ## 11. Documentation of a change
-A change that makes `README.md` or `docs/architecture/overview.md` inaccurate carries the correction
-in the same branch. The rule and its scope live with the other merge preconditions in
+A change that makes `README.md`, a walkthrough in `examples/` or `docs/architecture/overview.md`
+inaccurate carries the correction in the same branch. The rule and its scope live with the other merge preconditions in
 `docs/processes/git-workflow.md`.
 
 ## 12. Registration and dynamic behaviour
