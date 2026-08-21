@@ -68,7 +68,7 @@ branch merges into `development`.
 
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
-| 2026-08-18 | Recovery and resilience roadmap for phase 2 and beyond: retry/backoff, manual takeover via interactive node output, snapshot-based rollback with operator-registered compensation | open | ADR 006, ADR 007, ADR 012, ADR 013 | [2026-08-18-recovery-and-resilience-roadmap.md](2026-08-18-recovery-and-resilience-roadmap.md) |
+| 2026-08-18 | Recovery and resilience roadmap for phase 2 and beyond: retry/backoff, manual takeover via interactive node output, snapshot-based rollback with operator-registered compensation | open | ADR 006, ADR 007, ADR 012, ADR 013, ADR 014 | [2026-08-18-recovery-and-resilience-roadmap.md](2026-08-18-recovery-and-resilience-roadmap.md) |
 | 2026-08-18 | Deferred architectural questions from ADR 012 implementation: shallow reference resolution, Python-version-dependent codec names, and the missing workflow-definition introspection surface | open | ADR 006, ADR 009, ADR 011, ADR 012, ADR 013, ADR 014, ADR 018 | [2026-08-18-adr012-deferred-questions.md](2026-08-18-adr012-deferred-questions.md) |
 | 2026-08-19 | Scope of the hard node cap: keep the global `hard_max_nodes_visited` default for phase 1, and weigh a workflow-declared or workflow-type-derived cap later | open | ADR 007, ADR 010, ADR 012, ADR 017 | [2026-08-19-hard-node-cap-scoping.md](2026-08-19-hard-node-cap-scoping.md) |
 | 2026-08-19 | Entry-point discovery for component registration, deferred out of the ADR 005 implementation freeze: conflict policy, name-only vs. module-qualified registries, precedence and operator auditability | open | ADR 005 | [2026-08-19-entry-point-discovery.md](2026-08-19-entry-point-discovery.md) |

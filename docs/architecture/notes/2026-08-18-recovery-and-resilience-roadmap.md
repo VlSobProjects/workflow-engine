@@ -8,7 +8,8 @@
 - **Affected:** ADR 006 (bus/journal invariants), ADR 007 (§4 interactive input deferred to phase 2),
   ADR 012 (pre-start binding; deliberately closed off mid-run external writes), ADR 013
   (Accepted, carries (a) — session `2026-08-19-architecture-2`; (b) stays the next ADR after
-  ADR 014, (c) is a small fix without an ADR — session `2026-08-19-architecture-1`)
+  ADR 014, (c) is a small fix without an ADR — session `2026-08-19-architecture-1`), ADR 014
+  (fixes the error classes (b) will consume — session `2026-08-21-architecture-1`)
 
 ## The gap
 
