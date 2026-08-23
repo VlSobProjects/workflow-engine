@@ -4,7 +4,7 @@
 - **Trigger:** session `2026-08-21-investigation-2`: the ADR-0083 scenario was driven by hand, one
   question at a time, from a runtime root outside the repository. Both findings below were noticed
   from the answerer's seat rather than derived from the contract
-- **Status:** open
+- **Status:** promoted → ADR 019
 - **Affected:** ADR 013 (§3 the published question block, §4 the answer document, alternative F),
   ADR 005 (a registered answer format would be a component it loads), ADR 009 (the help payloads are
   the other place a fixed contract could be published once),

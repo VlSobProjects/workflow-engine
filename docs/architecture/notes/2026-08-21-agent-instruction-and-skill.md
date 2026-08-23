@@ -6,7 +6,7 @@
   workflow it is pointed at to the end. The instruction carries no scenario — all the specifics live
   inside the workflow definition — and its stated destination is a Skill.
 - **Status:** open
-- **Affected:** ADR 007 (CLI contract — the commands the agent drives), ADR 009 (help surfaces —
+- **Affected:** ADR 019 (the question document: its gap 2 becomes the `node.` references, and the block is replaced by a document that publishes the answer protocol), ADR 007 (CLI contract — the commands the agent drives), ADR 009 (help surfaces —
   component discovery), ADR 013 (the published question block is what the agent reads),
   ADR 016 (what the question can carry inside its text), ADR 018 (read surfaces — how a returning
   agent catches up), `documentation-rules.md` §1 (the map does not admit this document),

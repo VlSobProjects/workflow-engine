@@ -4,7 +4,7 @@
 - **Trigger:** session `2026-08-20-architecture-3`: while deciding reference interpolation (ADR 016),
   the discussion separated the *content* of a question from its *form* — and the form side, which the
   interpolation evidence does not cover, is captured here instead of being decided on no evidence
-- **Status:** open
+- **Status:** promoted → ADR 019
 - **Affected:** ADR 005 (a registered renderer is a component it loads), ADR 013 (§3, the
   published question block), ADR 009 (help contract), ADR 014
   (provider adapters format prompts for their model), the publishing-boundary note

@@ -3,7 +3,7 @@
 - **Date:** 2026-08-21
 - **Trigger:** session `2026-08-21-investigation-2`: the ADR-0083 scenario driven by hand, with the
   paused JSON read the way an answering model receives it — as context it pays for
-- **Status:** open
+- **Status:** promoted → ADR 019
 - **Affected:** ADR 007 (the CLI contract owns the command result shape), ADR 013 (§3 the published
   question block), ADR 018 (the read surfaces, which chose one shape per command),
   `2026-08-20-question-rendering-for-an-audience.md` (the typed block is the natural carrier of a
