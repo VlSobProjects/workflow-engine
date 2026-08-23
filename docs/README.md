@@ -4,7 +4,7 @@ This directory contains the repository's structured documentation.
 
 ## Document areas
 - `rules/` — general and task-specific rules
-- `architecture/` — the architecture as it currently is
+- `architecture/` — the purpose of the engine (`purpose.md`) and the architecture as it currently is (`overview.md`)
 - `architecture/notes/` — durable architectural ideas not yet decided, and their registry
 - `adr/` — architecture decision records and ADR governance
 - `sessions/` — session notes and session registry

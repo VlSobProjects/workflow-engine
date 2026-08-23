@@ -40,7 +40,11 @@ Superseding applies only to frozen decisions.
 ## 9. Keep the registry truthful
 Update the ADR registry in `docs/adr/README.md` on every status change.
 
-## 10. Consult the architecture notes
+## 10. Read the purpose first
+Every architecture session starts by reading `docs/architecture/purpose.md`.
+A decision is argued against the purpose stated there, not against the convenience of the engine.
+
+## 11. Consult the architecture notes
 Architecture work reads the open notes in `docs/architecture/notes/`.
 A free-scope architecture session ("what architectural work is open?") draws its candidates from them.
 When a discussed ADR intersects a note, update the note's `Affected` link or change its `Status`

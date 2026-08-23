@@ -14,6 +14,7 @@ Only the documents listed below may exist:
 | `CLAUDE.md` | Claude Code entrypoint; routes like `AGENTS.md`, plus a condensed non-negotiable-rules/commands summary for Claude Code's own use (stated exception to §4, kept in sync with the documents it summarizes) |
 | `docs/README.md` | Documentation index |
 | `docs/rules/` | General and task specific rules |
+| `docs/architecture/purpose.md` | What the engine is for, its boundaries and what counts as done; read at the start of every architecture session |
 | `docs/architecture/overview.md` | The architecture as it currently is |
 | `docs/architecture/notes/` | Architecture notes and their registry: durable ideas not yet decided |
 | `docs/adr/` | Architecture decision records and their governance |

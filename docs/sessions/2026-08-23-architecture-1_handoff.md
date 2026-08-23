@@ -1,0 +1,181 @@
+# Session note: 2026-08-23 architecture 1
+
+## Type
+`architecture`
+
+## Goal
+State the purpose of the project in one document, measure the architecture and the open work
+against it, and decide for every gap whether it is an ADR, a fix, or component work under an
+existing ADR.
+
+## Completion criteria
+- `docs/architecture/purpose.md` exists with the agreed text, the document map admits it, and the
+  ADR discussion rules require reading it at the start of every architecture session.
+- Every gap between the purpose and the architecture is listed below with a decision: ADR, fix,
+  component work under a named ADR, or deferred with its trigger.
+- The open notes are triaged against the purpose; each is acted on, deferred with a reason, or
+  dropped.
+- The next sessions are ordered.
+
+## Scope boundaries
+- No code, no tests, no examples. Documentation only.
+- No ADR is opened or moved to Implementing in this session; the decisions name the ADRs to open.
+- The code debts found by the code reading are listed, not fixed.
+
+## Status
+`interrupted` — in progress.
+
+## Result
+To be completed.
+
+## Decisions
+
+### 1. The purpose (question 1, settled)
+The text of `docs/architecture/purpose.md` was discussed and accepted; the session writes it. Its
+points, as they bind what follows:
+- The engine runs a complex technical task as a graph of precisely specified subtasks; functions
+  do the deterministic work, models do the judgment, each step by the smallest model that can do
+  it; the next node is chosen at run time from the data and is not known in advance.
+- The limit of what a model step sees is enforced by the engine, not by the model's discipline;
+  the checks at a boundary are code, never a model.
+- A situation the author did not foresee is a foreseen exit: a handover to a human carrying the
+  evidence. The engine never invents a step.
+- A prompt handed to an agent is not automation: somebody watches it. Many steps need no model;
+  a pipeline of checks answers before a model is called.
+- The engine is a process the caller walks from outside; whoever answers a step answers through
+  one contract.
+- Boundaries: no planning, no agent framework, no scheduler, no UI; parallel nodes outside the
+  current scope (concurrency inside a function first; fork/join only on a serious external
+  request); several workflows are several processes, the engine only protects a session from
+  concurrent access.
+- Done means: a fetch → aggregate → decide → branch → hand over scenario runs end to end on
+  prepared data with a local model, its path determined by the data and explained by the
+  journal, and an author who knows the domain but not the engine writes it from the
+  documentation alone.
+- Origin: load-testing analysis. The live check against a real system under test (a Spring Boot
+  application the owner already has, a cluster, a metrics store) is the publication gate, not
+  the phase 2 exit; it is not started before the prepared-data scenario passes.
+
+Corrections to the reviewer's first analysis that the discussion produced: the note
+`2026-08-19-engine-as-team-process-carrier.md` is a later application, not the purpose; the
+support-intake scenario is an interview with one answerer and is not the shape the purpose
+measures against, so it is not the phase 2 exit condition.
+
+### 2. Architecture measured against the purpose (question 2, under discussion)
+Each gap carries the reviewer's proposal; the decision column is filled as the discussion goes.
+
+| # | Gap | Evidence | Proposal | Decision |
+| --- | --- | --- | --- | --- |
+| G1 | No LLM node. The purpose's central component does not exist. | ADR 014 Draft; no `@register_provider`, no `providers` config in `src/` | ADR 014, returned to a narrower Draft: action + `format` parsing, provider registry, `fake` adapter, `providers` config, `llm_called` event, error classes. Cut until a scenario asks: `pre_functions`/`post_functions`, `prompt_ref` as a generic channel, the in-repo reference package. The first real adapter is an OpenAI-compatible local server as an external module (the existing out-of-tree POC). | pending |
+| G2 | Ordering: ADR 019 §2 makes the LLM node consume the rendered question document; ADR 014 §1 makes the prompt template text. Two Drafts contradict on one field. | ADR 019 Consequences "Constrains: ADR 014"; ADR 014 §1 | Decouple. The LLM node's input is a prompt (ADR 016 template text) plus the answer declaration; the question document of ADR 019 is for an answerer outside the run. Edit ADR 019 (Draft) to drop the constraint. Order: ADR 014 first, because the exit scenario needs it and needs no external answerer; ADR 019 second. | pending |
+| G3 | Model tiering per step and context limited to the declared inputs. | ADR 014 §1 `provider`/`model` per node; ADR 016 references | Already covered by ADR 014 as drafted and by ADR 016. No work beyond G1. | pending |
+| G4 | Nothing checks that a structured answer has the shape the step declared: `type: dict` accepts any dictionary. | `support-intake` note gap 4; ADR-0083 note | A guard over answer keys (component work under ADR 002; the guard name is the error code). Declaring the shape in `answer` is an ADR 013 change and is not taken until a scenario shows the guard is not enough. | pending |
+| G5 | The function inventory is filesystem sediment: 21 of 30 functions are file work; no function creates or sets a dictionary parameter; no generic fetch/parse/aggregate step. | code audit; `support-intake` gap 1 | Core gets only generic bus work: `init_dict_param`, `set_dict_item` (component work under ADR 006). Scenario-specific fetching and parsing ship as an external module beside the scenario in `examples/`, the way the purpose keeps vendor and domain code outside the core. The 15 file-info functions leave the core in a later `refactor/` session. | pending |
+| G6 | One output shape, a table in six syntaxes; a handover is a structured document; an artifact name cannot carry a run value; template text is confined to the ten `ask` fields. | `support-intake` gaps 2 and 3; `template=True` appears only in `action_ask.py` | One ADR: template text outside `ask` (function parameters declared template text in their metadata) and document artifacts — a JSON artifact of author-defined shape and a text artifact rendered from template text. Opened when the exit scenario needs its handover, not before; it amends the scope of ADR 016 and ADR 011. | pending |
+| G7 | The unforeseen exit. A node that fails with no matching transition fails the run; every handover route has to be written per node. | ADR 002 transition semantics; overview "A node" | Defer. The scenario writes its failure transitions explicitly; if that proves verbose, a workflow-level default failure route is its own ADR amending ADR 002. Retry/backoff by error class (recovery note (b)) waits for ADR 014's error classes, as already decided. | pending |
+| G8 | A run explained and repeated from the journal. | ADR 018 journal and guard traces; ADR 014 §4 prompt/reply artifacts | Covered by ADR 018 and ADR 014 §4 as drafted; a replay mode is not needed for "done" and is deferred. | pending |
+| G9 | An external answerer cannot compose an answer from the published block alone. | ADR 019 Draft, context | ADR 019 stays, after ADR 014, narrowed: typed document, `md` and `json` renderers, the protocol published inside, `node.` references, one publishing command. §7 `instruction_file` and §9 audit copy are cut until asked for. The codec-name question of `adr012-deferred-questions` §2 is settled inside it, since both touch `CodecMetadata`. | pending |
+| G10 | `state.json` is overwritten in place; nothing protects a session from two processes. | recovery note (c); `storage/` has no `os.replace` | One `fix/` session without an ADR: atomic write and a session lock or concurrent-access check. Already planned since 2026-08-19; still undone. | pending |
+| G11 | "An author who knows the domain writes it from the documentation alone" has no authoring surface: no command validates a definition without running it and no `describe-workflow`. | `adr012-deferred-questions` §3 | Defer until the exit scenario has been written by hand; then one ADR for the authoring surfaces (validate, describe) as additive commands under the ADR 007 contract. | pending |
+| G12 | No licence, no version flag, no delivery channel. | `installation-and-distribution` note; `pyproject.toml` | Publication gate, not phase 2. `--version` is a chore. | pending |
+
+### 3. State of the development and the diagnosis of the wrong path (question 3, to be discussed)
+Facts established by the reading, for the discussion to weigh:
+- ADR 013 §6 ("the engine has no way to know who is reading, so it declares nothing about the
+  intended audience") was decided on 2026-08-19 and diagnosed as wrong on 2026-08-22. Between the
+  two: 28 sessions and four accepted ADRs (015–018), all on the `ask` node. The first reader-side
+  signal appeared one day after the decision (`2026-08-20-investigation-1`: a re-presented
+  question tells the answerer nothing; a `Path` published as `pathlib._local.Path`) and was
+  dispersed into three ADRs about the node, because that session was scoped to computation
+  inside the node and no session owned "what the answerer sees" until `2026-08-21-investigation-2`.
+- Root cause, from the ADR text: decided before a consumer existed (ADR 013: "exercised by engine
+  tests only", "no open question remains that only code could answer"), and written from the
+  engine's point of view (§6 argues what the engine knows, alternative E what it can enforce,
+  alternative G what it versions; none asks what the reader needs). Without a written purpose no
+  ADR had "an answerer can act from the published surface alone" as an acceptance criterion.
+- The same conditions hold for ADR 014 today: settled to "ready to enter Implementing" on
+  2026-08-21 on paper, against a POC outside the repository, with no consumer in the tree, carrying
+  fourteen concerns of which its own Costs list names eight, and `pre_functions`/`post_functions`
+  added "after a follow-up discussion" without a scenario.
+- Code: 458 tests pass, `ruff` clean. The published boundary of the interactive exchange is held
+  by one function (`answers.question_block` building an untyped dictionary) and one journal check
+  in `use_cases._with_pending_question`; the enforcement is the CLI contract tests. This confirms
+  the ADR 019 diagnosis at the code level.
+- Reviewer's position: the wrong path is a process defect, not a design defect, and the repair is
+  the purpose document plus the consumer rule of §5 below; no code is rolled back.
+
+### 4. Notes triage against the purpose (question 4, to be discussed)
+Eleven notes open, four promoted, none dropped; about 14,700 words open; the batch of 2026-08-19
+(seven notes) has resolved none. Reviewer's proposal per note:
+
+| Note | Proposal |
+| --- | --- |
+| `2026-08-21-support-intake-use-case` | Keep open as the scenario of the interactive node; not the phase 2 exit. Its gaps 1–4 are G4–G6 above. |
+| `2026-08-21-agent-instruction-and-skill` | Act after ADR 019 (its gaps 2 and 3 are what ADR 019 closes); Skill deferred to the publication gate. |
+| `2026-08-19-adr0083-scenarios-coverage` | Close: `promoted → ADR 015, 016, 017`; its two residuals (an in-graph budget checkpoint; a guard reading a pending write) move to one short note or are dropped. |
+| `2026-08-19-interactive-exchange-publishing-boundary` | Stale: §1 and §3 are answered by ADR 019 §2 but `Affected` does not name ADR 019. Mark promoted in part; §2 (identity) deferred. |
+| `2026-08-18-adr012-deferred-questions` | §2 (codec names) settled inside ADR 019 (G9); §1, §3 (G11), §4 deferred. |
+| `2026-08-18-recovery-and-resilience-roadmap` | (c) is G10, do now; (b) after ADR 014; (d)/(e) stay. |
+| `2026-08-19-installation-and-distribution` | Publication gate (G12). |
+| `2026-08-19-engine-as-team-process-carrier` | Keep as a later application; mark that it is not the purpose. |
+| `2026-08-19-node-save-as-redundancy` | Candidate to drop unless a scenario asks for author-named outputs. |
+| `2026-08-19-hard-node-cap-scoping`, `2026-08-19-entry-point-discovery` | Deferred, untouched. |
+
+Proposed rule for the channel: a registry row is one sentence; a note that is amended a third time
+is closed or split.
+
+### 5. The documentation system (question 5, to be discussed)
+- What works: the registries hold the truth (the audits confirmed it), the freeze gate with the
+  overview synchronization catches drift, the session format keeps scope narrow.
+- Measured: 136,000 words of documentation against 33,000 words of code; 99 session notes in
+  about 25 days; the session and note registry rows are paragraphs of 100–150 words, so the
+  indexes are read, not scanned. Reviewer's reading: text is produced faster than decisions are
+  checked against a consumer, which is the mechanism behind §3.
+- No document held the purpose or the phase plan; `purpose.md` now holds the purpose and the
+  meaning of done. Where the phase order lives is still open (candidates: a short section of
+  `purpose.md` that is allowed to change, or the ADR registry README).
+- Proposed rule for `adr-rules.md`: an ADR that changes a published surface does not leave Draft
+  until the surface has been exercised from the reader's side by a scenario named in
+  `purpose.md`. Drafts are otherwise unbounded today; rule 11 limits only Implementing.
+- The uncommitted work of session `2026-08-22-architecture-1` (ADR 019 and registry rows) was
+  found on `development` and is committed before this session's changes.
+
+### 6. Priorities (question 6, to be discussed)
+Reviewer's proposed order, to be revised by the decisions on G1–G12:
+1. Commit the 2026-08-22 session; write `purpose.md`, the map row and the reading rule (done in
+   this session).
+2. The consumer rule in `adr-rules.md` (§5).
+3. ADR 014 back to a narrow Draft, its §1 decoupled from ADR 019; the first adapter as an external
+   module; then Implementing (G1, G2).
+4. The `fix/` session for the atomic state write and the session lock (G10).
+5. Write the exit scenario by hand on prepared data with the components that exist, to measure
+   G4–G6 before opening the output-family ADR.
+6. ADR 019 narrowed, after ADR 014 (G9).
+7. One `refactor/` session for the code debts of the audit: dead code (`def_errors`,
+   `SubmitStatus`, `SubmitResult`, `PresentResponse.submit`/`expected_input`,
+   `renderers/simple_render.py`, empty `runtime/` and `parsers/` packages), misspelled identifiers
+   (`storage_fatcory`, `_get_commend`, `_factory_sate_stub`, `intend`), the duplicated tail of
+   `run_workflow`/`resume_workflow`, `from_state`/`from_state_full`, the five `parameter_from_dict`
+   variants, the 163-line `_start_engine`; after ADR 019 so as not to cross `PresentResponse`.
+8. Notes maintenance session (§4).
+Not now: retry/backoff, authoring surfaces (G11), distribution, Skill, entry-point discovery,
+the team-process carrier, the counter guard of ADR 019 alternative H, parallel nodes.
+
+## Open questions
+1. G1/G2: whether ADR 014 goes first and is decoupled from the ADR 019 document (reviewer: yes).
+2. Where the phase order lives (§5).
+3. Whether the consumer rule is accepted as worded (§5).
+4. Each row of G3–G12 and of the notes table.
+
+## Next steps
+1. Resume this session: decide G1–G12 in order, then §3–§6.
+2. Complete this note, update the notes registry for the notes the decisions touch, close the
+   session with its commit.
+
+## References
+- Branch: `development` — documentation only; to be confirmed when the session closes.
+- Documents to be changed: `docs/architecture/purpose.md` (new), `docs/rules/documentation-rules.md`
+  (map row), `docs/rules/adr-rules.md` (reading rule), the notes registry, the session registry.
+- Related ADRs: ADR 014 (Draft), ADR 019 (Draft), ADR 013, ADR 016, ADR 002, ADR 011.
+- Code audit of this date: 458 tests pass, `ruff check` clean; the code debts it listed are
+  recorded for a later `refactor/` session and not decided here.
