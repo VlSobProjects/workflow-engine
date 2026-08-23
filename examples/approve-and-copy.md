@@ -1,11 +1,23 @@
 # approve-and-copy
 
+- **Identifier:** `approve-and-copy`
+- **Class:** `4`
+- **Answerers:** one — the `ASK_APPROVAL` step, answered through `resume --answer` by whoever reads
+  the published question block: a human at the command line or a program driving it. Every other
+  step is the engine's own.
+- **Input data:** `source_file` and `target_dir`, both `Path`, bound as workflow inputs.
+  **`target_dir` must already exist.**
+- **Expected paths:** the answer text selects the route: `approved` copies the file, `rejected`
+  ends the run with nothing copied (not verified), a declared failure answer routes on its error
+  code, and any other text asks the same question again until the attempts run out.
+- **Ends with:** end of workflow after the copy on `approved`, or with nothing copied on `rejected`
+  (not verified); failure under `approval_failed` on a failure answer, under
+  `max_attempts_exceeded` when the two attempts are spent, or under `copy_failed` when the copy
+  itself fails (not verified); until someone answers, the run is paused with the published question.
+- **ADRs exercised:** ADR 002, ADR 006, ADR 012, ADR 013, ADR 016
+
 Asks for a decision before it copies anything, which is what an `ask` node is for: the run stops, the
 command reports a paused workflow (exit code `2`), and nothing else happens until someone answers.
-
-- **Inputs:** `source_file` and `target_dir`, both `Path`.
-- **Precondition:** **`target_dir` must already exist.**
-- **Waits for an answer:** yes, at the `ASK_APPROVAL` node.
 
 ```
 workflow-engine run --workflow-file examples/approve-and-copy.json \
