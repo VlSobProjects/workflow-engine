@@ -53,9 +53,9 @@ are two scenarios or one with named variants.
   on `flatten-copy-tree`) get one in a `test/` session, or stay marked.
 
 ## Next steps
-1. Merge the branch into `development`.
-2. Add the three scenario registry rows on `development` in their own confirmed commit, and the
-   session registry row with them.
+1. None pending: the branch was merged into `development` and the registry rows were added in
+   their own commit within this session.
+2. If the `not verified` paths get their tests, that is its own `test/` session.
 
 ## References
 - Branch: `docs/class-4-scenario-rows`.
