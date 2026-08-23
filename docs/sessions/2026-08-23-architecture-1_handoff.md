@@ -23,7 +23,8 @@ existing ADR.
 - The code debts found by the code reading are listed, not fixed.
 
 ## Status
-`interrupted` — in progress.
+`interrupted` — questions 1 and 5 are decided; questions 2, 3, 4 and 6 wait for the `documentation`
+session of §5 and for the first scenarios, because a gap is decided against its consumer.
 
 ## Result
 To be completed.
@@ -124,27 +125,86 @@ Eleven notes open, four promoted, none dropped; about 14,700 words open; the bat
 Proposed rule for the channel: a registry row is one sentence; a note that is amended a third time
 is closed or split.
 
-### 5. The documentation system (question 5, to be discussed)
-- What works: the registries hold the truth (the audits confirmed it), the freeze gate with the
-  overview synchronization catches drift, the session format keeps scope narrow.
+### 5. The documentation system (question 5, decided)
+- What works: the registries hold the truth after an audit, not during the work; the freeze gate
+  with the overview synchronization catches drift; the session format keeps scope narrow.
 - Measured: 136,000 words of documentation against 33,000 words of code; 99 session notes in
   about 25 days; the session and note registry rows are paragraphs of 100–150 words, so the
-  indexes are read, not scanned. Reviewer's reading: text is produced faster than decisions are
-  checked against a consumer, which is the mechanism behind §3.
-- No document held the purpose or the phase plan; `purpose.md` now holds the purpose and the
-  meaning of done. Where the phase order lives is still open (candidates: a short section of
-  `purpose.md` that is allowed to change, or the ADR registry README).
-- Proposed rule for `adr-rules.md`: an ADR that changes a published surface does not leave Draft
-  until the surface has been exercised from the reader's side by a scenario named in
-  `purpose.md`. Drafts are otherwise unbounded today; rule 11 limits only Implementing.
+  indexes are read, not scanned. Diagnosis: text is produced faster than decisions are checked
+  against a consumer, which is the mechanism behind §3. The volume is the symptom; the repair
+  puts the consumer into the gate and makes the indexes scannable.
 - The uncommitted work of session `2026-08-22-architecture-1` (ADR 019 and registry rows) was
   found on `development` and is committed before this session's changes.
+
+Decisions, to be carried out by one `documentation` session (§6 step 2):
+
+1. **Consumer rule.** Not in the wording first proposed (blocking the exit from Draft would
+   deadlock a surface that exists only after Implementing). Instead: the ADR template gains a
+   mandatory `Consumer` section, filled from Draft, naming who acts on the decision — a human, an
+   external program, or a model — and the scenario it serves; the freeze gate in
+   `docs/adr/process.md` requires evidence that the consumer can act from the surface, supplied
+   by a scenario of class 2 or 4 below. A synthetic e2e test is not evidence: ADR 013 was
+   "exercised by engine tests only", and that is the defect being repaired. A Draft may not
+   constrain another Draft; a constraint is written only against an accepted ADR (`adr-rules.md`
+   §5).
+2. **Scenarios become a kind of document**, `docs/architecture/scenarios/` with a registry, a row
+   in the document map. A scenario has a stable identifier and a fixed header: who answers each
+   step, the prepared input data, the expected paths through the data, how it ends, and the live
+   list of ADRs it exercises. Scenario and ADR relate many-to-many; the one truth for the
+   relation is the list in the scenario, since an accepted ADR cannot be edited. Order of work:
+   the scenario is written first; architecture and investigation sessions find the decisions it
+   lacks; a new ADR names the scenario in `Consumer` and the scenario adds the ADR to its list in
+   the same session. The classes:
+   - the class of tasks in `purpose.md` is not a scenario and does not filter work: what a
+     future application needs cannot be known now; the purpose measures through `Boundaries` and
+     `What counts as done`;
+   - class 2, an external task written in full: the first two rows are the interview that
+     creates a repository and its documents (the development loop it feeds runs outside the
+     workflow; recorded so far only in session notes of another project, to be written from the
+     owner's account) and the support-intake interview (note `2026-08-21-support-intake-use-case`,
+     reformatted);
+   - what was class 3 is renamed: synthetic e2e tests, in `tests/` and in a sandbox through the
+     CLI, built to check nodes through a real agent; they have paid for themselves (two
+     investigation sessions) but mean little to a human reader and are not scenarios; renaming
+     `test_adr0083_scenario.py` and the note `adr0083-scenarios-coverage` goes to the `refactor/`
+     session;
+   - class 4, the shipped examples: they stay in `examples/` with the same header in the
+     walkthrough and one registry row in `scenarios/`; one example with named variants replaces
+     several that derive from one another; every named variant is covered by a test or marked as
+     not verified.
+3. **Roadmap.** `docs/architecture/roadmap.md`, a row in the document map: a table of the steps
+   of the current phase and the exit scenario of each phase. The form is fixed (one sentence per
+   row, rewritten rather than appended); the content is expected to change, and the session that
+   changes it records why. `adr-rules.md` rule 10 reads it after the purpose. A phase is closed
+   when its exit scenario passes and every `open` note has been triaged. Phase 1 is closed by
+   this session at the commit that brought `purpose.md` into `development`; `main` lags
+   `development` by 84 commits and does not define the boundary.
+4. **Registries.** A registry row is one sentence; what the row carried moves into the document
+   it points to, nothing is lost. `docs/sessions/README.md` lists the current phase; each closed
+   phase has its own archive file; files are not moved (62 session notes link to other session
+   notes by path). The notes registry is split into four sections — current phase, later
+   phases, not triaged, closed — with the `Status` header of the note as the only truth; files
+   are not moved (`Affected` links). A note does not declare its phase; the triage in an
+   architecture session assigns it. The rewrite of the existing rows is part of the
+   `documentation` session. Splitting sessions into one directory per type was proposed and
+   rejected: type is a weak axis for finding (one ADR crosses investigation, architecture and
+   implementation), the type is already in the file name and the row, and the move would relink
+   62 files for five registries.
+
+Documents the `documentation` session changes: `docs/rules/adr-rules.md` (§5, §10),
+`docs/adr/process.md` (freeze gate), `docs/adr/template.md` (`Consumer`),
+`docs/rules/documentation-rules.md` (map rows for `scenarios/` and `roadmap.md`),
+`docs/architecture/notes/README.md` (registry sections, triage at phase close),
+`docs/sessions/README.md` (phase registry and archive), new `docs/architecture/roadmap.md` and
+`docs/architecture/scenarios/README.md`; then the session that writes the first class 2 scenario.
 
 ### 6. Priorities (question 6, to be discussed)
 Reviewer's proposed order, to be revised by the decisions on G1–G12:
 1. Commit the 2026-08-22 session; write `purpose.md`, the map row and the reading rule (done in
    this session).
-2. The consumer rule in `adr-rules.md` (§5).
+2. The `documentation` session of §5: consumer rule and `Consumer` section, scenarios as a kind of
+   document, `roadmap.md`, the registries rewritten to one-sentence rows and split by phase. Then
+   the session that writes the first class 2 scenario (interview → repository → documents).
 3. ADR 014 back to a narrow Draft, its §1 decoupled from ADR 019; the first adapter as an external
    module; then Implementing (G1, G2).
 4. The `fix/` session for the atomic state write and the session lock (G10).
@@ -163,12 +223,12 @@ the team-process carrier, the counter guard of ADR 019 alternative H, parallel n
 
 ## Open questions
 1. G1/G2: whether ADR 014 goes first and is decoupled from the ADR 019 document (reviewer: yes).
-2. Where the phase order lives (§5).
-3. Whether the consumer rule is accepted as worded (§5).
-4. Each row of G3–G12 and of the notes table.
+2. Each row of G3–G12 and of the notes table.
 
 ## Next steps
-1. Resume this session: decide G1–G12 in order, then §3–§6.
+1. The `documentation` session of §5, then the session that writes the first class 2 scenario.
+2. Resume this session: decide G1–G12 in order, then §3, §4 and §6. G2, G10 and G12 need no
+   scenario and may be decided first.
 2. Complete this note, update the notes registry for the notes the decisions touch, close the
    session with its commit.
 
