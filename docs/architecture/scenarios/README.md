@@ -45,3 +45,4 @@ into `development`.
 
 | Identifier | Class | Summary | ADRs exercised | Link |
 | --- | --- | --- | --- | --- |
+| `repository-interview` | 2 | An agent interviews the human and creates the repository and documents that seed the consuming project's development loop | ADR 011, 013, 015, 016, 017, 018 | [repository-interview.md](repository-interview.md) |
