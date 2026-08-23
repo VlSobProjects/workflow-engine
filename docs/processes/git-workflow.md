@@ -86,8 +86,9 @@ The message is shown to the user before the commit is made: see `docs/rules/gene
   `docs/architecture/overview.md` for anything the architecture description states. A change that
   affects neither needs no documentation edit; a change that does is not finished without one.
 - When merging into `development`, update every registry the branch touched: the ADR registry
-  (`docs/adr/README.md`), the sessions registry (`docs/sessions/README.md`), and the architecture notes
-  registry (`docs/architecture/notes/README.md`).
+  (`docs/adr/README.md`), the sessions registry (`docs/sessions/README.md`), the architecture notes
+  registry (`docs/architecture/notes/README.md`) and the scenarios registry
+  (`docs/architecture/scenarios/README.md`).
 
 ## Working tree hygiene
 

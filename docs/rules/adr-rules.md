@@ -23,6 +23,7 @@ Implementation notes belong in the implementation notes section, not in the deci
 ## 5. Editing while not frozen
 While an ADR is in Draft, POC or Implementing, refine it in place and record meaningful changes in its change log.
 Do not create a new ADR to fix a decision that is not yet frozen.
+A Draft may not constrain another Draft: a constraint is written only against an accepted ADR.
 
 ## 6. Reversal is not an edit
 If the result contradicts the decision, return the ADR to Draft or mark it Rejected.
@@ -42,9 +43,15 @@ Update the ADR registry in `docs/adr/README.md` on every status change.
 
 ## 10. Read the purpose first
 Every architecture session starts by reading `docs/architecture/purpose.md`.
+Then it reads `docs/architecture/roadmap.md` for the steps of the current phase and its exit scenario.
 A decision is argued against the purpose stated there, not against the convenience of the engine.
 
-## 11. Consult the architecture notes
+## 11. Name the consumer
+Every ADR names in its `Consumer` section who acts on the decision — a human, an external program or a
+model — and the scenario in `docs/architecture/scenarios/` it serves, from Draft on.
+The scenario lists the ADR in the same session; the scenario's list is the one truth for the relation.
+
+## 12. Consult the architecture notes
 Architecture work reads the open notes in `docs/architecture/notes/`.
 A free-scope architecture session ("what architectural work is open?") draws its candidates from them.
 When a discussed ADR intersects a note, update the note's `Affected` link or change its `Status`
