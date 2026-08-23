@@ -15,7 +15,9 @@ Only the documents listed below may exist:
 | `docs/README.md` | Documentation index |
 | `docs/rules/` | General and task specific rules |
 | `docs/architecture/purpose.md` | What the engine is for, its boundaries and what counts as done; read at the start of every architecture session |
+| `docs/architecture/roadmap.md` | The steps of the current phase and the exit scenario of each phase; read after the purpose |
 | `docs/architecture/overview.md` | The architecture as it currently is |
+| `docs/architecture/scenarios/` | Scenarios and their registry: the tasks the engine is measured against, and the ADRs each exercises |
 | `docs/architecture/notes/` | Architecture notes and their registry: durable ideas not yet decided |
 | `docs/adr/` | Architecture decision records and their governance |
 | `docs/sessions/` | Session notes and the session registry |

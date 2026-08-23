@@ -47,6 +47,9 @@ An ADR may become Accepted only when all of the following hold:
 - the required tests pass, up to and including end to end tests where applicable,
 - Context, Decision and Consequences describe the delivered result,
 - `docs/architecture/overview.md` describes the delivered architecture, updated in the same merge,
+- the consumer named in the ADR's `Consumer` section can act from the delivered surface, shown by a
+  scenario of class 2 or class 4 in `docs/architecture/scenarios/` that lists the ADR; a synthetic
+  end to end test is not this evidence,
 - no POC code reached `development` unless it was raised to production quality.
 
 ## Amendment versus reversal

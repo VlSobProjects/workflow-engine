@@ -9,7 +9,8 @@ current task needs:
 
 - Always: `docs/rules/general-rules.md`
 - Implementation work: `docs/rules/implementation-rules.md`
-- Architecture changes: `docs/architecture/purpose.md` first, then `docs/rules/adr-rules.md`, `docs/adr/README.md`, `docs/adr/process.md`
+- Architecture changes: `docs/architecture/purpose.md` first, `docs/architecture/roadmap.md` second, then `docs/rules/adr-rules.md`, `docs/adr/README.md`, `docs/adr/process.md`
+- Scenarios the engine is measured against: `docs/architecture/scenarios/README.md`
 - Architecture ideas not yet decided: `docs/architecture/notes/README.md` (capture at any moment;
   reviewed during architecture work)
 - Documentation work: `docs/rules/documentation-rules.md`

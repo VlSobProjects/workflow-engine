@@ -14,6 +14,10 @@ The branch where the work is happening while the status is POC or Implementing. 
 ## Context
 The problem, the constraints and why a decision is needed.
 
+## Consumer
+Who acts on the decision — a human, an external program or a model — and the scenario in
+`docs/architecture/scenarios/` it serves. Mandatory from Draft on.
+
 ## Decision
 The decision itself, stated plainly.
 
