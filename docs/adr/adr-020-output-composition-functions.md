@@ -1,10 +1,10 @@
 # ADR 020: Output composition functions
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+`feature/adr_020-output-composition-functions`
 
 ## Context
 
