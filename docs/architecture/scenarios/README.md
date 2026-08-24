@@ -49,3 +49,4 @@ into `development`.
 | `folder-inventory-to-csv` | 4 | Walks a folder tree and writes a CSV inventory of the files it finds as the `file_scan_table` deliverable | ADR 002, 006, 011, 012 | [folder-inventory-to-csv.md](../../../examples/folder-inventory-to-csv.md) |
 | `flatten-copy-tree` | 4 | Copies every file of a tree into one flat directory and reports what it copied as the `copy_report` deliverable | ADR 002, 006, 011, 012 | [flatten-copy-tree.md](../../../examples/flatten-copy-tree.md) |
 | `approve-and-copy` | 4 | Asks for a decision and copies the file only if the answer approves it | ADR 002, 006, 012, 013, 016 | [approve-and-copy.md](../../../examples/approve-and-copy.md) |
+| `workflow-authoring` | 2 | A universal cycle in which a human or an agent authors any workflow definition node by node, validated without being run | ADR 007, 009, 011, 012, 013, 015, 016, 017, 018 | [workflow-authoring.md](workflow-authoring.md) |
