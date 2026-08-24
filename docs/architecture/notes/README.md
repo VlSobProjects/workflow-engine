@@ -78,7 +78,7 @@ session assigns it a phase.
 
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
-| 2026-08-24 | The operator cannot read the flat one-table output of a run: result files need composition — grouped tables, authored document shapes, template text outside `ask` | open | ADR 006, ADR 011, ADR 016 | [2026-08-24-result-file-composition.md](2026-08-24-result-file-composition.md) |
+| 2026-08-24 | The operator cannot read the flat one-table output of a run: result files need composition — grouped tables, authored document shapes, template text outside `ask` | promoted → ADR 020 | ADR 006, ADR 011, ADR 016, ADR 020 | [2026-08-24-result-file-composition.md](2026-08-24-result-file-composition.md) |
 
 ### Later phases
 

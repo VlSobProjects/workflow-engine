@@ -20,7 +20,7 @@
   function guards, and the interview record exported as a deliverable; failure under
   `max_visits_exceeded`, under a declared failure answer code such as `interview_abandoned`, or under
   a guard name when a terminal check refuses; every question in between is an ordinary pause.
-- **ADRs exercised:** ADR 011, ADR 013, ADR 015, ADR 016, ADR 017, ADR 018, ADR 019
+- **ADRs exercised:** ADR 011, ADR 013, ADR 015, ADR 016, ADR 017, ADR 018, ADR 019, ADR 020
 
 ## The consumer
 
@@ -139,9 +139,9 @@ open decision 4.
    versions) and `type: dict` accepts any dictionary — gap G4 of `2026-08-23-architecture-1`.
 4. **No base text write.** The core renders a table but cannot write a composed string into a file
    or artifact, so the final document of the demonstration ending is not yet expressible. The
-   scenario requires the base capability — write a string parameter into a file — in the core; the
-   wider document-artifact family (author-defined shapes, template-rendered documents) is gap G6 and
-   is decided there.
+   scenario requires the base capability — write a string parameter into a file — in the core;
+   ADR 020 ships it as the verbatim text writer, while author-defined shapes stay among its
+   rejected alternatives.
 5. **No content check for the terminal guard.** Existence checks exist
    (`is_output_exist_file` / `is_output_exist_folder`); "the build file contains the declared
    markers" has no core guard. Either a core file-content guard or a consumer-registered validator;

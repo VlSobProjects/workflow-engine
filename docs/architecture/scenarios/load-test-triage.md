@@ -27,7 +27,7 @@
   report stating why the flow stopped and carrying the evidence collected so far, with the
   exhausted evidence loop routed there like any other error code; failure under
   `llm_answer_invalid` or a provider error class when `max_attempts` exhausts.
-- **ADRs exercised:** ADR 005, ADR 006, ADR 011, ADR 012, ADR 014, ADR 016, ADR 017, ADR 018
+- **ADRs exercised:** ADR 005, ADR 006, ADR 011, ADR 012, ADR 014, ADR 016, ADR 017, ADR 018, ADR 020
 
 ## The consumer
 
@@ -129,9 +129,9 @@ the same prepared variant takes the same path, and the journal shows it.
    scenario is the trigger that decision named.
 4. **The handover has no document shape.** The report is a composed document; the core renders a
    table, cannot write composed text into a file or an artifact, and an artifact name cannot
-   carry a run value (gap G6). The output-family ADR now precedes ADR 014 (roadmap step 7, from
-   the `result-file-composition` note); the hand-build measures whether the delivered family
-   carries this handover.
+   carry a run value (gap G6). The output family is ADR 020 (opened at roadmap step 7 from
+   the `result-file-composition` note), ahead of ADR 014; the hand-build measures whether the
+   delivered family carries this handover.
 5. **Every failure route is written per node.** The handover on the unforeseen exists only as
    explicit failure transitions on every node (gap G7); the verbosity of the hand-written flow is
    the trigger for a workflow-level default failure route.

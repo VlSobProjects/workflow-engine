@@ -28,7 +28,7 @@ which moved the output-family ADR ahead of ADR 014; the session notes record why
 | 4 | Write the first class 2 scenario: the interview that creates a repository and its documents | done in `2026-08-23-documentation-2` |
 | 5 | Write the class 2 exit-scenario document, so the `Consumer` of ADR 014 names an existing scenario | done in `2026-08-24-documentation-2` |
 | 6 | Edit the Drafts: ADR 014 to the narrow Draft with its class 4 gate consumer, ADR 019 decoupled with the shared-mechanism guards | done in `2026-08-24-architecture-1` |
-| 7 | The output-family ADR from the operator's `result-file-composition` note, checking rule 3 (one decision or two), then its implementation | next |
+| 7 | The output-family ADR from the operator's `result-file-composition` note, checking rule 3 (one decision or two), then its implementation | ADR 020 Draft opened in `2026-08-24-architecture-2`; implementation next |
 | 8 | ADR 014 into Implementing and its implementation: the `llm` action and `fake` adapter in the core, the adapter package in this repository, the `described`/`tiered`/`chunked` variants of `folder-inventory-to-csv` as the freeze evidence | pending |
 | 9 | Atomic state write and a session lock, one `fix/` session without an ADR, taken at any pause | pending |
 | 10 | Build the exit scenario by hand on prepared data, measuring the answer-shape and function-inventory gaps and the lower bound of the authoring need | pending |

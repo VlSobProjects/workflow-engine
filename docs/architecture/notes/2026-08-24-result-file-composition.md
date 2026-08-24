@@ -4,7 +4,7 @@
 - **Trigger:** session `2026-08-24-architecture-1`: while choosing the freeze-gate consumer for
   ADR 014, the owner, as the operator of the shipped scenarios, named the output surface the weak
   one — ahead of any LLM work
-- **Status:** open
+- **Status:** promoted → ADR 020
 - **Affected:** ADR 011 (artifacts and export), ADR 016 (template text confined to the `ask`
   fields), ADR 006 (what a function writes to the bus), gap G6 of `2026-08-23-architecture-1`,
   `2026-08-21-support-intake-use-case.md` (gaps 2 and 3), scenario `load-test-triage` (open
