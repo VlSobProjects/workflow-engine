@@ -1,10 +1,10 @@
 # ADR 021: The node-record channel
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+`feature/adr_021-node-record-channel`
 
 ## Context
 
