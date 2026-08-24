@@ -86,7 +86,14 @@ def get_registered_provider(adapter: str) -> type[BaseProvider]:
 
 
 def get_registered_providers_info() -> dict[str, str]:
-    return PROVIDER_DESCRIPTIONS
+    """The registered adapters and their descriptions, as a snapshot rather than as the registry.
+
+    A copy, because the component loader tells core components from external ones by taking this
+    view before the external modules are imported and comparing it with the view after. Handing out
+    the live dictionary makes that comparison subtract a set from itself, and every adapter a plugin
+    registers is reported as if the core shipped it.
+    """
+    return dict(PROVIDER_DESCRIPTIONS)
 
 
 def get_summary_for_provider(adapter: str) -> str:

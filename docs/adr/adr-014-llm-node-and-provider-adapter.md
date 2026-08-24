@@ -94,6 +94,24 @@ drift; the extraction of raw values from the reply (`format`) and the failure se
 action's own: an invalid reply is a routable error value here, where a refused answer in `ask`
 changes nothing and re-presents. The action is automatic: the run does not pause.
 
+`format: json` reads the reply as JSON as it stands, and where it is not JSON takes the first JSON
+object the reply carries, ignoring `//` and `/* */` notes between its members. The tolerance is not
+a convenience: across nine replies sampled from two local model servers, six arrived inside a fenced
+code block or surrounded by prose — two of them despite a prompt that forbade the fence — and one of
+those also annotated a member with a comment, which no strict parser accepts. A strict reading would
+refuse the models this decision exists to call.
+
+Where the tolerance stops is the point of it. It removes what *surrounds or annotates* the object —
+a fence, a sentence, a comment — and it does not repair the object's own syntax: a trailing comma, a
+single-quoted key or a Python literal remains a reply the declaration refuses, because repairing
+those means guessing what the model meant rather than reading what it wrote. The rule is one scan
+for the first position at which an object parses, not a list of known wrappers: it knows nothing of
+markdown, so it holds for a wrapper nobody has seen, and it cannot be misled by a brace inside a
+string. The reply is read exactly as it came before any note is removed, so a comment marker that is
+really part of a value — the `//` of a URL is the common case — is never treated as a comment.
+Nothing is hidden by any of it — the raw reply remains the output text of the node and the reply
+artifact of the call — and a reply that carries no object at all is still `llm_answer_invalid`.
+
 The `llm` action is the automatic counterpart of the interactive `ask` (ADR 013): the two share the
 answer declaration but sit on opposite sides of one boundary. `ask` binds an answer produced outside
 the engine — the answerer initiates the resume, and the pause is the contract; it is built for the
@@ -432,3 +450,14 @@ ADR 013 answer binding lives, and the layout of the in-repository adapter packag
   one of the opaque call options, so the core learns neither `load` nor `unload` and the node stays
   universal. §3: the provider block gains an `options` object for what only the named adapter
   understands.
+- 2026-08-24: amended in session `2026-08-24-implementation-5`, the session that built the adapter
+  package. §1: `format: json` gains its tolerance for a wrapped object, decided against the by-hand
+  evidence rather than on paper — the question that session `2026-08-24-implementation-4` left open
+  is closed by the measurement recorded there, taken on two model servers rather than one. The
+  tolerance covers what surrounds or annotates the object, a comment against a member included, and
+  explicitly not the object's own syntax; the line is drawn in §1 because the alternative is an
+  action that guesses what a model meant. §2: the package keeps to one protocol, the generic
+  OpenAI-compatible HTTP, which reaches a local model server and a hosted vendor alike; the LM Studio
+  native API with its model load and unload is not written, so nothing yet exercises `finalize`
+  against a real server, and it joins Leaves open with the rest of the package's protocol set. The
+  adapter is written on the standard library, so the reference plugin adds no dependency of its own.

@@ -81,11 +81,104 @@ _NOTES = (
     "'show-records'.",
     "'save_as' stores the output text of the node, which is the raw reply exactly as the model "
     "produced it, before any parsing.",
+    f"Under '{FORMAT_KEY}: {FORMAT_JSON}' the reply is read as JSON as it stands; where it is not, "
+    "the first JSON object it carries is taken, ignoring '//' and '/* */' notes between its "
+    "members, so a model that fences its object, writes a sentence around it or annotates a value "
+    "is still understood. What is not repaired is the object itself: a trailing comma, a "
+    "single-quoted key or a Python literal is a reply the declaration refuses. The raw reply is "
+    "kept either way.",
 )
 
 
 def _audit_name(node_id: str, kind: str, visit: int, attempt: int) -> str:
     return f"{node_id}.{kind}.{visit}.{attempt}"
+
+
+def _first_json_object(text: str) -> dict[str, object] | None:
+    """The first position at which a JSON object parses, or None where none does.
+
+    One scan rather than a list of known wrappers: it knows nothing about markdown, so it holds for
+    a wrapper nobody has seen yet, and a brace inside a string cannot mislead it.
+    """
+    decoder = json.JSONDecoder()
+    for index, character in enumerate(text):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text, index)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def _without_json_comments(text: str) -> str:
+    """The text with ``//`` and ``/* */`` comments removed, leaving everything inside strings alone.
+
+    The scan tracks strings rather than matching on the marker, because a value is very often a URL:
+    stripping from the ``//`` of ``"https://..."`` would silently truncate the answer instead of
+    repairing it. A line comment keeps its newline and a block comment leaves a space, so removing
+    one never joins two tokens that were apart.
+    """
+    kept: list[str] = []
+    inside_string = False
+    escaped = False
+    index = 0
+    while index < len(text):
+        character = text[index]
+        if inside_string:
+            kept.append(character)
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                inside_string = False
+            index += 1
+            continue
+        if character == '"':
+            inside_string = True
+            kept.append(character)
+            index += 1
+            continue
+        if character == "/" and index + 1 < len(text):
+            if text[index + 1] == "/":
+                while index < len(text) and text[index] != "\n":
+                    index += 1
+                continue
+            if text[index + 1] == "*":
+                end = text.find("*/", index + 2)
+                index = len(text) if end == -1 else end + 2
+                kept.append(" ")
+                continue
+        kept.append(character)
+        index += 1
+    return "".join(kept)
+
+
+def _json_object_in(reply_text: str) -> dict[str, object] | None:
+    """The JSON object a reply carries, whether it is the whole reply or sits inside it.
+
+    A compliant reply is parsed as it stands, so a model that answers with nothing but the object
+    reaches exactly the value it sent. What follows is the tolerance the by-hand runs of session
+    ``2026-08-24-implementation-5`` made necessary. Asked for a JSON object, local models wrap it:
+    across nine replies sampled from two model servers, six arrived inside a fenced code block or
+    surrounded by prose - two of them despite a prompt that forbade the fence - and one of those
+    also carried a ``//`` note against one of its members. Refusing those would make ``format: json``
+    unusable against exactly the models the decision was written for.
+
+    Where the tolerance stops is the point of it. It removes what *surrounds or annotates* the
+    object - a fence, a sentence, a comment - and it does not repair the object's own syntax: a
+    trailing comma, a single-quoted key or a Python literal stays a reply the declaration refuses.
+    The first reading is of the reply exactly as it came, so a comment marker that is really part of
+    a string value is never treated as a comment. Nothing is hidden by any of it - the raw reply
+    remains the output text of the node and the reply artifact of the call. See ADR 014 §1.
+    """
+    found = _first_json_object(reply_text)
+    if found is not None:
+        return found
+    return _first_json_object(_without_json_comments(reply_text))
 
 
 @register_action(
@@ -124,14 +217,17 @@ def _audit_name(node_id: str, kind: str, visit: int, attempt: int) -> str:
                 "str",
                 f"How the reply is read: '{FORMAT_TEXT}' (default) binds the whole reply to the one "
                 f"declared name, '{FORMAT_JSON}' reads a JSON object whose keys are the declared "
-                f"names. Under '{FORMAT_TEXT}' the declaration holds at most one entry.",
+                f"names, taking the first object the reply carries when the model wraps it in a code "
+                f"fence, surrounds it with prose or annotates a member with a comment. Under "
+                f"'{FORMAT_TEXT}' the declaration holds at most one entry.",
             ),
             OPTIONS_KEY: ActionParameterDoc(
                 "dict",
                 "Call options passed to the adapter unread - temperature, token limits, and anything "
                 "else the named adapter understands, including an instruction about its own "
-                "resources such as releasing the model after this call. Ask 'show-component "
-                "--component-type provider' which options an adapter acts on.",
+                "resources such as releasing the model after this call. Ask 'help-component "
+                "--component-type providers --component-name <adapter>' which options an adapter "
+                "acts on.",
             ),
             RECORD_KEY: ActionParameterDoc(
                 "bool",
@@ -244,12 +340,9 @@ class LlmAction(BaseAutomaticAction):
             if not self.declarations:
                 return {}
             return {self.declarations[0].name: reply_text}
-        try:
-            parsed = json.loads(reply_text)
-        except json.JSONDecodeError as exc:
-            raise WorkflowInputError(f"the reply is not valid JSON: {exc}") from exc
-        if not isinstance(parsed, dict):
-            raise WorkflowInputError("the reply must be a JSON object of declared name to value")
+        parsed = _json_object_in(reply_text)
+        if parsed is None:
+            raise WorkflowInputError("the reply carries no JSON object of declared name to value")
         return parsed
 
     def _details(self, model: str, reply: ProviderReply | None, error_class: str | None) -> dict[str, object]:

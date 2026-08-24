@@ -10,6 +10,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
+from typing import ClassVar
 
 import pytest
 
@@ -236,6 +237,116 @@ class TestReadingTheReply:
         action = _llm(format="json", answer=[{"name": "category"}])
 
         assert action.execute(_state(tmp_path), None).output_text == "not json at all"
+
+
+class TestAReplyThatWrapsItsObject:
+    """The tolerance of `format: json`, and the by-hand evidence that made it necessary.
+
+    The replies below are the shapes local models actually produced in session
+    `2026-08-24-implementation-5`: asked for a JSON object, five of six sampled replies wrapped it,
+    two of them despite a prompt that forbade the fence. See ADR 014 §1.
+    """
+
+    DECLARATION: ClassVar[list[dict[str, object]]] = [{"name": "category"}, {"name": "pages", "type": "int"}]
+
+    @pytest.mark.parametrize(
+        "reply",
+        [
+            '{"category": "report", "pages": 1}',
+            '```json\n{\n  "category": "report",\n  "pages": 1\n}\n```',
+            '```json\n{"category": "report", "pages": 1}\n```\n\n*Note: an educated guess.*',
+            'Here is the classification:\n\n{"category": "report", "pages": 1}\n\nHope it helps.',
+            '```\n{"category": "report", "pages": 1}\n```',
+        ],
+        ids=["bare object", "fenced", "fenced with a trailing note", "prose around it", "fence with no language"],
+    )
+    def test_the_first_object_the_reply_carries_is_the_answer(self, tmp_path, provider_seat_guard, reply):
+        _seat(replies=[reply])
+        action = _llm(format="json", answer=self.DECLARATION)
+
+        output = action.execute(_state(tmp_path), None)
+
+        assert output.error_code is None
+        assert output.get_param("category") == "report"
+        assert output.get_param("pages") == 1
+
+    def test_a_brace_inside_prose_does_not_displace_the_object(self, tmp_path, provider_seat_guard):
+        _seat(replies=['Use a mapping like {name: value} here.\n{"category": "report", "pages": 1}'])
+        action = _llm(format="json", answer=self.DECLARATION)
+
+        assert action.execute(_state(tmp_path), None).get_param("category") == "report"
+
+    def test_a_json_value_that_is_not_an_object_is_passed_over(self, tmp_path, provider_seat_guard):
+        _seat(replies=['[1, 2, 3]\n{"category": "report", "pages": 1}'])
+        action = _llm(format="json", answer=self.DECLARATION)
+
+        assert action.execute(_state(tmp_path), None).get_param("pages") == 1
+
+    def test_a_note_against_a_member_does_not_cost_the_object(self, tmp_path, provider_seat_guard):
+        """The reply of a real model, fence and inline note included, from the by-hand runs."""
+        _seat(
+            replies=[
+                "Since I cannot inspect the file, here is my best estimate:\n\n"
+                '```json\n{\n  "category": "report",\n  "pages": 15  // *estimated*\n}\n```'
+            ]
+        )
+        action = _llm(format="json", answer=self.DECLARATION)
+
+        output = action.execute(_state(tmp_path), None)
+
+        assert output.error_code is None
+        assert output.get_param("pages") == 15
+
+    def test_a_block_comment_between_members_is_ignored_too(self, tmp_path, provider_seat_guard):
+        _seat(replies=['{"category": "report", /* a guess */ "pages": 1}'])
+        action = _llm(format="json", answer=self.DECLARATION)
+
+        assert action.execute(_state(tmp_path), None).get_param("category") == "report"
+
+    def test_a_comment_marker_inside_a_value_is_not_a_comment(self, tmp_path, provider_seat_guard):
+        """A URL is the common case: stripping from its '//' would truncate the answer, not repair it."""
+        _seat(replies=['{"category": "report", "source": "https://example.com/q3", "pages": 1 // guessed\n}'])
+        action = _llm(
+            format="json",
+            answer=[{"name": "category"}, {"name": "pages", "type": "int"}, {"name": "source"}],
+        )
+
+        output = action.execute(_state(tmp_path), None)
+
+        assert output.error_code is None
+        assert output.get_param("source") == "https://example.com/q3"
+
+    @pytest.mark.parametrize(
+        "reply",
+        [
+            '{"category": "report", "pages": 1,}',
+            "{'category': 'report', 'pages': 1}",
+            '{"category": "report", "pages": None}',
+        ],
+        ids=["trailing comma", "single-quoted", "a Python literal"],
+    )
+    def test_the_object_itself_is_never_repaired(self, tmp_path, provider_seat_guard, reply):
+        """The line the tolerance draws: what surrounds the object is ignored, what it is made of is not."""
+        _seat(replies=[reply])
+        action = _llm(format="json", answer=self.DECLARATION)
+
+        assert action.execute(_state(tmp_path), None).error_code == LLM_ANSWER_INVALID
+
+    def test_a_reply_carrying_no_object_at_all_is_still_a_routable_error(self, tmp_path, provider_seat_guard):
+        _seat(replies=["I cannot classify a file I have not seen."])
+        action = _llm(format="json", answer=self.DECLARATION)
+
+        output = action.execute(_state(tmp_path), None)
+
+        assert output.error_code == LLM_ANSWER_INVALID
+        assert "no JSON object" in (output.error_msg or "")
+
+    def test_the_wrapper_is_kept_in_the_output_text_and_never_silently_dropped(self, tmp_path, provider_seat_guard):
+        fenced = '```json\n{"category": "report", "pages": 1}\n```'
+        _seat(replies=[fenced])
+        action = _llm(format="json", answer=self.DECLARATION)
+
+        assert action.execute(_state(tmp_path), None).output_text == fenced
 
 
 class TestFailureClasses:
