@@ -175,6 +175,24 @@ is `fake` (§6): not a provider but the null implementation of the contract — 
 replies — so the action's own tests, the help surface of a bare install and the example workflows
 stand without any plugin.
 
+The module took the third of those routes, as two adapters rather than one: a protocol adapter that
+speaks OpenAI-compatible HTTP and nothing else, and a product adapter that subclasses it and adds
+model residency. The split is not a matter of taste. An adapter named after a protocol no vendor
+owns cannot carry one vendor's load-and-unload endpoints as options: they would be dead on every
+other server an installation points it at, and a node asking for a release would silently do
+nothing — a workflow whose instruction is honoured on one machine and ignored on the next. As a
+subclass the endpoints exist wherever the adapter is configured at all, and the option means what
+it says.
+
+The residency adapter is where the seat and `finalize` first meet a real server, so two rules of the
+memory the seat exists for are settled here. A run releases only what it loaded itself: a model the
+operator loaded from the application, or another process loaded, is left resident, because a
+workflow evicting what it did not put there is a surprise the engine must not produce — whether it
+may is an operator's decision, carried in the provider block rather than in the node, since a
+workflow definition travels between installations and that permission does not. And the memory is
+re-checked against the server before anything is released, because it is a cache of a fact living
+outside the process: where the two disagree, the server is right.
+
 ### 3. Provider configuration and secrets
 
 The engine configuration file (ADR 008) gains a `providers` section: per provider name, the adapter
@@ -461,3 +479,9 @@ ADR 013 answer binding lives, and the layout of the in-repository adapter packag
   native API with its model load and unload is not written, so nothing yet exercises `finalize`
   against a real server, and it joins Leaves open with the rest of the package's protocol set. The
   adapter is written on the standard library, so the reference plugin adds no dependency of its own.
+- 2026-08-25: amended in session `2026-08-25-implementation-1`, which added the residency adapter.
+  §2 records the split the module made — a protocol adapter and a product adapter subclassing it —
+  and why residency could not be an option on the protocol one; it also settles the two rules the
+  provider seat's memory lives by, ownership and re-checking, now that a real server exercises them.
+  The `finalize` policy itself stays the adapter's own, as this decision always said: a run that
+  ended releases, a pause keeps.

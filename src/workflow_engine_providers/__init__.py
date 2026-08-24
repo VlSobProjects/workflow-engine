@@ -11,4 +11,4 @@ Importing this package registers every adapter it ships. See ``example_config.js
 module for the configuration that reaches one.
 """
 
-from workflow_engine_providers import openai_compatible
+from workflow_engine_providers import lmstudio, openai_compatible

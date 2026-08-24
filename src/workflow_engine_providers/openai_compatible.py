@@ -17,7 +17,7 @@ import json
 import urllib.error
 import urllib.request
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, ClassVar
 
 from workflow_engine.exceptions import WorkflowConfigurationError
 from workflow_engine.providers.base_provider import (
@@ -66,13 +66,16 @@ def _as_int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _text_of(payload: object, limit: int = ERROR_BODY_LIMIT) -> str:
+def text_of(payload: object, limit: int = ERROR_BODY_LIMIT) -> str:
     text = payload if isinstance(payload, str) else str(payload)
     return text if len(text) <= limit else text[:limit] + "..."
 
 
-def _classify_status(status: int, body: str) -> ProviderErrorClass:
+def classify_status(status: int, body: str) -> ProviderErrorClass:
     """Map one HTTP status onto the fixed classes of ADR 014 §5.
+
+    Public inside this package: an adapter that adds endpoints of its own classifies their failures
+    by the same rule, so one server never reports two different classes for the same status.
 
     The split that matters is inside the 4xx range: a refusal of an oversized prompt is the one
     honest overflow signal the engine can get - it carries no tokenizer - and a guard that sees the
@@ -148,6 +151,11 @@ class OpenAICompatibleProvider(BaseProvider):
     override ``finalize``: an adapter with nothing to release has nothing to say when a run ends.
     """
 
+    OWN_OPTIONS: ClassVar[tuple[str, ...]] = ADAPTER_OWN_OPTIONS
+    """The options this adapter consumes rather than sends on. A subclass that understands more of
+    them extends this, so an instruction meant for the adapter never reaches the server as a field
+    of the request."""
+
     def __init__(self, settings: ProviderSettings) -> None:
         super().__init__(settings)
         if not settings.base_url:
@@ -183,7 +191,7 @@ class OpenAICompatibleProvider(BaseProvider):
 
     def _request(self, call: ProviderCall) -> urllib.request.Request:
         body: dict[str, Any] = {"model": call.model, "messages": self._messages(call)}
-        body.update({key: value for key, value in call.options.items() if key not in ADAPTER_OWN_OPTIONS})
+        body.update({key: value for key, value in call.options.items() if key not in self.OWN_OPTIONS})
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         credential = self.settings.credential()
         if credential is not None:
@@ -213,7 +221,7 @@ class OpenAICompatibleProvider(BaseProvider):
         if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
             return ProviderReply.failure(
                 ProviderErrorClass.PERMANENT,
-                f"The endpoint {self.endpoint} answered without a usable 'choices' list: {_text_of(payload)}",
+                f"The endpoint {self.endpoint} answered without a usable 'choices' list: {text_of(payload)}",
                 model=model,
             )
         message = choices[0].get("message")
@@ -221,7 +229,7 @@ class OpenAICompatibleProvider(BaseProvider):
         if not isinstance(content, str):
             return ProviderReply.failure(
                 ProviderErrorClass.PERMANENT,
-                f"The endpoint {self.endpoint} answered with a choice carrying no text content: {_text_of(payload)}",
+                f"The endpoint {self.endpoint} answered with a choice carrying no text content: {text_of(payload)}",
                 model=model,
             )
         reported = payload.get("model")
@@ -253,9 +261,9 @@ class OpenAICompatibleProvider(BaseProvider):
             with urllib.request.urlopen(self._request(call), timeout=self._timeout(call.options)) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
-            body = _text_of(e.read().decode("utf-8", errors="replace"))
+            body = text_of(e.read().decode("utf-8", errors="replace"))
             return ProviderReply.failure(
-                _classify_status(e.code, body),
+                classify_status(e.code, body),
                 f"The endpoint {self.endpoint} refused the call with HTTP {e.code}: {body}",
                 model=model,
             )

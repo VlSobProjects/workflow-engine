@@ -27,6 +27,7 @@ from workflow_engine.exceptions import WorkflowConfigurationError
 from workflow_engine.providers.base_provider import ProviderCall, ProviderErrorClass, ProviderSettings
 from workflow_engine.registry import provider_registry
 from workflow_engine.registry.provider_registry import get_registered_provider
+from workflow_engine_providers.lmstudio import ADAPTER_NAME as LMSTUDIO_ADAPTER_NAME
 from workflow_engine_providers.openai_compatible import (
     ADAPTER_NAME,
     DEFAULT_TIMEOUT_SECONDS,
@@ -34,6 +35,7 @@ from workflow_engine_providers.openai_compatible import (
 )
 
 PACKAGE_NAME = "workflow_engine_providers"
+PACKAGE_ADAPTERS = (ADAPTER_NAME, LMSTUDIO_ADAPTER_NAME)
 EXAMPLE_CONFIG = Path(__file__).resolve().parents[1] / "src" / PACKAGE_NAME / "example_config.json"
 
 
@@ -394,13 +396,14 @@ class TestItLoadsAsAnExternalModule:
             provider_registry.PROVIDER_NOTES,
             provider_registry.PROVIDER_OPERATOR_METADATA,
         ):
-            registry.pop(ADAPTER_NAME, None)
+            for adapter in PACKAGE_ADAPTERS:
+                registry.pop(adapter, None)
         for module in [name for name in sys.modules if name.startswith(PACKAGE_NAME)]:
             del sys.modules[module]
 
         bare = ComponentLoader(WorkflowEngineConfiguration()).load_all()
-        assert ADAPTER_NAME not in bare["Core components"]["Providers"]
+        assert not set(PACKAGE_ADAPTERS) & set(bare["Core components"]["Providers"])
 
         configured = ComponentLoader(WorkflowEngineConfiguration(external_modules=(PACKAGE_NAME,))).load_all()
-        assert ADAPTER_NAME in configured["External components"]["Providers"]
-        assert ADAPTER_NAME not in configured["Core components"]["Providers"]
+        assert set(PACKAGE_ADAPTERS) <= set(configured["External components"]["Providers"])
+        assert not set(PACKAGE_ADAPTERS) & set(configured["Core components"]["Providers"])
