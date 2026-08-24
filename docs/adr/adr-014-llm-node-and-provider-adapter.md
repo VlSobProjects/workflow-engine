@@ -1,10 +1,10 @@
 # ADR 014: LLM node and provider adapter
 
 ## Status
-Draft
+Implementing
 
 ## Active branch
-—
+`feature/adr_014-llm-node-and-provider-adapter`
 
 ## Context
 
