@@ -100,7 +100,7 @@ the engine — the answerer initiates the resume, and the pause is the contract;
 human-in-the-loop archetype. `llm` is the second archetype, the autonomous model step: a call the
 engine performs itself inside the run and audits itself. The core carries it as a dedicated action
 rather than a convention over registered functions for three reasons: the node contract can require
-the fields the journal must record (provider, model, status), the reply handling every provider
+the fields the audit must record (provider, model, status), the reply handling every provider
 needs — parsing, typing through codecs, error classification — is written once instead of per
 vendor module, and native model steps become a declared capability of the engine rather than an
 installation's habit.
@@ -163,7 +163,7 @@ The engine configuration file (ADR 008) gains a `providers` section: per provide
 to use, its base URL, the default model, the *name of the environment variable* holding the
 credential — never the credential itself — and an `options` object for what only the named adapter
 understands, such as a request timeout, read by the rule that keeps call options opaque. A session
-records the provider and model each `llm` node actually used in the journal event of the call, so a
+records the provider and model each `llm` node actually used in the record of that visit (§4), so a
 resumed or audited run knows which model answered.
 
 The provider block is **not** snapshotted into `session.json`. The ADR 004 snapshot solves a
@@ -171,17 +171,27 @@ bootstrap problem — without the storage record a resume cannot even find its s
 providers do not have: they resolve at call time, when the engine configuration is already read.
 The block is environment, not identity of the run: base URLs and credential variable names are
 facts of one machine, and a snapshot would pin a moved session to the endpoints of the machine it
-left, while ADR 003/008 keep state portable on purpose. Reproducibility is carried by the journal
-instead — what actually answered is recorded per call, so a configuration change between calls is
-visible rather than silent.
+left, while ADR 003/008 keep state portable on purpose. Reproducibility is carried by the record
+stream instead — what actually answered is recorded per call, so a configuration change between
+calls is visible rather than silent.
 
-### 4. Audit as artifacts and events
+### 4. Audit as artifacts and node records
 
-Every call journals a session event (`llm_called`: node id, provider, model, status, error class,
-token counts if the adapter reports them). Prompt and reply are written as artifacts under a
-deterministic name (`<node_id>.prompt`, `<node_id>.reply`, attempt-numbered) when the node opts in
-(`record: true`), so they can be declared deliverables or inspected after the run. Nothing new is
-added to the state model.
+Every call is accounted for in the record of the visit that made it (ADR 021): the provider, the
+model, the status of the call, the error class and the token counts the adapter reports travel in
+the open `details` member the record reserves for exactly this. The account rides on the output of
+the action, which the engine copies into the record after the output has been applied and the
+transition chosen, so an audit exists only for a call whose effects took hold.
+
+This replaces the session event this decision first named (`llm_called`), and the reason is a loop:
+the record stream keeps one entry per visit, while the state keeps one slot per node that the next
+visit overwrites — so in a chunking branch or a retry loop, only the record stream can say which
+model answered which call. Nothing is added to the state model either way.
+
+Prompt and reply are written as artifacts under a deterministic name (`<node_id>.prompt`,
+`<node_id>.reply`) when the node opts in (`record: true`), numbered by the visit and the attempt
+ordinals of ADR 017 §4 — the same two numbers the record carries — so the files of one call and its
+record are found together. They can be declared deliverables or inspected after the run.
 
 ### 5. Error classes, not retry policy
 
@@ -190,6 +200,13 @@ The adapter reports each failure as one of a fixed set of classes (`transient`, 
 node error code. This ADR does not decide delay or backoff: that is the retry-policy decision of
 the recovery note (b), which will consume these classes. Until then the existing
 `max_attempts`/self-loop allowance is the only retry.
+
+Three codes belong to the action rather than to the adapter, and are deliberately kept apart from
+the six classes. `llm_answer_invalid` is a reply that does not fit the answer declaration.
+`provider_failed` is an adapter that raised instead of returning a classified failure: it broke the
+contract, and folding it into `transient` would let a plugin's bug be retried as a hiccup, while
+letting it end the run would lose a workflow to that bug. `llm_record_failed` is a call that was
+answered but whose audit artifacts could not be written, where the node asked for them.
 
 `context_overflow` is deliberately split from `invalid_request`. The engine cannot count a model's
 tokens — tokenizers are model-specific and the core carries none — so the provider's refusal is the
@@ -299,8 +316,9 @@ engine-resolved reference — the choice stays declared, coded and journaled.
 - Enables: one node per model step, vendor-neutral workflows, typed model output on the bus, audit
   of every call, a place for credentials, and error classes a later retry policy can use.
 - Costs: a new core action, a registration kind with its registry and help-contract adapter, a
-  `providers` config section, two or three session event codes, the `fake` adapter in the core, and
-  the provider-adapter package maintained in this repository as an external module.
+  `providers` config section, the call audit carried in the record channel of ADR 021, the `fake`
+  adapter in the core, and the provider-adapter package maintained in this repository as an external
+  module.
 - Closes off: vendor SDKs and provider adapters in the core (`fake` is the null implementation of
   the contract, not a provider); models as guards.
 - Leaves open: retry/backoff (recovery note (b)); token or cost budgets next to the node cap
@@ -394,6 +412,16 @@ ADR 013 answer binding lives, and the layout of the in-repository adapter packag
   model-selecting action, with the deterministic selection form in Leaves open. The Implementing
   transition is deferred behind the output-family ADR that the operator's
   `result-file-composition` note opens (roadmap step 7).
+- 2026-08-24: amended in session `2026-08-24-implementation-4`, the session that built the `llm`
+  action. §4: the call audit is the `details` member of the ADR 021 record of the visit rather than
+  a session event of its own — a retry loop overwrites the per-node slots of the state, so only the
+  record stream can say which model answered which call — and the audit artifacts are numbered by
+  the visit and attempt ordinals the record carries. §5 gains the three codes the action owns beside
+  the six adapter classes: `llm_answer_invalid`, `provider_failed` for an adapter that raised
+  instead of classifying, and `llm_record_failed` for an audit that could not be written. §1 is read
+  as: `format: text` binds the whole reply to at most one declared name, refusing a second at build
+  time, and `format: json` reads an object keyed by the declared names; a reply refused by the
+  declaration keeps the raw reply as the output text.
 - 2026-08-24: amended in session `2026-08-24-implementation-3`, the first implementation session of
   the branch, where the departures were made. §2: an adapter is a registered class with one call
   operation rather than a plain callable, seated once per configured provider name for the lifetime

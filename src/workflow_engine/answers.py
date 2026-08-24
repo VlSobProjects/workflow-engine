@@ -20,11 +20,9 @@ from enum import Enum
 from pathlib import Path
 
 from workflow_engine.actions.action_present import AnswerContract, PresentResponse
-from workflow_engine.collection_param_handlers import WriteParamMode
-from workflow_engine.exceptions import WorkflowAnswerError, WorkflowConfigurationError, WorkflowInputError
-from workflow_engine.inputs import decode_declared_value
-from workflow_engine.output import ActionNodeOutput, ParamWrite
-from workflow_engine.registry.type_registry import Codec, resolve_codec_by_type_name
+from workflow_engine.declared_values import bind_declared_values
+from workflow_engine.exceptions import WorkflowAnswerError, WorkflowInputError
+from workflow_engine.output import ActionNodeOutput
 
 ANSWER_FAILED = "answer_failed"
 """The generic failure code every interactive node accepts beside its own catalogue."""
@@ -140,15 +138,6 @@ def load_answer(raw: str | None, path: str | None) -> Answer | None:
     return parse_answer(content)
 
 
-def _declared_codec(name: str, type_name: str | None) -> type[Codec] | None:
-    if type_name is None:
-        return None
-    try:
-        return resolve_codec_by_type_name(type_name)
-    except WorkflowConfigurationError as exc:
-        raise WorkflowAnswerError(f"answer '{name}': {exc}") from exc
-
-
 def bind_answer(answer: Answer, contract: AnswerContract) -> BoundAnswer:
     """Validate an answer against the node's declaration and turn it into the node's output.
 
@@ -156,11 +145,6 @@ def bind_answer(answer: Answer, contract: AnswerContract) -> BoundAnswer:
     the bus. Overwriting is allowed because a question asked again in a loop answers the same names.
     A failure produces an output carrying its error code, which the node's own transitions route.
     """
-    declared = {declaration.name: declaration for declaration in contract.declarations}
-    undeclared = sorted(set(answer.values) - set(declared))
-    if undeclared:
-        raise WorkflowAnswerError(f"undeclared answer name(s) {undeclared}; declared: {sorted(declared)}")
-
     if answer.status is AnswerStatus.FAILURE:
         allowed = contract.declared_codes() | {ANSWER_FAILED}
         if answer.error_code not in allowed:
@@ -172,29 +156,13 @@ def bind_answer(answer: Answer, contract: AnswerContract) -> BoundAnswer:
             codecs={},
         )
 
-    missing = sorted(
-        declaration.name
-        for declaration in contract.declarations
-        if declaration.required and declaration.name not in answer.values
+    try:
+        bound = bind_declared_values(answer.values, contract.declarations, subject="answer")
+    except WorkflowInputError as exc:
+        raise WorkflowAnswerError(str(exc)) from exc
+    return BoundAnswer(
+        output=ActionNodeOutput(output_text=answer.text, param_writes=bound.param_writes), codecs=bound.codecs
     )
-    if missing:
-        raise WorkflowAnswerError(f"missing required answer name(s) {missing}")
-
-    param_writes: dict[str, ParamWrite] = {}
-    codecs: dict[str, str | None] = {}
-    for name, value in answer.values.items():
-        declaration = declared[name]
-        try:
-            decoded, codec_name = decode_declared_value(
-                name, value, _declared_codec(name, declaration.type), subject="answer"
-            )
-        except WorkflowAnswerError:
-            raise
-        except WorkflowInputError as exc:
-            raise WorkflowAnswerError(str(exc)) from exc
-        param_writes[name] = ParamWrite(mode=WriteParamMode.SET, value=decoded, allow_overwrite=True)
-        codecs[name] = codec_name
-    return BoundAnswer(output=ActionNodeOutput(output_text=answer.text, param_writes=param_writes), codecs=codecs)
 
 
 def question_block(node_id: str, response: PresentResponse) -> dict[str, object]:

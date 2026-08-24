@@ -189,17 +189,6 @@ def _finalize_reason(state: StateModel) -> FinalizeReason:
     return _FINALIZE_REASONS.get(code, FinalizeReason.ABORTED) if code is not None else FinalizeReason.ABORTED
 
 
-def _visit_ordinals(state: StateModel, node_id: str) -> tuple[int, int]:
-    """Where the run stands in the node the engine is about to conclude, read before the counters move.
-
-    The same two ordinals the answered event carries, computed the same way (ADR 017 §4), so a record
-    and a journal event about one visit can be laid side by side. ``visit_counters`` count departures,
-    so the visit in flight is the next one; attempts reset on departure, so the attempt in flight is
-    the next one too.
-    """
-    return state.visit_counters.get(node_id, 0) + 1, state.attempt_counters.get(node_id, 0) + 1
-
-
 def _function_name(node: WorkflowNode) -> str | None:
     """The registered function a function-wrapping action runs, where the node names one. See ADR 021 §1."""
     name = node.config.action_parameters.get(FUNCTION_NAME_KEY)
@@ -263,6 +252,7 @@ def _record_visit(
             transition=_transition_record(step, output),
             writes=_applied_write_records(output, state, applied),
             artifacts=list(output.artifacts),
+            details=dict(output.details),
         ),
     )
 
@@ -316,7 +306,7 @@ def _visit_cap_response(node: WorkflowNode, state: StateModel, storage: Storage)
     storage.save_state(state)
     # A refusal on entry is a visit that concluded before its action ran, and the trail says so: the
     # record names the visit the node was not allowed to make. See ADR 021 §1.
-    visit, attempt = _visit_ordinals(state, node.id)
+    visit, attempt = state.visit_ordinals(node.id)
     storage.append_record(
         state.session_id,
         NodeRecord(
@@ -406,7 +396,7 @@ def _start_engine(
                     # Here the function reads the state view the guards read and returns the output
                     # `state.update` applies, so there is no second ordering question. See ADR 015 §3.
                     output = cur_node.action.process_answer(state_read_only, output)
-                ordinals = _visit_ordinals(state, cur_node.id)
+                ordinals = state.visit_ordinals(cur_node.id)
                 step = _proceed_with_output(workflow_nodes, output, cur_node, state, state_read_only)
                 next_node = step.next_node
                 applied = state.update(
@@ -591,10 +581,11 @@ def _answered_event(state: StateModel, answer: Answer, bound: BoundAnswer) -> Se
     reconstructible only by counting events between visit boundaries. See ADR 017 §4.
     """
     node_id = state.current_node_id
+    visit, attempt = state.visit_ordinals(node_id)
     details: dict[str, object] = {
         "node_id": node_id,
-        "visit": state.visit_counters.get(node_id, 0) + 1,
-        "attempt": state.attempt_counters.get(node_id, 0) + 1,
+        "visit": visit,
+        "attempt": attempt,
         "status": answer.status.value,
         "actor": answer.actor,
         "names": list(bound.codecs),

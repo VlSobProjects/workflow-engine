@@ -296,6 +296,7 @@ class StateReadOnlyView:
     _list_parameters: Final[Callable[[], list[dict[str, str]]]]
     _get_parameter_envelope: Final[Callable[[str], dict[str, object] | None]]
     _get_session_events: Final[Callable[[], list[dict[str, object]]]]
+    _visit_ordinals: Final[Callable[[str], tuple[int, int]]]
 
     timestamp: datetime
     work_dir: Path
@@ -382,6 +383,9 @@ class StateReadOnlyView:
         def get_session_events() -> list[dict[str, object]]:
             return [event.to_dict() for event in state.session_events]
 
+        def visit_ordinals(node_id: str) -> tuple[int, int]:
+            return state.visit_ordinals(node_id)
+
         return cls(
             get_param,
             get_output,
@@ -399,6 +403,7 @@ class StateReadOnlyView:
             list_parameters,
             get_parameter_envelope,
             get_session_events,
+            visit_ordinals,
             work_dir=state.work_dir,
             timestamp=state.timestamp,
             schema_version=state.schema_version,
@@ -518,6 +523,10 @@ class StateReadOnlyView:
     def get_session_events(self) -> list[dict[str, object]]:
         """The session event journal as persisted, in the order it was recorded."""
         return self._get_session_events()
+
+    def visit_ordinals(self, node_id: str) -> tuple[int, int]:
+        """The visit and the attempt the node is in, for an action that numbers what it produces."""
+        return self._visit_ordinals(node_id)
 
 
 @dataclass
@@ -755,6 +764,17 @@ class StateModel:
                     )
                     return save_as
         return None
+
+    def visit_ordinals(self, node_id: str) -> tuple[int, int]:
+        """Where the run stands in a node it has not left yet: the visit and the attempt in flight.
+
+        The two ordinals of ADR 017 §4, read before the counters move. ``visit_counters`` count
+        departures, so the visit in flight is the next one; attempts reset on departure, so the
+        attempt in flight is the next one too. Everything that accounts for one visit — the journal
+        event of an answer, the record of ADR 021, an audit artifact of the call — numbers it here,
+        so the accounts of one visit can be laid side by side.
+        """
+        return self.visit_counters.get(node_id, 0) + 1, self.attempt_counters.get(node_id, 0) + 1
 
     def _update_stats(self, next_node_id: str | None, curr_node_id: str) -> None:
         if next_node_id and next_node_id == curr_node_id:
