@@ -26,8 +26,8 @@ records why.
 | 2 | Write `purpose.md`, its map row and the reading rule | done |
 | 3 | Documentation system: consumer rule, scenarios as documents, this roadmap, registries rewritten | done in `2026-08-23-documentation-1` |
 | 4 | Write the first class 2 scenario: the interview that creates a repository and its documents | done in `2026-08-23-documentation-2` |
-| 5 | Write the class 2 exit-scenario document, so the `Consumer` of ADR 014 names an existing scenario | next |
-| 6 | Edit the Drafts: ADR 014 to the narrow Draft, ADR 019 decoupled with the shared-mechanism guards; then ADR 014 into Implementing | pending |
+| 5 | Write the class 2 exit-scenario document, so the `Consumer` of ADR 014 names an existing scenario | done in `2026-08-24-documentation-2` |
+| 6 | Edit the Drafts: ADR 014 to the narrow Draft, ADR 019 decoupled with the shared-mechanism guards; then ADR 014 into Implementing | next |
 | 7 | Atomic state write and a session lock, one `fix/` session without an ADR, taken at any pause | pending |
 | 8 | Build the exit scenario by hand on prepared data, measuring the answer-shape, function-inventory and output gaps; its outcome opens the output-family ADR or records why not | pending |
 | 9 | ADR 019 narrowed into Implementing; the `support-intake` note reformatted as a class 2 scenario beside it | pending |
