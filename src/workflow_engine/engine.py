@@ -547,7 +547,7 @@ class WorkflowEngine:
         workflow = WorkflowSource.upload_workflow_from_file(workflow_path)
         session = self.session_factory.new_session(workflow, self.storage_factory.storage_config())
         storage = self.storage_factory.build_storage(session.storage)
-        state = session.create_state(workflow)
+        state = session.create_state(workflow, workflow_dir=workflow_path.expanduser().resolve(strict=False).parent)
         storage.save_workflow(state.session_id, workflow)
         runtime = _build_runtime(session, storage, state, workflow)
         self.runtime = runtime

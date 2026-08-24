@@ -50,10 +50,14 @@ def test_folder_inventory_parameterized_run_exports_csv(tmp_path, capsys):
 
     assert code == 0
     assert response["workflow_status"] == "completed"
-    assert cast(dict, response["data"])["deliverables"] == ["file_scan_table"]
+    assert cast(dict, response["data"])["deliverables"] == ["file_scan_table", "file_scan_report"]
 
     exported = out / "reports" / "file_scan_table.csv"
     assert exported.is_file()
     content = exported.read_text()
-    assert (scan / "a.txt").resolve().as_posix() in content
-    assert (scan / "sub" / "b.txt").resolve().as_posix() in content
+    assert f"{scan.resolve().as_posix()},a.txt" in content
+    assert f"{(scan / 'sub').resolve().as_posix()},b.txt" in content
+
+    document = out / "reports" / "file_scan_report.txt"
+    assert document.is_file()
+    assert document.read_text(encoding="utf-8").splitlines()[0] == scan.resolve().as_posix()

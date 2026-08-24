@@ -194,8 +194,9 @@ shared, each written against an accepted ADR rather than against the other Draft
   component. This decision does not put it into the prompt; if a scenario asks the prompt to state
   the answer's shape, the prompt consumes that generator, never a second assembly.
 - **One template-file loader.** Any field that sources template text from an authored file is
-  served by one loader beside the interpolation module; `prompt_ref` (Leaves open) is its first
-  instance when a scenario brings it back.
+  served by one loader beside the interpolation module. ADR 020 delivered the first instance, the
+  template a function renders into an artifact; `prompt_ref` (Leaves open) joins it when a scenario
+  brings it back, and the shared steps are raised out of that function rather than written again.
 - **`node.` is a prefix of the template-text contract.** If the ADR 016 contract gains a reference
   prefix over the node's own counters, it resolves on any node whose fields are template text —
   the `llm` prompt included — not as a property of `ask`.

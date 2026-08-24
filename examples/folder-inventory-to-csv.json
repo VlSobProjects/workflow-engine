@@ -10,7 +10,10 @@
       "description": "Root folder whose files are inventoried into the CSV report"
     }
   ],
-  "deliverables": ["file_scan_table"],
+  "deliverables": [
+    "file_scan_table",
+    "file_scan_report"
+  ],
   "nodes": [
     {
       "id": "INIT_QUEUE",
@@ -21,16 +24,26 @@
           "param_name": "scan_queue"
         }
       },
-      "transitions": [{ "next": "INIT_ROWS" }]
+      "transitions": [
+        {
+          "next": "INIT_ROWS"
+        }
+      ]
     },
     {
       "id": "INIT_ROWS",
       "action_type": "function",
       "action_parameters": {
         "function_name": "init_list_param",
-        "function_parameters": { "param_name": "table_rows" }
+        "function_parameters": {
+          "param_name": "table_rows"
+        }
       },
-      "transitions": [{ "next": "SEED_QUEUE" }]
+      "transitions": [
+        {
+          "next": "SEED_QUEUE"
+        }
+      ]
     },
     {
       "id": "SEED_QUEUE",
@@ -42,7 +55,11 @@
           "deque_param_name": "scan_queue"
         }
       },
-      "transitions": [{ "next": "POP_NEXT" }]
+      "transitions": [
+        {
+          "next": "POP_NEXT"
+        }
+      ]
     },
     {
       "id": "POP_NEXT",
@@ -57,8 +74,15 @@
         }
       },
       "transitions": [
-        { "validator": { "equals": "empty" }, "next": "WRITE_TABLE" },
-        { "next": "EMIT_CUR_PATH" }
+        {
+          "validator": {
+            "equals": "empty"
+          },
+          "next": "WRITE_TABLE"
+        },
+        {
+          "next": "EMIT_CUR_PATH"
+        }
       ]
     },
     {
@@ -66,11 +90,20 @@
       "action_type": "function",
       "action_parameters": {
         "function_name": "echo_value",
-        "function_parameters": { "value": "param.cur_path" }
+        "function_parameters": {
+          "value": "param.cur_path"
+        }
       },
       "transitions": [
-        { "validator": { "function_name": "is_output_exist_file" }, "next": "COLLECT" },
-        { "next": "ENQUEUE" }
+        {
+          "validator": {
+            "function_name": "is_output_exist_file"
+          },
+          "next": "COLLECT"
+        },
+        {
+          "next": "ENQUEUE"
+        }
       ]
     },
     {
@@ -79,29 +112,49 @@
       "action_parameters": {
         "save_to_list": "table_rows",
         "functions": {
-          "Path": {
-            "function_name": "echo_value",
-            "function_parameters": { "value": "param.cur_path" }
+          "Folder": {
+            "function_name": "file_parent_folder",
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
+          },
+          "Name": {
+            "function_name": "file_name",
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
           },
           "Size": {
             "function_name": "file_size_human",
-            "function_parameters": { "file_path": "param.cur_path" }
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
           },
           "MIME": {
             "function_name": "file_mime_type",
-            "function_parameters": { "file_path": "param.cur_path" }
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
           },
           "Modified": {
             "function_name": "file_modify_time",
-            "function_parameters": { "file_path": "param.cur_path" }
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
           },
           "MD5": {
             "function_name": "md5_check_sum_file",
-            "function_parameters": { "file_path": "param.cur_path" }
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
           }
         }
       },
-      "transitions": [{ "next": "POP_NEXT" }]
+      "transitions": [
+        {
+          "next": "POP_NEXT"
+        }
+      ]
     },
     {
       "id": "ENQUEUE",
@@ -113,7 +166,11 @@
           "deque_param_name": "scan_queue"
         }
       },
-      "transitions": [{ "next": "POP_NEXT" }]
+      "transitions": [
+        {
+          "next": "POP_NEXT"
+        }
+      ]
     },
     {
       "id": "WRITE_TABLE",
@@ -135,7 +192,37 @@
             "pretty_table_write_error"
           ]
         },
-        { "stop": true }
+        {
+          "next": "WRITE_REPORT"
+        }
+      ]
+    },
+    {
+      "id": "WRITE_REPORT",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "dict_list_to_grouped_tables",
+        "function_parameters": {
+          "artifact_name": "file_scan_report",
+          "dict_param_name": "table_rows",
+          "group_by": "Folder",
+          "artifact_path": "reports/file_scan_report.txt",
+          "artifact_description": "One table per folder, the folder path as its heading"
+        }
+      },
+      "transitions": [
+        {
+          "errors": [
+            "grouped_tables_no_data",
+            "grouped_tables_key_missing",
+            "grouped_tables_write_error",
+            "artifact_overwritten",
+            "artifact_path_conflict"
+          ]
+        },
+        {
+          "stop": true
+        }
       ]
     }
   ]
