@@ -38,28 +38,76 @@ stream outside the state, read back by a bounded `show-records` command.
 - No retention, rotation or schema version marker; the ADR 010 cap bounds a session's stream.
 
 ## Status
-`interrupted`
+`completed`
 
 ## Result
-Opened only. ADR 021 was moved to `Implementing` on `development` and this branch was created; no
-code has been written yet.
+All completion criteria are met.
+
+- `models/node_record.py`: `NodeRecord` with the §1 shape and an open `details`, `TransitionRecord`,
+  `ParamWriteRecord`, `RecordPage`, and the `RecordSource` contract, kept apart from `StateModel` so
+  the split the ADR draws is visible in the code layout.
+- `Storage` mixes in `RecordSource`; `JsonStorage` keeps `records.jsonl` beside `state.json`,
+  appending one line per record and reading the stream line by line, filtering by node and bounding
+  with a tail.
+- The engine writes one record per concluded visit, after the state it describes is saved, and one
+  for an entry refused by `max_visits`. A paused question concludes nothing and is recorded when its
+  answer concludes it.
+- `show-records --session-id <id> [--node <id>] [--tail <n>]` in the ADR 018 §3 discipline, with an
+  operator form of one line per visit.
+- Class 4 evidence run: `folder-inventory-to-csv` over a prepared tree of four files in three
+  folders, 27 visits, read back whole, per node and tailed; written into the walkthrough under
+  "Reading the walk back". `show-state` reports one guard result for `EMIT_CUR_PATH`, the trail
+  holds all seven of its passes - which is the gap the ADR exists to close.
+- Documentation carried in the branch: the ADR body and its change log, the walkthrough,
+  `README.md`, `docs/architecture/overview.md` (Storage, State, the command list, the read surfaces,
+  and a new "Node records" section).
+- 42 tests added; `uv run pytest` 515 passed, `uv run ruff check .` clean, `uv run ruff format .`
+  applied.
 
 ## Decisions
-None yet.
+1. **A node output written through `save_as` is recorded as a write, under the mode `SAVE_AS`.**
+   It reaches the state outside `param_writes`, and two of the three shipped examples produce values
+   that way, so recording only the declared writes would have left the trail silent about the most
+   common write. `StateModel.update` therefore returns what it applied. Recorded as an amendment in
+   the ADR change log (`adr-rules.md` §5).
+2. **The single §1 `writes` bullet became two members**, `writes` and `artifacts`: a list of write
+   objects and a list of names are different shapes, and joining them for literal agreement with the
+   text would have read worse. The transition likewise became a member of its own beside `guards`.
+3. **The bounded read is an operation of the persistence contract**, not of the command that calls
+   it, so a second storage implementation inherits the "node filter first, tail last" composition
+   instead of every caller repeating it. The rejected alternative was the shape `show-journal` uses:
+   hand the caller the whole stream and filter in the use case.
+4. **The state is saved before its record is appended.** This is the ADR 021 §2 crash semantics made
+   concrete: a trail missing its last record is an incomplete account of an exact run, while a record
+   ahead of the state would account for effects that never took hold. A line that does not parse
+   fails the read for the same reason.
+5. **A visit whose action produced an error code is recorded as failed even when a guard routes the
+   run onwards.** The status says what happened in the node, the transition says where the run went,
+   and a retry loop reads back as the failures it actually made.
 
 ## Open questions
-- The stream file name and the record's serialized field set are the implementation's choice
-  (ADR 021 Implementation notes); both are documented in the walkthrough when the evidence is run.
+None. The ADR's own Leaves open list is unchanged: the `llm` details member (ADR 014 on its own
+branch), retention, a schema version marker, and a rollback marker in the trail.
 
 ## Next steps
-1. Implement the record model and the two storage operations, then the engine write point.
-2. Add `show-records` in the ADR 018 §3 discipline.
-3. Run the class 4 evidence on `folder-inventory-to-csv` and carry the walkthrough, `README.md`,
-   `docs/architecture/overview.md` and the ADR body in this branch.
-4. Merge into `development`, set ADR 021 to Accepted there, and register this session.
+1. Merge this branch into `development`, set ADR 021 to Accepted there with its registry row, and
+   add this session's row - the freeze gate holds: the walkthrough and the scenario registry list
+   the ADR, the overview describes the delivered architecture, and the tests pass.
+2. Roadmap step 8 continues: ADR 014 to `Implementing` and
+   `feature/adr_014-llm-node-and-provider-adapter`, four sessions on one branch, amending ADR 014 §4
+   to land the call audit in this channel as the `llm` details.
+3. The `fix/` session for the atomic state write and the session lock stays its own concern; this
+   decision made it cheaper, not different.
 
 ## References
 - Branch: `feature/adr_021-node-record-channel`.
+- Code: `models/node_record.py` (new), `models/state.py`, `storage/storage.py`,
+  `storage/json_storage.py`, `engine.py`, `cli/contract.py`, `cli/use_cases.py`, `cli/presenters.py`,
+  `cli/main.py`.
+- Tests: `tests/test_adr021_node_records.py`, `tests/test_adr021_record_writing.py`,
+  `tests/test_adr021_show_records.py` (all new).
+- Documents changed: `docs/adr/adr-021-node-record-channel.md`,
+  `examples/folder-inventory-to-csv.md`, `README.md`, `docs/architecture/overview.md`, this note.
 - Related ADRs: ADR 021 (implemented here), ADR 002, ADR 003, ADR 006, ADR 010, ADR 011, ADR 013,
   ADR 017, ADR 018.
 - Preceding note: `2026-08-24-architecture-3_handoff.md`.

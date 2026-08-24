@@ -64,14 +64,22 @@ output and choosing the transition, so a record only ever describes effects that
 The common shape of a record:
 
 - `record_id`, `timestamp` — identity and order, the `SessionEvent` discipline;
-- `node_id`, `visit`, `attempt` — where and which time, the ADR 017 ordinals;
-- `action` — the registered action name, and the function name where the action is a function
-  wrapper;
-- `status` — `completed` or `failed`, with the error code when there is one;
-- `guards` — the guard evaluations of the visit and the transition that was taken (target node,
-  end, or failure code);
-- `writes` — the names, codec names and write modes of the applied parameter writes, and the names
-  of registered artifacts.
+- `node_id`, `visit`, `attempt` — where and which time, the ADR 017 ordinals, computed exactly as
+  the `interactive_answered` event computes them so a record and an event about one visit can be
+  laid side by side;
+- `action`, `function` — the registered action name, and the function name where the action is a
+  function wrapper;
+- `status`, `error_code` — `completed` or `failed`, with the code when there is one. A visit whose
+  action produced an error code is failed even where a guard routes the run onwards from it: the
+  status says what happened in the node, the transition says where the run went;
+- `guards` — the guard evaluations of the visit;
+- `transition` — what was taken: a target node, the end of the workflow, or a failure code;
+- `writes` — the names, codec names and write modes of the applied parameter writes;
+- `artifacts` — the names of the artifacts the visit registered.
+
+A node output written through `save_as` is one of those writes, under the mode `SAVE_AS`. It reaches
+the state without passing through `param_writes`, and a trail that recorded only the declared writes
+would leave out the most common way a node produces a value.
 
 Names and codec names, never values: the ADR 013 §9 journal rule extends to the record stream
 unchanged. Values live in the state and in artifacts, where codecs keep their types.
@@ -94,10 +102,17 @@ construction — the overwritten per-node slots already give the engine everythi
 so they do not belong in the file that resume parses and the engine rewrites whole at every step.
 
 The persistence contract (ADR 003) gains two operations for the stream: append one record, and
-read records bounded. In `JsonStorage` the stream is a JSON-lines file; the medium is the storage
-implementation's concern, as it is for the state document. The stream is write-only for the engine
-during a run — no engine logic reads it back — and append-only for everyone: a record is never
-rewritten, which is what makes the trail evidence.
+read records filtered by node and bounded by a tail. In `JsonStorage` the stream is `records.jsonl`
+beside `state.json`, one JSON object per line; the medium is the storage implementation's concern, as
+it is for the state document. The bounded read belongs to the contract rather than to the command
+that calls it, so a second storage implementation inherits the composition instead of every caller
+repeating it. The stream is write-only for the engine during a run — no engine logic reads it back —
+and append-only for everyone: a record is never rewritten, which is what makes the trail evidence.
+
+The engine appends a record after the state that record describes has been saved. That order follows
+from the crash semantics below: a trail missing its last record is an incomplete account of an exact
+run, while a record ahead of the state would account for effects that never took hold. A line that
+does not parse fails the read rather than shortening the history, for the same reason.
 
 The state file stays what it is; nothing moves out of it. Crash semantics follow from the split:
 the state is authoritative, and a trail whose last record is missing after a crash is an
@@ -119,7 +134,10 @@ the artifacts, and the two channels meet by name.
 persisted, in the ADR 018 §3 discipline exactly: whole without flags, `--node` filters first,
 `--tail` bounds last, the answer reports how many records it carries next to how many the stream
 holds, a `--tail` below `1` is a command error. It joins the info command set: `workflow_status`
-reported informationally, exit `0` on command success, `4` on resolution errors.
+reported informationally, exit `0` on command success, `4` on resolution errors. Its operator form is
+one line per visit — the node with its ordinals, the action and the function, the status, the guards,
+the transition, the writes and the artifacts — because a trail read as a wall of JSON explains
+nothing to the person holding a failed session.
 
 `show-journal` is untouched: ADR 018 froze it as publishing `session_events` as persisted, and the
 two streams answer different questions — the journal says who drove the session, the records say
@@ -200,14 +218,28 @@ later decision.
 
 ## Implementation notes
 
-- The stream file name and the record's serialized field set are the implementation's choice; the
-  walkthrough documents both when the class 4 evidence is run.
+- The stream is `records.jsonl` in the session's storage directory, one JSON object per line, with
+  the field set of §1: `record_id`, `timestamp`, `node_id`, `visit`, `attempt`, `action`, `function`,
+  `status`, `error_code`, `guards`, `transition`, `writes`, `artifacts`, `details`.
+- The record model and the `RecordSource` contract live in `models/node_record.py`, apart from
+  `models/state.py`, so the split the decision draws is visible in the code layout.
+- `StateModel.update` returns the parameter names it applied, so the engine records what took hold
+  rather than what the output declared: a refused write stops the ones behind it.
 - The freeze-gate run: `folder-inventory-to-csv` over a prepared tree, the walk read back with
-  `show-records` whole, per node and tailed, added to the walkthrough.
+  `show-records` whole, per node and tailed, documented in the walkthrough under "Reading the walk
+  back".
 - Entering Implementing creates `feature/adr_021-node-record-channel`.
 
 ## Change log
 
+- 2026-08-24: implemented on `feature/adr_021-node-record-channel` in session
+  `2026-08-24-implementation-2`. Two amendments to §1, both recorded rather than quietly built: a
+  node output written through `save_as` is recorded as a write under the mode `SAVE_AS`, because it
+  reaches the state outside `param_writes` and two of the three shipped examples produce values that
+  way; and the single `writes` bullet became two members, `writes` and `artifacts`, whose shapes
+  differ. The transition became a member of its own beside `guards`. The stream file name
+  (`records.jsonl`), the serialized field set and the write ordering (state first, then the record)
+  are recorded in §2 and the implementation notes.
 - 2026-08-24: opened as Draft in session `2026-08-24-architecture-3`, executing decisions 2–4 of
   investigation `2026-08-24-investigation-1`: the record scope is fixed as every visit,
   engine-written, names not values (the opt-in, switched, and logging-framework framings are
