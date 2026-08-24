@@ -65,7 +65,10 @@ A core action (working name `llm`) whose node configuration declares:
 - `prompt`: the prompt text, declared template text under ADR 016;
 - `answer`: the typed answer declaration of ADR 013 — which parameters the reply must yield and
   how they are typed — plus a `format` (`text` | `json`) that tells the action how to read the reply;
-- optional provider call options (temperature, max tokens, …) passed through opaquely.
+- optional provider call options (temperature, max tokens, …) passed through opaquely — including an
+  instruction addressed to the adapter's own resources, such as releasing the model right after this
+  call: the engine reads nothing in the mapping, so the node stays universal and an adapter with
+  nothing to release ignores it.
 
 The prompt is template text under the ADR 016 contract, inherited whole rather than adapted: the
 braced `${param.}`/`${output.}`/`${artifact.}` form only, `$$` for a literal `$`, a malformed
@@ -104,7 +107,7 @@ installation's habit.
 
 ### 2. Provider adapters as registered components
 
-An adapter is a callable registered under a new registration kind, `@register_provider`, with its
+An adapter is a component registered under a new registration kind, `@register_provider`, with its
 own registry — the fifth kind beside actions, functions, validators and codecs, following the
 one-kind-one-registry pattern the core already has. A convention over `FUNCTION_REGISTRY` was
 weighed and rejected: the help contract promises adapters their own component type, which over
@@ -120,6 +123,24 @@ business — a single user message for a chat endpoint, a system prompt, when ne
 call option. Structured messages and conversation history are a later decision, taken when a
 scenario shows them: the `llm` node holds no dialogue by construction, so a history would arrive as
 a parameter, not as node state.
+
+The adapter is a class rather than a plain callable, and the engine seats one instance per
+configured provider name for the lifetime of a process. The reason is state: an adapter speaking to
+a local model server has to know which model that server currently holds resident, so that the next
+call is a swap, a load, or nothing at all. That memory is a cache of a fact living outside the
+process — a fresh process knows nothing, and a second process may change it — so an adapter must
+work with an empty cache and may never treat it as the truth. The seat is module state, like the
+registries themselves: a registered function shipped by an adapter package, which is how a node
+reaches provider-specific work such as releasing a model, receives only the state view and the
+previous output, and could not reach a seat owned by the engine object.
+
+Beside the call the contract has one more operation: `finalize(reason)`, which the engine invokes on
+the seated adapters when a run ends, telling them how it ended — completed, failed, paused, aborted,
+or reconfigured when the seat itself is being rebuilt. The engine holds no policy there: a local
+adapter may unload a resident model on a completed run and keep it on a pause, where an answer is
+expected shortly, while an adapter that holds nothing overrides nothing. A failure to release is
+reported on the response of the run and changes neither its outcome nor its exit code — a model left
+resident is an operator's problem, not a failed workflow.
 
 The core ships no provider adapter. The first real adapter is an external module (ADR 005
 `external_modules`) speaking to a local model server — the route the POC took against LM Studio.
@@ -139,10 +160,11 @@ stand without any plugin.
 ### 3. Provider configuration and secrets
 
 The engine configuration file (ADR 008) gains a `providers` section: per provider name, the adapter
-to use, its base URL, the default model, and the *name of the environment variable* holding the
-credential — never the credential itself. A session records the provider and model each `llm` node
-actually used in the journal event of the call, so a resumed or audited run knows which model
-answered.
+to use, its base URL, the default model, the *name of the environment variable* holding the
+credential — never the credential itself — and an `options` object for what only the named adapter
+understands, such as a request timeout, read by the rule that keeps call options opaque. A session
+records the provider and model each `llm` node actually used in the journal event of the call, so a
+resumed or audited run knows which model answered.
 
 The provider block is **not** snapshotted into `session.json`. The ADR 004 snapshot solves a
 bootstrap problem — without the storage record a resume cannot even find its state — which
@@ -372,3 +394,13 @@ ADR 013 answer binding lives, and the layout of the in-repository adapter packag
   model-selecting action, with the deterministic selection form in Leaves open. The Implementing
   transition is deferred behind the output-family ADR that the operator's
   `result-file-composition` note opens (roadmap step 7).
+- 2026-08-24: amended in session `2026-08-24-implementation-3`, the first implementation session of
+  the branch, where the departures were made. §2: an adapter is a registered class with one call
+  operation rather than a plain callable, seated once per configured provider name for the lifetime
+  of a process, because an adapter speaking to a local model server has to remember which model is
+  resident; the contract gains `finalize(reason)` with the five reasons the seat reports, so
+  releasing a model stays the adapter's decision and never becomes the core's. §1: an instruction
+  addressed to the adapter's own resources — release the model right after this call — travels as
+  one of the opaque call options, so the core learns neither `load` nor `unload` and the node stays
+  universal. §3: the provider block gains an `options` object for what only the named adapter
+  understands.
