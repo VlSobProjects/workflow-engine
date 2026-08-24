@@ -1,4 +1,5 @@
 import json
+from typing import cast
 
 from workflow_engine.cli.contract import CommandResult
 from workflow_engine.tools import common_encoder, render_value_as_text
@@ -56,4 +57,52 @@ def render_journal_text(session_id: str, events: list[dict[str, object]], total:
         f"{event['timestamp']}  {event['actor']}  {event['code']}  {render_value_as_text(event['details'])}"
         for event in events
     )
+    return "\n".join(lines)
+
+
+def _record_transition_text(transition: dict[str, object]) -> str:
+    target = transition.get("target")
+    kind = str(transition.get("kind"))
+    return kind if target is None else f"{kind} {target}"
+
+
+def _record_line(record: dict[str, object]) -> str:
+    action = str(record["action"])
+    function = record.get("function")
+    status = str(record["status"])
+    error_code = record.get("error_code")
+    parts = [
+        str(record["timestamp"]),
+        f"{record['node_id']} visit {record['visit']} attempt {record['attempt']}",
+        action if function is None else f"{action}:{function}",
+        status if error_code is None else f"{status} ({error_code})",
+        f"-> {_record_transition_text(cast(dict, record['transition']))}",
+    ]
+    guards = cast(list, record.get("guards") or [])
+    if guards:
+        rendered = ", ".join(f"{guard['name']}={'pass' if guard['passed'] else 'fail'}" for guard in guards)
+        parts.append(f"guards: {rendered}")
+    writes = cast(list, record.get("writes") or [])
+    if writes:
+        rendered = ", ".join(f"{write['name']} ({write['codec']}, {write['mode']})" for write in writes)
+        parts.append(f"writes: {rendered}")
+    artifacts = cast(list, record.get("artifacts") or [])
+    if artifacts:
+        parts.append("artifacts: " + ", ".join(str(name) for name in artifacts))
+    details = cast(dict, record.get("details") or {})
+    if details:
+        parts.append(f"details: {render_value_as_text(details)}")
+    return "  ".join(parts)
+
+
+def render_records_text(session_id: str, records: list[dict[str, object]], total: int) -> str:
+    """The operator form of `show-records`: one line per concluded visit, names and never values.
+
+    The header names how many records the answer carries out of the whole stream, so a `--tail` or
+    `--node` reader sees that the answer is bounded rather than mistaking it for the full trail.
+    """
+    if not records:
+        return f"No records to show in session {session_id} (stream holds {total})"
+    lines = [f"Records of session {session_id} ({len(records)} of {total} records):"]
+    lines.extend(_record_line(record) for record in records)
     return "\n".join(lines)

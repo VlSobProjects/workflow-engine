@@ -32,6 +32,7 @@ from workflow_engine.models.node_record import (
     WRITE_MODE_SAVE_AS,
     NodeRecord,
     ParamWriteRecord,
+    RecordPage,
     TransitionRecord,
 )
 from workflow_engine.models.state import GuardRecord, SessionEvent, SessionEventCode, StateModel, StateReadOnlyView
@@ -762,6 +763,15 @@ class WorkflowEngine:
     def get_status(self, session_id: str) -> StateReadOnlyView:
         runtime = self._acquire(session_id)
         return StateReadOnlyView.from_state(runtime.state)
+
+    def get_records(self, session_id: str, node_id: str | None = None, tail: int | None = None) -> RecordPage:
+        """The node records of a session, filtered by node first and bounded by tail last.
+
+        The trail is read from storage and never from the state: no engine logic reads a record back
+        during a run, so this exists for the reader who explains the run afterwards. See ADR 021 §4.
+        """
+        runtime = self._acquire(session_id)
+        return runtime.storage.load_records(session_id, node_id=node_id, tail=tail)
 
     def get_deliverables(self, session_id: str) -> list[str]:
         runtime = self._acquire(session_id)

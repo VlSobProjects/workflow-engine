@@ -223,6 +223,10 @@ applies and persists them on each turn. Session-level control outcomes are store
 `state.session_events` as a persisted append-only journal, and artifact-registration outcomes
 (`artifact_overwritten`, `artifact_path_conflict`) are stored the same way in `state.artifact_events`.
 
+What each node visit did is not in the state at all. The per-node slots hold the latest visit and the
+next one overwrites them, so the history of a loop lives in the node-record stream beside the state
+file (see "Node records").
+
 ### Artifacts and deliverables (see ADR 011)
 
 `state.artifacts` holds registered artifacts as a map of logical name to `WorkflowArtifact`
@@ -282,11 +286,42 @@ definition itself is the reference for what a run must have bound.
 
 ## Storage
 
-`Storage` is an abstract class over a state source and a workflow source. `JsonStorage` is its only
-implementation and keeps both under `<storage_dir>/<session_id>/` as `state.json` and `workflow.json`.
-The state is written on every turn.
+`Storage` is an abstract class over a state source, a workflow source and a node-record source.
+`JsonStorage` is its only implementation and keeps them under `<storage_dir>/<session_id>/` as
+`state.json`, `workflow.json` and `records.jsonl`. The state is written on every turn.
+
+The record stream is append-only and lives outside the state on purpose: the state holds what a
+resume needs, the trail holds what an explanation needs (ADR 021). The contract carries two
+operations for it — append one record, and read records filtered by node and bounded by a tail — and
+the engine only ever writes to it during a run.
 
 Storage is built per session, not once per process, because a session decides which storage it uses.
+
+## Node records
+
+Every node visit leaves one record, written by the engine and by nothing else. See ADR 021.
+
+A record describes a visit that concluded: the engine appends it after the output was applied and
+the transition was chosen, so a record only ever names effects that took hold. A visit paused at a
+question has concluded nothing and is recorded when its answer concludes it; an entry refused by
+`max_visits` is recorded as the visit the node was not allowed to make.
+
+| Member | What it holds |
+| --- | --- |
+| `record_id`, `timestamp` | Identity and order, the `SessionEvent` discipline |
+| `node_id`, `visit`, `attempt` | Where and which time, the ordinals the answered event uses |
+| `action`, `function` | The registered action, and the function where the action wraps one |
+| `status`, `error_code` | `completed` or `failed`, with the code when there is one |
+| `guards`, `transition` | The guards the visit was asked, and where it went: a node, the end, a failure |
+| `writes`, `artifacts` | The parameters the visit applied by name, codec and write mode, and the artifacts it registered |
+| `details` | The open member the engine fills per action kind |
+
+A record carries names and codec names and never a value: the ADR 013 §9 journal rule holds for the
+trail unchanged. Values live in the state and in artifacts, and a payload that must survive — the
+prompt and the reply of a model call — is written as an artifact the record then names.
+
+The engine never reads the stream back during a run. It exists for the reader who explains a
+finished, failed or abandoned run from the session directory alone, through `show-records`.
 
 ## Sessions
 
@@ -379,6 +414,8 @@ written in, rather than as the Python repr `str()` would produce (ADR 016).
 - `list-parameters` to name the parameters of a session, and `show-parameter` to read one value;
 - `show-journal` to read the session event journal, optionally bounded by `--tail` and filtered by
   `--node`;
+- `show-records` to read the node records of a session, one per concluded node visit, bounded and
+  filtered the same way;
 - `list-sessions` to list sessions discoverable under the configured `work_dir`;
 - `help-components` to list registered components;
 - `help-component` to show one component by type and name;
@@ -402,7 +439,8 @@ usage to standard error, and under `--json` standard output still carries one co
 
 ## Session read surfaces
 
-Four commands read a session, one shape of result each, and none of them moves the run. See ADR 018.
+Five commands read a session, one shape of result each, and none of them moves the run. See ADR 018
+and, for the last of them, ADR 021.
 
 `show-state` is the state of the run and nothing else: the envelope, the timestamp, `flow_id`,
 `schema_version`, `work_dir`, `current_node`, the visit counters and budget, the error fields, the
@@ -425,7 +463,13 @@ own size next to the size of the whole journal. A non-positive `--tail` is a com
 than an empty answer. The journal holds names, codec names and ordinals and never values (ADR 013
 §9), so no read surface can publish the values of an exchange.
 
-All four are info commands: they report `workflow_status` and `event_code` informationally, exit `0`
+`show-records` publishes the node-record stream as persisted, in the same discipline: the whole
+stream by default, `--node` filtering to one node and `--tail` keeping the last `n` of what is left,
+the answer reporting its own size next to the size of the whole stream, and a non-positive `--tail`
+a command error. It answers a different question from `show-journal` — the journal says who drove the
+session, the records say what the run did — and the two are never bookkept twice.
+
+All five are info commands: they report `workflow_status` and `event_code` informationally, exit `0`
 on command success wherever the workflow stands, and `4` on a session or a name that does not
 resolve.
 
