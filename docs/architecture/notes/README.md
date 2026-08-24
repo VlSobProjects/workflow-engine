@@ -88,7 +88,7 @@ session assigns it a phase.
 
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
-| 2026-08-18 | Recovery and resilience beyond phase 1: retry/backoff, manual takeover, snapshot rollback with compensation | open | ADR 006, ADR 007, ADR 012, ADR 013, ADR 014 | [2026-08-18-recovery-and-resilience-roadmap.md](2026-08-18-recovery-and-resilience-roadmap.md) |
+| 2026-08-18 | Recovery and resilience beyond phase 1: retry/backoff, manual takeover, snapshot rollback with compensation | open | ADR 006, ADR 007, ADR 012, ADR 013, ADR 014, ADR 021 | [2026-08-18-recovery-and-resilience-roadmap.md](2026-08-18-recovery-and-resilience-roadmap.md) |
 | 2026-08-18 | Questions deferred from the ADR 012 implementation: shallow reference resolution, Python-version-dependent codec names, no definition introspection surface | open | ADR 006, ADR 009, ADR 011, ADR 012, ADR 013, ADR 014, ADR 018 | [2026-08-18-adr012-deferred-questions.md](2026-08-18-adr012-deferred-questions.md) |
 | 2026-08-19 | Whether the hard node cap stays a global default or becomes workflow-declared | open | ADR 007, ADR 010, ADR 012, ADR 017 | [2026-08-19-hard-node-cap-scoping.md](2026-08-19-hard-node-cap-scoping.md) |
 | 2026-08-19 | Entry-point discovery for component registration, deferred out of ADR 005: conflict policy, naming, precedence, auditability | open | ADR 005 | [2026-08-19-entry-point-discovery.md](2026-08-19-entry-point-discovery.md) |

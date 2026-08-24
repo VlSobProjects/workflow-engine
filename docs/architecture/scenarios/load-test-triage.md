@@ -27,7 +27,7 @@
   report stating why the flow stopped and carrying the evidence collected so far, with the
   exhausted evidence loop routed there like any other error code; failure under
   `llm_answer_invalid` or a provider error class when `max_attempts` exhausts.
-- **ADRs exercised:** ADR 005, ADR 006, ADR 011, ADR 012, ADR 014, ADR 016, ADR 017, ADR 018, ADR 020
+- **ADRs exercised:** ADR 005, ADR 006, ADR 011, ADR 012, ADR 014, ADR 016, ADR 017, ADR 018, ADR 020, ADR 021
 
 ## The consumer
 

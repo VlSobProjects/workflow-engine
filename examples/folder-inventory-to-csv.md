@@ -15,7 +15,7 @@
   `pretty_table_artifact_exists` or `pretty_table_write_error` when the table cannot be written
   (not verified); failure under the `grouped_tables_*` codes when the report cannot be written
   (not verified).
-- **ADRs exercised:** ADR 002, ADR 006, ADR 011, ADR 012, ADR 020
+- **ADRs exercised:** ADR 002, ADR 006, ADR 011, ADR 012, ADR 020, ADR 021
 
 Walks a folder tree and writes two deliverables over the same collected rows (folder, file name,
 size, MIME type, modified time, MD5): `file_scan_table`, one flat CSV for whatever reads it as

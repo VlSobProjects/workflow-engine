@@ -9,7 +9,9 @@
   ADR 012 (pre-start binding; deliberately closed off mid-run external writes), ADR 013
   (Accepted, carries (a) — session `2026-08-19-architecture-2`; (b) stays the next ADR after
   ADR 014, (c) is a small fix without an ADR — session `2026-08-19-architecture-1`), ADR 014
-  (fixes the error classes (b) will consume — session `2026-08-21-architecture-1`)
+  (fixes the error classes (b) will consume — session `2026-08-21-architecture-1`), ADR 021
+  (Draft; the append-only node-record trail (d) assumes to stay audit-complete across a rollback,
+  with the rollback marker left open there — session `2026-08-24-architecture-3`)
 
 ## The gap
 
