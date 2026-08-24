@@ -40,3 +40,51 @@ workflow-engine run --workflow-file examples/folder-inventory-to-csv.json \
 
 Getting the files themselves: see "Retrieving the result" in the root
 [`README.md`](../README.md); both deliverables are exported together.
+
+## Reading the walk back
+
+The walk is a loop: one pass of `POP_NEXT` / `EMIT_CUR_PATH` per tree entry, and either `COLLECT`
+for a file or `ENQUEUE` for a folder. The state keeps one slot per node, so the next pass overwrites
+the last one - after the run, `show-state` reports a single guard result for `EMIT_CUR_PATH`, the one
+from its final pass. The walk itself is in the node records, one per concluded visit (ADR 021):
+
+```
+workflow-engine show-records --session-id <SESSION_ID>
+```
+
+```
+Records of session <SESSION_ID> (27 of 27 records):
+... INIT_QUEUE visit 1 attempt 1  function:init_deque_param  completed  -> node INIT_ROWS  writes: scan_queue (collections.deque, SET)
+... SEED_QUEUE visit 1 attempt 1  function:enqueue_folder_entries  completed  -> node POP_NEXT  writes: scan_queue (collections.deque, EXTEND)
+... POP_NEXT visit 1 attempt 1  function:set_param_from_deque  completed  -> node EMIT_CUR_PATH  guards: equals:empty=fail  writes: scan_queue (collections.deque, POP_LEFT), cur_path (builtins.str, SET)
+... EMIT_CUR_PATH visit 1 attempt 1  function:echo_value  completed  -> node COLLECT  guards: is_output_exist_file=pass
+... COLLECT visit 1 attempt 1  functions  completed  -> node POP_NEXT  writes: table_rows (builtins.list, APPEND)
+```
+
+Each line is one visit: the node with its visit and attempt ordinals, the action and the function it
+ran, the status, the guards that were asked and how they answered, the transition that was taken, and
+the parameters and artifacts the visit wrote - by name, codec and write mode, never a value. The path
+each entry took is readable from the guards: `is_output_exist_file=pass` sent the entry to `COLLECT`,
+`=fail` sent it to `ENQUEUE`.
+
+`--node` narrows to one node, which is how many rows a walk collected and in which order:
+
+```
+workflow-engine show-records --session-id <SESSION_ID> --node COLLECT
+```
+
+```
+Records of session <SESSION_ID> (4 of 27 records):
+... COLLECT visit 1 attempt 1  functions  completed  -> node POP_NEXT  writes: table_rows (builtins.list, APPEND)
+... COLLECT visit 2 attempt 1  functions  completed  -> node POP_NEXT  writes: table_rows (builtins.list, APPEND)
+... COLLECT visit 3 attempt 1  functions  completed  -> node POP_NEXT  writes: table_rows (builtins.list, APPEND)
+... COLLECT visit 4 attempt 1  functions  completed  -> node POP_NEXT  writes: table_rows (builtins.list, APPEND)
+```
+
+`--tail` bounds what is left, so the two compose as "the last n visits of this node"; the header says
+how many records the answer carries out of how many the stream holds, so a bounded read never reads
+as the whole trail.
+
+The stream is a file of its own, `records.jsonl` beside `state.json` in the session directory: one
+JSON object per line, appended and never rewritten. Nothing moved out of the state to make room for
+it - the state holds what a resume needs, the trail holds what an explanation needs.

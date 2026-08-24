@@ -20,6 +20,7 @@ from workflow_engine.cli.use_cases import (
     set_limit,
     show_journal,
     show_parameter,
+    show_records,
     show_state,
 )
 from workflow_engine.exceptions import WorkflowEngineError
@@ -255,6 +256,26 @@ def _get_commend(command_name: CommandName) -> Command:
                     ),
                 ],
                 runner=show_journal,
+            )
+        case CommandName.SHOW_RECORDS:
+            return Command(
+                command=CommandName.SHOW_RECORDS,
+                help="Show the node records of a session: one per concluded node visit",
+                args=[
+                    _session_id_arg(),
+                    CommandArgs(
+                        key="--tail",
+                        type=int,
+                        help="Show only the last N records; without it the whole stream is returned",
+                        required=False,
+                    ),
+                    CommandArgs(
+                        key="--node",
+                        help="Show only the records of this node id",
+                        required=False,
+                    ),
+                ],
+                runner=show_records,
             )
         case CommandName.EXPORT_ARTIFACT:
             return Command(

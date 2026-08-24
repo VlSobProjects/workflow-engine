@@ -735,7 +735,13 @@ class StateModel:
         self.error_code = error_code
         self.error_msg = error_msg
 
-    def _update_cur_node(self, curr_node_id: str, output: ActionNodeOutput | None, save_as: str | None) -> None:
+    def _update_cur_node(self, curr_node_id: str, output: ActionNodeOutput | None, save_as: str | None) -> str | None:
+        """Apply the output text of a finished node, returning the parameter name it was saved under.
+
+        The name is returned because ``save_as`` writes a parameter without going through
+        ``param_writes``, and a trail that did not name it would leave out the most common way a node
+        produces a value. See ADR 021 §1.
+        """
         if output:
             if output.output_text:
                 self.outputs[curr_node_id] = output.output_text
@@ -747,6 +753,8 @@ class StateModel:
                     self.params[save_as] = ActionParameter.create(
                         source_node_id=curr_node_id, name=save_as, value=output.output_text
                     )
+                    return save_as
+        return None
 
     def _update_stats(self, next_node_id: str | None, curr_node_id: str) -> None:
         if next_node_id and next_node_id == curr_node_id:
@@ -811,14 +819,21 @@ class StateModel:
         """Keep the guard answers of the latest attempt of a node."""
         self.guard_results[node_id] = records
 
-    def update(self, curr_node_id: str, save_as: str | None, output: ActionNodeOutput | None, next_node_id: str | None):
+    def update(
+        self, curr_node_id: str, save_as: str | None, output: ActionNodeOutput | None, next_node_id: str | None
+    ) -> list[str]:
         """Apply everything one finished node produced, then move the position.
 
         The parameter writes are applied before ``_update_stats``, because that is what moves
         ``current_node_id`` to the next node: a value written afterwards would be recorded as
         produced by the node that has not run yet.
+
+        The names of the writes that took hold are returned, in the order they were applied. A write
+        refused mid-list stops the ones behind it, so the caller that records the visit can name what
+        was applied instead of what was declared. See ADR 021 §1.
         """
-        self._update_cur_node(curr_node_id, output, save_as)
+        saved_as = self._update_cur_node(curr_node_id, output, save_as)
+        applied: list[str] = [saved_as] if saved_as is not None else []
         if output is not None and len(output.param_writes) > 0:
             for param_name, param_write in output.param_writes.items():
                 error = self._param_write(param_name, param_write, curr_node_id)
@@ -827,9 +842,11 @@ class StateModel:
                     output.error_code, output.error_msg = error
                     self.errors[curr_node_id] = f"[{self.error_code}] {self.error_msg}"
                     break
+                applied.append(param_name)
 
         self._update_stats(next_node_id, curr_node_id)
         self._set_artifacts(output, curr_node_id)
+        return applied
 
     def add_parameter(self, param_name: str, param_value: object):
         self.params[param_name] = ActionParameter.create(self.current_node_id, param_name, param_value)

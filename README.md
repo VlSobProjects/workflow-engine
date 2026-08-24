@@ -223,6 +223,12 @@ command success and `4` on an unresolvable session or name.
   event id and details. The whole journal by default; `--tail <n>` keeps the last `n` events and
   `--node <NODE_ID>` keeps the events that name a node, and the two compose. The journal records
   names, codec names and ordinals, never the values themselves.
+- `show-records --session-id <SESSION_ID>` prints what the run did, one line per concluded node
+  visit — the node with its visit and attempt ordinals, the action and the function it ran, the
+  status with its error code, the guards that were asked, the transition that was taken, and the
+  parameters and artifacts the visit wrote. `--tail <n>` and `--node <NODE_ID>` bound and filter it
+  the same way. This is where the history of a loop survives: the state keeps one slot per node and
+  the next visit overwrites it. Like the journal, a record names a value and never carries it.
 
 Exit codes: `0` success, `2` workflow paused, `3` workflow failed, `4` command-level setup or
 resolution error. A malformed command line is a `4` too: the message and the usage go to stderr, and

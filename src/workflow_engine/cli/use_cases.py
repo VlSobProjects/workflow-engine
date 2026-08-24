@@ -6,7 +6,7 @@ from workflow_engine.answers import load_answer, question_block
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import load_config_file
 from workflow_engine.cli.contract import CommandName, CommandResult, CommandStatus
-from workflow_engine.cli.presenters import render_journal_text, render_parameters_list_text
+from workflow_engine.cli.presenters import render_journal_text, render_parameters_list_text, render_records_text
 from workflow_engine.engine import WorkflowEngine
 from workflow_engine.exceptions import WorkflowEngineError
 from workflow_engine.help_contract.builder import (
@@ -299,6 +299,29 @@ def show_journal(command_name: CommandName, args: Namespace) -> CommandResult:
     if args.json:
         return _read_result(command_name, state, session_id, {"events": events, "count": len(events), "total": total})
     return _read_result(command_name, state, session_id, None, render_journal_text(session_id, events, total))
+
+
+def show_records(command_name: CommandName, args: Namespace) -> CommandResult:
+    """The node record stream as persisted, whole unless `--node` filters or `--tail` bounds it.
+
+    The same discipline as `show-journal`, over the other stream: the filter runs before the bound,
+    and the answer reports the size of the whole stream next to what it carries. The two answer
+    different questions - the journal says who drove the session, the records say what the run did.
+    See ADR 021 §4.
+    """
+    engine = _get_engine(args)
+    session_id = args.session_id
+    tail = getattr(args, "tail", None)
+    if tail is not None and tail < 1:
+        raise WorkflowEngineError(f"--tail must be a positive integer, got {tail}")
+    state = engine.get_status(session_id=session_id)
+    page = engine.get_records(session_id, node_id=getattr(args, "node", None), tail=tail)
+    records = [record.to_dict() for record in page.records]
+    if args.json:
+        return _read_result(
+            command_name, state, session_id, {"records": records, "count": len(records), "total": page.total}
+        )
+    return _read_result(command_name, state, session_id, None, render_records_text(session_id, records, page.total))
 
 
 def list_of_sessions(command_name: CommandName, args: Namespace) -> CommandResult:

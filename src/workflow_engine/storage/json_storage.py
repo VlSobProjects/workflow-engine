@@ -1,9 +1,11 @@
 import dataclasses
 import json
+from collections import deque
 from pathlib import Path
 
 from workflow_engine.exceptions import StateLoadError, WorkflowConfigurationError
 from workflow_engine.models.node import WorkflowNodeModel
+from workflow_engine.models.node_record import NodeRecord, RecordPage
 from workflow_engine.models.state import ActionParameter, ArtifactEvent, GuardRecord, SessionEvent, StateModel
 from workflow_engine.models.workflow import InputDeclaration, WorkflowModel
 from workflow_engine.output import WorkflowArtifact
@@ -12,6 +14,7 @@ from workflow_engine.tools import common_encoder
 
 STATE_FILE = "state.json"
 WORKFLOW_FILE = "workflow.json"
+RECORDS_FILE = "records.jsonl"
 
 
 def workflow_encoder(obj):
@@ -97,6 +100,65 @@ class JsonStorage(Storage):
             raise StateLoadError(
                 "state_file", f"Invalid JSON format in state file at path: {state_file.absolute()}"
             ) from ex
+
+    def _records_file(self, session_id: str) -> Path:
+        return self.storage_dir / session_id / RECORDS_FILE
+
+    def append_record(self, session_id: str, record: NodeRecord) -> None:
+        """Append one record as a line of its own, so the trail is only ever added to.
+
+        One line is one record: a write that fails leaves the records before it intact, and no
+        record already written is touched. That is what makes the stream evidence. See ADR 021 §2.
+        """
+        records_file = self._records_file(session_id)
+        try:
+            self._ensure_storage_directory()
+            records_file.parent.mkdir(parents=True, exist_ok=True)
+            line = json.dumps(record.to_dict(), sort_keys=True)
+            with records_file.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except WorkflowConfigurationError:
+            raise
+        except Exception as ex:
+            raise StateLoadError(
+                "records_file", f"Failed to append a node record at path: {records_file.resolve(strict=False)}"
+            ) from ex
+
+    def load_records(self, session_id: str, node_id: str | None = None, tail: int | None = None) -> RecordPage:
+        """Read the stream line by line, filtering by node first and keeping the last `tail` last.
+
+        A session whose run has written nothing yet has no stream, which is an empty page and not an
+        error. A line that does not parse is: the trail is append-only, so a broken line means a
+        damaged file, and reporting it as a shorter history would hide the damage. See ADR 021 §4.
+        """
+        records_file = self._records_file(session_id)
+        if not records_file.is_file():
+            return RecordPage(records=[], total=0)
+        selected: deque[NodeRecord] | list[NodeRecord] = deque(maxlen=tail) if tail is not None else []
+        total = 0
+        try:
+            with records_file.open(encoding="utf-8-sig") as f:
+                for number, line in enumerate(f, start=1):
+                    if not line.strip():
+                        continue
+                    total += 1
+                    try:
+                        record = NodeRecord.from_dict(json.loads(line))
+                    except json.JSONDecodeError as ex:
+                        raise StateLoadError(
+                            "records_file",
+                            f"Invalid JSON format in node record file at line {number}: {records_file.absolute()}",
+                        ) from ex
+                    if node_id is not None and record.node_id != node_id:
+                        continue
+                    selected.append(record)
+        except StateLoadError:
+            raise
+        except OSError as ex:
+            raise StateLoadError(
+                "records_file", f"Failed to read node records at path: {records_file.absolute()}"
+            ) from ex
+        return RecordPage(records=list(selected), total=total)
 
     def save_state(self, state: StateModel) -> None:
         """Save state to state file."""

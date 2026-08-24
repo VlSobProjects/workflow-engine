@@ -26,9 +26,19 @@ from workflow_engine.exceptions import (
     WorkflowRuntimeError,
 )
 from workflow_engine.inputs import InputAssignment, decode_input_value
+from workflow_engine.models.node_record import (
+    RECORD_STATUS_COMPLETED,
+    RECORD_STATUS_FAILED,
+    WRITE_MODE_SAVE_AS,
+    NodeRecord,
+    ParamWriteRecord,
+    RecordPage,
+    TransitionRecord,
+)
 from workflow_engine.models.state import GuardRecord, SessionEvent, SessionEventCode, StateModel, StateReadOnlyView
 from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
 from workflow_engine.output import ActionNodeOutput, ParamWrite
+from workflow_engine.registry.function_registry import FUNCTION_NAME_KEY
 from workflow_engine.storage.storage import Storage
 from workflow_engine.tools import dict_to_text_lv3
 from workflow_engine.transition.base import EndTarget, FailTarget, NodeTarget, Transition
@@ -154,6 +164,84 @@ def _proceed_with_output(
     return Step()
 
 
+def _visit_ordinals(state: StateModel, node_id: str) -> tuple[int, int]:
+    """Where the run stands in the node the engine is about to conclude, read before the counters move.
+
+    The same two ordinals the answered event carries, computed the same way (ADR 017 §4), so a record
+    and a journal event about one visit can be laid side by side. ``visit_counters`` count departures,
+    so the visit in flight is the next one; attempts reset on departure, so the attempt in flight is
+    the next one too.
+    """
+    return state.visit_counters.get(node_id, 0) + 1, state.attempt_counters.get(node_id, 0) + 1
+
+
+def _function_name(node: WorkflowNode) -> str | None:
+    """The registered function a function-wrapping action runs, where the node names one. See ADR 021 §1."""
+    name = node.config.action_parameters.get(FUNCTION_NAME_KEY)
+    return name if isinstance(name, str) else None
+
+
+def _transition_record(step: Step, output: ActionNodeOutput) -> TransitionRecord:
+    """Where the visit went: to a node, into a failure, or to the end of the workflow."""
+    if step.failure is not None:
+        return TransitionRecord.to_failure(output.error_code)
+    if step.next_node is not None:
+        return TransitionRecord.to_node(step.next_node.id)
+    return TransitionRecord.to_end()
+
+
+def _applied_write_records(output: ActionNodeOutput, state: StateModel, applied: list[str]) -> list[ParamWriteRecord]:
+    """Name each applied write with the codec the value landed under and the mode it was written in."""
+    records = []
+    for name in applied:
+        parameter = state.params.get(name)
+        write = output.param_writes.get(name)
+        if parameter is None:
+            continue
+        mode = write.mode.name if write is not None else WRITE_MODE_SAVE_AS
+        records.append(ParamWriteRecord(name=name, codec=parameter.codec.type_name(), mode=mode))
+    return records
+
+
+def _record_visit(
+    storage: Storage,
+    state: StateModel,
+    node: WorkflowNode,
+    output: ActionNodeOutput,
+    step: Step,
+    ordinals: tuple[int, int],
+    applied: list[str],
+) -> None:
+    """Append the record of one concluded visit, after the state it describes has been saved.
+
+    The order is the crash semantics of ADR 021 §2: the state is authoritative and is written first.
+    A trail whose last record is missing is an incomplete account of a run whose state is still
+    exact, which is tolerable in evidence; a record ahead of the state would be an account of effects
+    that never took hold, which is not.
+
+    A visit whose action produced an error code is recorded as failed even when a guard routes the
+    run onwards from it: the status says what happened in the node, and the transition says where the
+    run went next. That is how a retry loop reads back as the failures it actually made.
+    """
+    visit, attempt = ordinals
+    storage.append_record(
+        state.session_id,
+        NodeRecord(
+            node_id=node.id,
+            action=node.config.action_type,
+            function=_function_name(node),
+            status=RECORD_STATUS_FAILED if output.error_code is not None else RECORD_STATUS_COMPLETED,
+            error_code=output.error_code,
+            visit=visit,
+            attempt=attempt,
+            guards=list(state.guard_results.get(node.id, [])),
+            transition=_transition_record(step, output),
+            writes=_applied_write_records(output, state, applied),
+            artifacts=list(output.artifacts),
+        ),
+    )
+
+
 def _set_parameters(state: StateModel, parameters: dict[str, object] | None, override: bool) -> None:
     if parameters is not None:
         for key, value in parameters.items():
@@ -201,6 +289,22 @@ def _visit_cap_response(node: WorkflowNode, state: StateModel, storage: Storage)
         )
     )
     storage.save_state(state)
+    # A refusal on entry is a visit that concluded before its action ran, and the trail says so: the
+    # record names the visit the node was not allowed to make. See ADR 021 §1.
+    visit, attempt = _visit_ordinals(state, node.id)
+    storage.append_record(
+        state.session_id,
+        NodeRecord(
+            node_id=node.id,
+            action=node.config.action_type,
+            function=_function_name(node),
+            status=RECORD_STATUS_FAILED,
+            error_code=VISITS_EXCEEDED_ERROR,
+            visit=visit,
+            attempt=attempt,
+            transition=TransitionRecord.to_failure(VISITS_EXCEEDED_ERROR),
+        ),
+    )
     return PresentResponse(
         title="Node visit cap reached",
         description=f"Node '{node.id}' has completed the {node.config.max_visits} visits it declares "
@@ -277,11 +381,15 @@ def _start_engine(
                     # Here the function reads the state view the guards read and returns the output
                     # `state.update` applies, so there is no second ordering question. See ADR 015 §3.
                     output = cur_node.action.process_answer(state_read_only, output)
+                ordinals = _visit_ordinals(state, cur_node.id)
                 step = _proceed_with_output(workflow_nodes, output, cur_node, state, state_read_only)
                 next_node = step.next_node
-                state.update(cur_node.id, cur_node.config.save_as, output, next_node.id if next_node else None)
+                applied = state.update(
+                    cur_node.id, cur_node.config.save_as, output, next_node.id if next_node else None
+                )
                 state_read_only = StateReadOnlyView.from_state(state)
                 storage.save_state(state)
+                _record_visit(storage, state, cur_node, output, step, ordinals, applied)
 
                 if step.failure is not None:
                     state.record_session_event(
@@ -655,6 +763,15 @@ class WorkflowEngine:
     def get_status(self, session_id: str) -> StateReadOnlyView:
         runtime = self._acquire(session_id)
         return StateReadOnlyView.from_state(runtime.state)
+
+    def get_records(self, session_id: str, node_id: str | None = None, tail: int | None = None) -> RecordPage:
+        """The node records of a session, filtered by node first and bounded by tail last.
+
+        The trail is read from storage and never from the state: no engine logic reads a record back
+        during a run, so this exists for the reader who explains the run afterwards. See ADR 021 §4.
+        """
+        runtime = self._acquire(session_id)
+        return runtime.storage.load_records(session_id, node_id=node_id, tail=tail)
 
     def get_deliverables(self, session_id: str) -> list[str]:
         runtime = self._acquire(session_id)
