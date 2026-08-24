@@ -3,6 +3,7 @@ from workflow_engine.bootstrap.plugin_external_modules import load_external_modu
 from workflow_engine.bootstrap.plugin_manifest import ManifestPluginSource
 from workflow_engine.registry.action_registry import get_registered_actions_info
 from workflow_engine.registry.function_registry import get_registered_function_info, get_registered_validator_info
+from workflow_engine.registry.provider_registry import get_registered_providers_info
 from workflow_engine.registry.type_registry import get_registered_codec_info
 
 
@@ -22,6 +23,7 @@ class ComponentLoader:
         result_core_functions = get_registered_function_info()
         result_core_validators = get_registered_validator_info()
         result_core_codecs = get_registered_codec_info()
+        result_core_providers = get_registered_providers_info()
         load_external_modules(self.config.external_modules)
         result_external_actions = {
             key: value for key, value in get_registered_actions_info().items() if key not in result_core_actions
@@ -35,17 +37,22 @@ class ComponentLoader:
         result_external_codecs = {
             key: value for key, value in get_registered_codec_info().items() if key not in result_core_codecs
         }
+        result_external_providers = {
+            key: value for key, value in get_registered_providers_info().items() if key not in result_core_providers
+        }
         return {
             "Core components": {
                 "Actions": result_core_actions,
                 "Functions": result_core_functions,
                 "Validators": result_core_validators,
                 "Codecs": result_core_codecs,
+                "Providers": result_core_providers,
             },
             "External components": {
                 "Actions": result_external_actions,
                 "Functions": result_external_functions,
                 "Validators": result_external_validators,
                 "Codecs": result_external_codecs,
+                "Providers": result_external_providers,
             },
         }

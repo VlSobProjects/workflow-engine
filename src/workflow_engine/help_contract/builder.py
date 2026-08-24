@@ -4,6 +4,7 @@ from workflow_engine.help_contract.adapters.actions import adapt_action
 from workflow_engine.help_contract.adapters.codecs import adapt_codec
 from workflow_engine.help_contract.adapters.functions import adapt_function
 from workflow_engine.help_contract.adapters.guards import adapt_guard
+from workflow_engine.help_contract.adapters.providers import adapt_provider
 from workflow_engine.help_contract.adapters.validators import adapt_validator
 from workflow_engine.help_contract.guard_catalog import GUARD_CATALOG, find_guard_entry
 from workflow_engine.help_contract.models import (
@@ -21,6 +22,7 @@ from workflow_engine.registry.function_registry import (
     VALIDATOR_REGISTRY,
     BaseRegisteredFunction,
 )
+from workflow_engine.registry.provider_registry import PROVIDER_REGISTRY
 from workflow_engine.registry.type_registry import CODEC_REGISTRY, find_codec_by_type_name
 
 CORE_PACKAGE = "workflow_engine"
@@ -58,6 +60,9 @@ def collect_help_components() -> dict[ComponentType, list[HelpComponent]]:
         ],
         ComponentType.GUARD: [adapt_guard(entry) for entry in GUARD_CATALOG],
         ComponentType.CODEC: [adapt_codec(codec, _class_source(codec)) for codec in CODEC_REGISTRY.values()],
+        ComponentType.PROVIDER: [
+            adapt_provider(provider, _class_source(provider)) for provider in PROVIDER_REGISTRY.values()
+        ],
     }
 
 
@@ -84,6 +89,9 @@ def find_help_component(type_key: str, name: str) -> HelpComponent | None:
             # templates use the bare class name, so help must answer it too.
             codec = find_codec_by_type_name(name)
             return adapt_codec(codec, _class_source(codec)) if codec else None
+        case ComponentType.PROVIDER:
+            provider = PROVIDER_REGISTRY.get(name)
+            return adapt_provider(provider, _class_source(provider)) if provider else None
     return None
 
 

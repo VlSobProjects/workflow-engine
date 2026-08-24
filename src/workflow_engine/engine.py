@@ -38,6 +38,8 @@ from workflow_engine.models.node_record import (
 from workflow_engine.models.state import GuardRecord, SessionEvent, SessionEventCode, StateModel, StateReadOnlyView
 from workflow_engine.models.workflow import WorkflowModel, WorkflowSource
 from workflow_engine.output import ActionNodeOutput, ParamWrite
+from workflow_engine.providers.base_provider import FinalizeReason
+from workflow_engine.providers.provider_seat import finalize_providers
 from workflow_engine.registry.function_registry import FUNCTION_NAME_KEY
 from workflow_engine.storage.storage import Storage
 from workflow_engine.tools import dict_to_text_lv3
@@ -162,6 +164,29 @@ def _proceed_with_output(
     if cur_node.has_routing():
         return _fail(cur_node, output, output.error_code or NO_TRANSITION_ERROR)
     return Step()
+
+
+_FINALIZE_REASONS: MappingProxyType[SessionEventCode, FinalizeReason] = MappingProxyType(
+    {
+        SessionEventCode.WORKFLOW_COMPLETED: FinalizeReason.COMPLETED,
+        SessionEventCode.WORKFLOW_FAILED: FinalizeReason.FAILED,
+        SessionEventCode.WORKFLOW_SETUP_FAILED: FinalizeReason.FAILED,
+        SessionEventCode.WORKFLOW_PAUSED_INTERACTIVE: FinalizeReason.PAUSED,
+        SessionEventCode.WORKFLOW_PAUSED_LIMIT: FinalizeReason.PAUSED,
+        SessionEventCode.WORKFLOW_PAUSED_SAFETY_LIMIT: FinalizeReason.PAUSED,
+    }
+)
+
+
+def _finalize_reason(state: StateModel) -> FinalizeReason:
+    """How the run ended, in the terms an adapter is told. See ADR 014 §2.
+
+    The outcome is read from the last event the run recorded, the way the completion export reads
+    it. An outcome the map does not name means the run left by a path that recorded nothing, which
+    is what `ABORTED` says.
+    """
+    code = state.get_last_event_code()
+    return _FINALIZE_REASONS.get(code, FinalizeReason.ABORTED) if code is not None else FinalizeReason.ABORTED
 
 
 def _visit_ordinals(state: StateModel, node_id: str) -> tuple[int, int]:
@@ -681,33 +706,57 @@ class WorkflowEngine:
         question again, consuming no attempt and no visit (§6).
         """
         self.last_export = None
-        runtime = self._acquire(session_id)
-        if runtime.setup_error is not None:
-            runtime.state.record_session_event(
-                SessionEvent.engine_event(
-                    SessionEventCode.WORKFLOW_SETUP_FAILED,
-                    {
-                        "node_id": runtime.state.current_node_id,
-                        "title": runtime.setup_error.title,
-                        "error_count": len(runtime.setup_error.errors or {}),
-                    },
+        released = False
+        try:
+            runtime = self._acquire(session_id)
+            if runtime.setup_error is not None:
+                runtime.state.record_session_event(
+                    SessionEvent.engine_event(
+                        SessionEventCode.WORKFLOW_SETUP_FAILED,
+                        {
+                            "node_id": runtime.state.current_node_id,
+                            "title": runtime.setup_error.title,
+                            "error_count": len(runtime.setup_error.errors or {}),
+                        },
+                    )
                 )
-            )
+                self._commit(runtime)
+                released = True
+                self._release_providers(_finalize_reason(runtime.state), runtime.setup_error)
+                return runtime.setup_error, runtime.state
+
+            self._require_bound_inputs(runtime, session_id)
+            bound = self._accept_answer(runtime, answer) if answer is not None else None
+
+            runtime.state.record_session_event(_run_entry_event(runtime.state))
+            if answer is not None and bound is not None:
+                runtime.state.record_session_event(_answered_event(runtime.state, answer, bound))
             self._commit(runtime)
-            return runtime.setup_error, runtime.state
+            output = bound.output if bound is not None else None
+            response = _start_engine(runtime.nodes, runtime.storage, runtime.state, output, self.hard_max_nodes_visited)
+            # The outcome is read before the export, which records events of its own after it.
+            reason = _finalize_reason(runtime.state)
+            self._commit(runtime)
+            self._export_on_completion(runtime, export_dir)
+            released = True
+            self._release_providers(reason, response)
+            return response, runtime.state
+        finally:
+            # A run that left by an unforeseen path still releases what its adapters hold.
+            if not released:
+                self._release_providers(FinalizeReason.ABORTED)
 
-        self._require_bound_inputs(runtime, session_id)
-        bound = self._accept_answer(runtime, answer) if answer is not None else None
+    def _release_providers(self, reason: FinalizeReason, response: PresentResponse | None = None) -> None:
+        """Finalize the seated provider adapters, reporting an adapter that failed to release.
 
-        runtime.state.record_session_event(_run_entry_event(runtime.state))
-        if answer is not None and bound is not None:
-            runtime.state.record_session_event(_answered_event(runtime.state, answer, bound))
-        self._commit(runtime)
-        output = bound.output if bound is not None else None
-        response = _start_engine(runtime.nodes, runtime.storage, runtime.state, output, self.hard_max_nodes_visited)
-        self._commit(runtime)
-        self._export_on_completion(runtime, export_dir)
-        return response, runtime.state
+        The failure is added to the response under a key of its own and changes neither the outcome
+        of the run nor the exit code: the workflow has already reached its end, and a model left
+        resident on a server is an operator's problem rather than a failed workflow. See ADR 014 §2.
+        """
+        failures = finalize_providers(reason)
+        if failures and response is not None:
+            reported = {f"provider:{name}": message for name, message in failures.items()}
+            response.errors = {**(response.errors or {}), **reported}
 
     def _export_on_completion(self, runtime: SessionRuntime, export_dir_override: str | None) -> None:
         """Export declared deliverables when the run completed and a destination is resolved.

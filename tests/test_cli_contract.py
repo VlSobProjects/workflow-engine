@@ -522,7 +522,7 @@ class TestHelpComponentsCommand:
         data = cast(dict[str, object], response["data"])
         assert data["contract_version"] == "1.0"
         components = cast(dict[str, object], data["components"])
-        assert set(components.keys()) == {"actions", "functions", "validators", "guards", "codecs"}
+        assert set(components.keys()) == {"actions", "functions", "validators", "guards", "codecs", "providers"}
         for items in components.values():
             assert isinstance(items, list)
             for item in cast(list[dict[str, object]], items):

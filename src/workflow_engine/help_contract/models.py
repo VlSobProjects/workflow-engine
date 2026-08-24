@@ -25,6 +25,7 @@ class ComponentType(Enum):
     VALIDATOR = "validator"
     GUARD = "guard"
     CODEC = "codec"
+    PROVIDER = "provider"
 
 
 COLLECTION_KEYS: Final[MappingProxyType[ComponentType, str]] = MappingProxyType(
@@ -34,6 +35,7 @@ COLLECTION_KEYS: Final[MappingProxyType[ComponentType, str]] = MappingProxyType(
         ComponentType.VALIDATOR: "validators",
         ComponentType.GUARD: "guards",
         ComponentType.CODEC: "codecs",
+        ComponentType.PROVIDER: "providers",
     }
 )
 
@@ -70,6 +72,14 @@ COMPONENT_TYPE_DESCRIPTION: Final[MappingProxyType[ComponentType, str]] = Mappin
             "A codec persists a typed value in the workflow state, so a parameter keeps its Python "
             "type across a save and a load. Codecs are selected by value type automatically; "
             "workflow definitions do not reference them directly."
+        ),
+        ComponentType.PROVIDER: (
+            "A provider adapter performs the model call of an 'llm' node. A node selects a provider "
+            "by the name the 'providers' section of the engine configuration gives it, and that "
+            "section says which adapter answers for the name, at which base URL, with which default "
+            "model and under which environment variable the credential is read. Call options travel "
+            "to the adapter unread by the engine, so the options listed here are the ones this "
+            "adapter acts on."
         ),
     }
 )
@@ -172,6 +182,17 @@ class GuardComponent(HelpComponent):
     def to_payload(self) -> dict[str, object]:
         payload = super().to_payload()
         payload["kind"] = self.kind
+        return payload
+
+
+@dataclass(frozen=True)
+class ProviderComponent(HelpComponent):
+    component_type: ClassVar[ComponentType] = ComponentType.PROVIDER
+    configuration_keys: tuple[str, ...] = ()
+
+    def to_payload(self) -> dict[str, object]:
+        payload = super().to_payload()
+        payload["configuration_keys"] = list(self.configuration_keys)
         return payload
 
 
