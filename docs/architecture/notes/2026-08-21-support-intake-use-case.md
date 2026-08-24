@@ -8,8 +8,10 @@
   taking a technical-support call for an internet provider to the point where a human operator can
   act on it.
 - **Status:** open
-- **Affected:** ADR 005 (registered components — every gap below is a missing component or a missing
-  decision about one), ADR 011 (artifact addressing and export — the output shapes), ADR 013
+- **Affected:** ADR 020 (gap 3 decided — the text write and the grouped document ship; gap 2
+  deferred with this note's reformatting as its trigger), ADR 005 (registered components — every
+  gap below is a missing component or a missing decision about one), ADR 011 (artifact addressing
+  and export — the output shapes), ADR 013
   (interactive exchange — the flow is one interview), ADR 014 (Draft; the answerer that judges),
   ADR 016 (interpolation scope — a composed artifact name is outside it),
   `2026-08-19-adr0083-scenarios-coverage.md` (the same genre of measurement, for an external

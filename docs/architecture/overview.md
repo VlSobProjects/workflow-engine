@@ -113,9 +113,10 @@ shape of the workflow `inputs` block, validated by the same function. Beside it 
 catalogue travel together as the `AnswerContract` of the presentation; the engine reads them from the
 built node and never from the concrete action class.
 
-**Template text.** A presentation field resolves a `param.`/`output.`/`artifact.` reference both as
-its whole value, the way any node configuration does, and inside its text through the braced
-`${param.name}` form, with `$$` for a literal `$`. Templating is a property of the declared field and
+**Template text.** A presentation field, and the authored file a template-rendering function
+reads, resolve a `param.`/`output.`/`artifact.` reference both as a whole value, the way any node
+configuration does, and inside their text through the braced `${param.name}` form, with `$$` for a
+literal `$`. Templating is a property of the declared field and
 of nothing else: the ADR 009 help surface marks which parameters are template text, and every other
 configuration string keeps its exact meaning, so a literal `${` in a function parameter or a written
 file is untouched. All ten presentation fields are in the set, because they already resolved
@@ -125,7 +126,9 @@ built, among the per-node configuration errors of ADR 001, and an unresolved ref
 where the presentation is built, in the error class whole-value resolution already raises. Neither is
 routable — a presentation precedes any output of its node, so no guard could read it. Resolution is
 engine resolution and runs no user code, which is what lets a plain `resume` re-present the same
-question (ADR 016).
+question (ADR 016). Template text sourced from an authored file follows the same rules with one
+difference of timing: the file is read when the node runs, so a malformed placeholder there is the
+routable function error `template_malformed` rather than a build-time refusal (ADR 020).
 
 **Pausing.** The engine journals the engine event `workflow_paused_interactive` with the node id and
 the declared names, saves the state, and returns. The paused position needs no state field of its
@@ -234,6 +237,14 @@ Nodes address artifacts through engine-resolved `artifact.<logical_name>` refere
 the absolute POSIX path of the registered artifact at execution time. An unregistered name is the
 node contract error `artifact_not_found`, caught at the action level and returned as a node error
 value.
+
+Composing what an artifact holds is the work of registered functions, not of a document model
+(ADR 020): `dict_list_to_pretty_table` writes one table, `dict_list_to_grouped_tables` writes a
+table per group under its heading, `write_text_artifact` writes a text value as it stands, and
+`render_template_to_artifact` renders an authored template file against the state. A template
+substitutes references and never iterates, so a shape that needs iteration is a function.
+The template path is absolute or relative to the workflow definition file, whose directory the
+state records when the session is created.
 
 On `workflow_completed`, when an export destination is known (`--export-dir` CLI option or
 `export_dir` config, highest wins), the engine copies each declared deliverable to that directory.

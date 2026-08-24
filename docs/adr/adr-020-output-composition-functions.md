@@ -59,6 +59,9 @@ mechanism — a template file rendered through the existing ADR 016 resolution i
 
 ### 1. The family ships three functions
 
+Named on delivery: `dict_list_to_grouped_tables`, `write_text_artifact` and
+`render_template_to_artifact`.
+
 - **A grouped-table writer.** Takes a list of dictionaries, a grouping key, an artifact name, a
   relative path and the existing `table_format`. It writes one composed document: per group, in
   sorted group-key order — a heading line carrying the group value (POSIX form for paths, ADR
@@ -81,29 +84,36 @@ mechanism — a template file rendered through the existing ADR 016 resolution i
 The template file's content joins the declared template-text set of ADR 016. The declaration rule
 of ADR 016 §1 holds unchanged: templating stays a property of a declared surface an author can
 see, and the component documentation (ADR 009 surface) carries the kind. The two failure classes
-of ADR 016 §2 apply at the same two times: a malformed template is a configuration error of the
-node, found when the template is loaded at build time and aggregated with the other configuration
-errors (ADR 001); an unresolved reference is a runtime error at rendering and fails the run at
-that node, exactly as whole-value resolution fails today.
+of ADR 016 §2 keep their meaning, but only the second keeps its time. An unresolved reference is a
+runtime error at rendering and fails the run at that node, exactly as whole-value resolution fails
+today. A malformed placeholder is found when the node runs, not when it is built, and is returned
+as the routable function error `template_malformed`: the engine cannot check a template file before
+the run without knowing that a given function parameter names one, and that knowledge is the
+mechanism Leaves open defers. Until it exists, the malformed template is caught by the function
+that reads the file and never reaches the artifact.
 
 Template text comes only from authored surfaces — a declared definition field or an authored
 template file. A run value is data: a `${` inside a parameter value, a model reply or a file a
 function read stays literal and is never resolved. This keeps the ADR 016 review property — every
 reference that can reach a surface is written in reviewable, authored material.
 
-### 3. The template file and its loading
+### 3. The template file and its path
 
-- The template path is a configuration value of the node: an absolute path is used as-is, a
-  relative path resolves against the directory of the workflow definition file. The operator does
-  not compute relative paths to a template that lives elsewhere.
-- The template is read and syntax-checked at build time, before anything runs.
-- At session start the template file is snapshotted into the session directory beside
-  `workflow.json`; a resumed session reads the snapshot, not the original path (ADR 004: resume
-  builds from the session's own record, so a template edited or moved mid-run cannot change a
-  paused workflow).
-- This loader is the single template-file loader: the `prompt_ref` of ADR 014 and the
-  `instruction_file` of ADR 019 are recorded in those Drafts as its next instances. The mechanism
-  is born here with one instance.
+- The template path is a configuration value of the node. An absolute path is used as written: a
+  template may live anywhere, and the operator never computes a path to it.
+- A relative path resolves against the directory of the workflow definition file, so an author
+  keeps a template beside the definition that uses it. The engine records that directory in the
+  state when the session is created — where everything a resume needs already lives (ADR 006) — so
+  the base survives a pause. A session created before that record existed answers a relative path
+  with `template_path_unresolved` instead of guessing a base directory.
+- The file is read when the node runs, by the function that renders it. A function reading an
+  outside file is the existing norm (`copy_file`, the file-info family), and it is what keeps this
+  family inside registered functions: reading it earlier would require the engine to know that
+  this parameter names a template, which is the mechanism Leaves open defers.
+- This is the first field of the engine whose template text comes from an authored file. The
+  `prompt_ref` of ADR 014 and the `instruction_file` of ADR 019 are the further instances their
+  own Drafts record; when the second one lands, the read, validate and render steps this function
+  performs are the loader those fields share.
 
 ### 4. Templates substitute; functions iterate
 
@@ -157,8 +167,11 @@ engine function over declared references — is lost. Rejected; §4 closes this 
 ## Consequences
 
 Enables:
-- The inventory examples export the document the operator asked for: a table per folder under its
-  path heading.
+- The inventory example exports the document the operator asked for: a table per folder under its
+  path heading, beside the flat table a machine reads. A markup table format stays valid inside a
+  section and is not valid for the composed file as a whole — the file is addressed to a reader,
+  and an author who needs one parseable table writes the flat one, which is why the example ships
+  both.
 - Any composed string a node produced — a model reply above all — becomes an artifact and a
   declared deliverable (ADR 011) in whatever format it was authored.
 - A simple report or a prompt for the next model is an authored template file plus one node.
@@ -171,17 +184,22 @@ Costs:
   documentation carries it (as ADR 016 already provides).
 
 Closes off:
-- Iteration and conditionals in template text — permanently; shapes are functions (§4).
+- Iteration and conditionals in template text; shapes are functions (§4). Like every decision here,
+  it is reopened by superseding this ADR, not by an author's convenience.
 - Resolving template syntax found in run values — a `${` in data stays literal (§2).
 - New core output functions without a scenario-named need (§1, §4).
 
 Leaves open, with triggers:
-- **Template text in function parameters generally** — composed artifact names such as
-  `${param.ticket}_intake_table` (`support-intake` gap 2). Trigger: the reformatting of
-  `support-intake` into a class 2 scenario beside the ADR 019 narrowing (roadmap step 11).
-- **A readable JSON dump of a bus value** (the assembled definition of `workflow-authoring`, gap
-  3 — the verbatim text writer takes a string, not a dictionary). Trigger: building the
-  `workflow-authoring` scenario.
+- **Template text in function parameters generally**, declared by a kind the engine reads — the
+  mechanism that would also give a template file its build-time check. Its named need is the
+  composed artifact name `${param.ticket_id}_intake_table` (`support-intake` gap 2). Trigger: the
+  reformatting of `support-intake` into a class 2 scenario beside the ADR 019 narrowing (roadmap
+  step 11).
+- **Writing a collection as an artifact** (the assembled definition of `workflow-authoring`, its
+  open decision 3 — the verbatim writer takes a string and refuses anything else). How a
+  collection becomes text is already fixed by ADR 016 §3, compact JSON through the state's own
+  encoder; what is open is whether writing one is a parameter of the verbatim writer or its own
+  function. Trigger: building the `workflow-authoring` scenario.
 
 ## Related ADRs
 
@@ -197,22 +215,37 @@ Leaves open, with triggers:
 ## Implementation notes
 
 - Grouped writer: group-key order is the sort order of the rendered key values; a row missing the
-  grouping key is a function error (strict pre-check, ADR 006 style), error codes mirroring the
-  pretty-table family (`no_data`, `artifact_exists`, `write_error` naming). UTF-8, LF newlines.
+  grouping key is a function error (strict pre-check, ADR 006 style). Its own codes follow the
+  pretty-table family — `grouped_tables_no_data`, `grouped_tables_key_missing`,
+  `grouped_tables_write_error` — while an existing artifact name or path keeps the codes of the
+  registration contract itself, `artifact_overwritten` and `artifact_path_conflict`. UTF-8, LF
+  newlines.
 - Verbatim writer: accepts a string; any other type is a function error — the collection dump
   stays a leaves-open item, not a silent coercion.
 - Template rendering is engine resolution (ADR 016 §4) over the loaded content; the function
   receives the rendered text, so the write path of the verbatim writer is shared.
-- Snapshot: copy the resolved template file under the session directory at session creation;
-  record the snapshot path in `session.json`; resume loads the snapshot. A missing template file
-  at session creation is a setup error (exit code 4 family), not a run failure.
-- Test surface: unit per function (grouping, ordering, dropped key column, strict type check,
-  overwrite refusal); build-time malformed-template aggregation; unresolved-reference failure at
-  the node; snapshot-resume (template edited after start, run unaffected); e2e: the corrected
-  grouped inventory walkthrough with export.
+- The definition directory is one state field, written when the session is created and read
+  through the state view, so no session record changes shape and a session that predates the field
+  simply has none. A missing or unreadable template file is a function error at the node
+  (`template_not_found`, `template_read_error`), routable like any other.
+- Test surface: unit per function (grouping, ordering, the dropped key column, the strict type
+  check, the overwrite refusal, a malformed placeholder, absolute and definition-relative paths,
+  a file without references written as it stands); e2e: the inventory walkthrough writing both
+  deliverables and exporting them.
 
 ## Change log
 
+- Implemented in session `2026-08-24-implementation-1` on
+  `feature/adr_020-output-composition-functions`. Two decisions of the Draft did not survive
+  contact with the code and are amended here, not quietly rewritten (`adr-rules.md` §5): the
+  build-time syntax check and the session snapshot of the template file both require the engine to
+  know that a function parameter names a template, which is the mechanism this ADR defers, so the
+  malformed template became the routable function error `template_malformed` and the definition
+  directory is recorded in the state instead of a template copy in the session. The delivered
+  error codes replaced an invented `artifact_exists` in the implementation notes, the grouped
+  document is a second deliverable of the inventory example rather than a replacement of its flat
+  table, and two file-info functions (`file_parent_folder`, `file_name`) were added so the example
+  can group by folder at all.
 - Draft opened in session `2026-08-24-architecture-2` from the operator's report
   (`2026-08-24-result-file-composition` note), executing roadmap step 7. Rule 3 checked: one
   decision (composition through declared authored surfaces) with three shipped functions; the

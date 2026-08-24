@@ -305,6 +305,7 @@ class StateReadOnlyView:
     session_id: str
     max_nodes_visited: int
     nodes_visited: int
+    workflow_dir: Path | None
 
     error_code: str | None
     error_msg: str | None
@@ -408,7 +409,24 @@ class StateReadOnlyView:
             error_msg=state.error_msg,
             max_nodes_visited=state.max_nodes_visited,
             nodes_visited=state.nodes_visited,
+            workflow_dir=state.workflow_dir,
         )
+
+    def resolve_authored_path(self, path: str | Path) -> Path | None:
+        """Resolve the path of an authored file, such as a template. See ADR 020 §3.
+
+        An absolute path is used as written. A relative one resolves against the directory of the
+        workflow definition file, so an author keeps a template beside the definition and the
+        operator computes nothing; the directory is recorded in the state when the session is
+        created. A session created before that record exists cannot resolve a relative path, and
+        the caller reports it as its own error rather than guessing a base directory.
+        """
+        candidate = Path(path).expanduser()
+        if candidate.is_absolute():
+            return candidate
+        if self.workflow_dir is None:
+            return None
+        return self.workflow_dir / candidate
 
     def get_param(self, name: str, default: object = None) -> object | None:
         return self._get_param_fn(name, default)
@@ -525,6 +543,7 @@ class StateModel:
     session_events: list[SessionEvent] = field(default_factory=list)
     max_nodes_visited: int = field(default=0)  # engine-managed params: _flow_budget (int)
     nodes_visited: int = field(default=0)  # engine-managed params: _nodes_visited (int)
+    workflow_dir: Path | None = field(default=None)  # directory of the definition file, ADR 020
 
     def session_view(self) -> dict[str, object]:
         return {
@@ -582,6 +601,8 @@ class StateModel:
             }
             params["max_nodes_visited"] = parameter_from_dict_default(data, "max_nodes_visited", int, 0)
             params["nodes_visited"] = parameter_from_dict_default(data, "nodes_visited", int, 0)
+            workflow_dir = parameter_from_dict_optional(data, "workflow_dir", str)
+            params["workflow_dir"] = Path(workflow_dir) if workflow_dir else None
         except (ValueError, WorkflowParameterError) as e:
             raise StateLoadError(parameter_name="state", message=e.__repr__()) from e
 

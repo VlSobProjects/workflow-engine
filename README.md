@@ -66,7 +66,7 @@ writing the deliverable, with `pretty_table_write_error` and an `[Errno 2]` mess
 
 | Template | What it does | Waits for an answer |
 | --- | --- | --- |
-| [`folder-inventory-to-csv`](examples/folder-inventory-to-csv.md) | Walks a folder tree and writes a CSV inventory of the files it finds | no |
+| [`folder-inventory-to-csv`](examples/folder-inventory-to-csv.md) | Walks a folder tree and writes what it finds twice: a flat CSV inventory and a report holding one table per folder | no |
 | [`flatten-copy-tree`](examples/flatten-copy-tree.md) | Copies every file of a tree into one flat directory and reports what it copied | no |
 | [`approve-and-copy`](examples/approve-and-copy.md) | Asks for a decision, and copies the file only if the answer approves it | yes |
 

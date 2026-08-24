@@ -27,7 +27,7 @@ class WorkflowSession:
     schema_version: str
     storage: MappingProxyType[str, str]
 
-    def create_state(self, workflow: WorkflowModel) -> StateModel:
+    def create_state(self, workflow: WorkflowModel, workflow_dir: Path | None = None) -> StateModel:
         return StateModel(
             timestamp=datetime.now(tz=UTC),
             work_dir=self.work_dir,
@@ -35,6 +35,7 @@ class WorkflowSession:
             flow_id=workflow.flow_id,
             current_node_id=workflow.start_node_id,
             session_id=self.session_id,
+            workflow_dir=workflow_dir,
         )
 
     def is_same(self, state: StateModel) -> bool:

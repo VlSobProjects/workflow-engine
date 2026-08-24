@@ -123,9 +123,10 @@ bounded by `max_visits` (ADR 017), and a question re-asked in place by `max_atte
    execute nothing — has no surface: today the only initialization is the one that starts running.
    And the scenario needs the refusal as data — a structured error list the flow can present and
    route on — not as a process exit code. G11's `validate`, consumed from inside a workflow.
-3. **No base document write.** The assembled definition is a value on the bus; the core cannot
-   write a composed document into a file — the same gap as `repository-interview` open decision 4,
-   part of G6.
+3. **No base document write for a collection.** The assembled definition is a value on the bus;
+   ADR 020 ships the base text write for a string and refuses anything else, so writing the
+   definition itself is the part it left open with this scenario as the trigger — the remainder of
+   what `repository-interview` open decision 4 named, and the live remainder of G6 here.
 4. **No dict and list assembly beyond append.** Composing a node definition, setting keys on the
    growing document, and above all repair — replacing node N inside the accumulated list — have no
    core functions: nothing creates or sets a dictionary parameter and the only list operation is

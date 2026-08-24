@@ -63,8 +63,25 @@ class TestFolderInventoryToCsv:
         report = artifact_path(response, "file_scan_table")
         assert report.is_file()
         lines = report.read_text(encoding="utf-8").splitlines()
-        assert lines[0] == "Path,Size,MIME,Modified,MD5"
+        assert lines[0] == "Folder,Name,Size,MIME,Modified,MD5"
         assert len(lines) == 4
+
+    def test_the_scan_writes_a_table_per_folder_as_its_second_deliverable(self, tmp_path: Path, create_config, capsys):
+        """The operator's report: one flat table over the whole tree cannot be read (ADR 020)."""
+
+        scan_root = tmp_path / "scan-root"
+        create_tree(scan_root)
+
+        code, response = run_template(
+            INVENTORY_TEMPLATE, [f"scan_root:Path={scan_root.as_posix()}"], create_config, capsys
+        )
+
+        assert code == 0
+        document = artifact_path(response, "file_scan_report").read_text(encoding="utf-8")
+        assert document.splitlines()[0] == scan_root.as_posix()
+        assert (scan_root / "nested").as_posix() in document
+        assert "Folder" not in document
+        assert "third.txt" in document
 
     def test_a_scan_without_files_fails_instead_of_reporting_success(self, tmp_path: Path, create_config, capsys):
         scan_root = tmp_path / "empty-root"

@@ -78,7 +78,6 @@ session assigns it a phase.
 
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
-| 2026-08-24 | The operator cannot read the flat one-table output of a run: result files need composition — grouped tables, authored document shapes, template text outside `ask` | promoted → ADR 020 | ADR 006, ADR 011, ADR 016, ADR 020 | [2026-08-24-result-file-composition.md](2026-08-24-result-file-composition.md) |
 
 ### Later phases
 
@@ -98,13 +97,14 @@ session assigns it a phase.
 | 2026-08-19 | Whether the external ADR-0083 questionnaire scenarios are reachable here, re-measured against ADR 015–017: the core gap is closed, an in-graph budget checkpoint and a guard reading a pending write remain | open | ADR 005, ADR 010, ADR 012, ADR 013, ADR 014, ADR 015, ADR 016, ADR 017, ADR 018 | [2026-08-19-adr0083-scenarios-coverage.md](2026-08-19-adr0083-scenarios-coverage.md) |
 | 2026-08-19 | Where the interactive exchange stops being internal: the boundary held by one function, `actor` without identity, a published block without a version | open | ADR 007, ADR 009, ADR 013, ADR 014 | [2026-08-19-interactive-exchange-publishing-boundary.md](2026-08-19-interactive-exchange-publishing-boundary.md) |
 | 2026-08-19 | Whether the engine can carry a team's development process, and the four tensions under it | open | ADR 002, ADR 003, ADR 004, ADR 005, ADR 006, ADR 010, ADR 013 | [2026-08-19-engine-as-team-process-carrier.md](2026-08-19-engine-as-team-process-carrier.md) |
-| 2026-08-21 | The support-intake use case measured against the component inventory: four gaps in dictionary parameters, template text, output shape and answer checking | open | ADR 005, ADR 011, ADR 013, ADR 014, ADR 016 | [2026-08-21-support-intake-use-case.md](2026-08-21-support-intake-use-case.md) |
+| 2026-08-21 | The support-intake use case measured against the component inventory: four gaps in dictionary parameters, template text, output shape and answer checking | open | ADR 005, ADR 011, ADR 013, ADR 014, ADR 016, ADR 020 | [2026-08-21-support-intake-use-case.md](2026-08-21-support-intake-use-case.md) |
 | 2026-08-21 | One instruction that lets an agent drive any workflow, which measures whether the published block and the command result are self-sufficient; its Skill destination | open | ADR 019, ADR 007, ADR 009, ADR 013, ADR 016, ADR 018 | [2026-08-21-agent-instruction-and-skill.md](2026-08-21-agent-instruction-and-skill.md) |
 
 ### Closed
 
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
+| 2026-08-24 | The operator cannot read the flat one-table output of a run: result files need composition — grouped tables, authored document shapes, template text outside `ask` | promoted → ADR 020 | ADR 006, ADR 011, ADR 016, ADR 020 | [2026-08-24-result-file-composition.md](2026-08-24-result-file-composition.md) |
 | 2026-08-20 | A registered renderer over a typed question block produces the text for one reader, chosen by the consumer | promoted → ADR 019 | ADR 005, ADR 009, ADR 013, ADR 014 | [2026-08-20-question-rendering-for-an-audience.md](2026-08-20-question-rendering-for-an-audience.md) |
 | 2026-08-20 | How an answerer that comes back reads the context of an interrupted exchange: pulled through bounded read commands, not pushed into the question | promoted → ADR 018 | ADR 006, ADR 009, ADR 013, ADR 018 | [2026-08-20-interview-continuation-context.md](2026-08-20-interview-continuation-context.md) |
 | 2026-08-21 | The published question block states what to answer and never how, so an answerer holding only the paused result cannot compose a valid answer | promoted → ADR 019 | ADR 005, ADR 009, ADR 013 | [2026-08-21-answer-document-and-its-audience.md](2026-08-21-answer-document-and-its-audience.md) |

@@ -157,3 +157,19 @@ def sha256_checksum_file(file_path: Annotated[str | Path, "Path to the file"]) -
             h.update(chunk)
 
     return ActionNodeOutput(output_text=h.hexdigest())
+
+
+@register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="Folder holding the file")
+def file_parent_folder(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
+    """Get the folder that holds the file, in POSIX form.
+
+    A grouped report heads each of its sections with this value, so the rows below it carry only
+    what differs per file (ADR 020).
+    """
+    return ActionNodeOutput(output_text=Path(file_path).parent.as_posix())
+
+
+@register_function(decorators=[file_exists_arg_validator({"file_path": 0})], summary="Name of the file")
+def file_name(file_path: Annotated[str | Path, "Path to the file"]) -> ActionNodeOutput:
+    """Get the name of the file without the folder that holds it."""
+    return ActionNodeOutput(output_text=Path(file_path).name)
