@@ -18,6 +18,8 @@ from workflow_engine.tools import (
 RECORD_STATUS_COMPLETED = "completed"
 RECORD_STATUS_FAILED = "failed"
 
+WRITE_MODE_SAVE_AS = "SAVE_AS"
+
 TRANSITION_KIND_NODE = "node"
 TRANSITION_KIND_END = "end"
 TRANSITION_KIND_FAIL = "fail"
@@ -73,6 +75,7 @@ class ParamWriteRecord:
     name: str
     codec: str
     mode: str
+    """The ``WriteParamMode`` the value was written in, or ``SAVE_AS`` for a node output saved by name."""
 
     def to_dict(self) -> dict[str, object]:
         return {"name": self.name, "codec": self.codec, "mode": self.mode}
