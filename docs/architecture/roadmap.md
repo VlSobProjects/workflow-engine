@@ -17,7 +17,8 @@ passes and every `open` note in `docs/architecture/notes/` has been triaged.
 
 ## Phase 2 steps
 
-Order as proposed by `2026-08-23-architecture-1` §6, to be revised by its pending decisions.
+Order as decided by `2026-08-23-architecture-1` §6 at its 2026-08-24 resumption; the session note
+records why.
 
 | # | Step | State |
 | --- | --- | --- |
@@ -25,9 +26,10 @@ Order as proposed by `2026-08-23-architecture-1` §6, to be revised by its pendi
 | 2 | Write `purpose.md`, its map row and the reading rule | done |
 | 3 | Documentation system: consumer rule, scenarios as documents, this roadmap, registries rewritten | done in `2026-08-23-documentation-1` |
 | 4 | Write the first class 2 scenario: the interview that creates a repository and its documents | done in `2026-08-23-documentation-2` |
-| 5 | ADR 014 back to a narrow Draft, decoupled from ADR 019; the first adapter as an external module; then Implementing | next |
-| 6 | Atomic state write and a session lock, one `fix/` session without an ADR | pending |
-| 7 | Write the exit scenario by hand on prepared data with the components that exist, to measure the output and handover gaps | pending |
-| 8 | ADR 019 narrowed, after ADR 014 | pending |
-| 9 | One `refactor/` session for the code debts of the 2026-08-23 audit, after ADR 019 | pending |
-| 10 | Notes maintenance: triage every `open` note against the purpose | pending |
+| 5 | Write the class 2 exit-scenario document, so the `Consumer` of ADR 014 names an existing scenario | next |
+| 6 | Edit the Drafts: ADR 014 to the narrow Draft, ADR 019 decoupled with the shared-mechanism guards; then ADR 014 into Implementing | pending |
+| 7 | Atomic state write and a session lock, one `fix/` session without an ADR, taken at any pause | pending |
+| 8 | Build the exit scenario by hand on prepared data, measuring the answer-shape, function-inventory and output gaps; its outcome opens the output-family ADR or records why not | pending |
+| 9 | ADR 019 narrowed into Implementing; the `support-intake` note reformatted as a class 2 scenario beside it | pending |
+| 10 | One `refactor/` session for the code debts of the 2026-08-23 audit, after ADR 019 | pending |
+| 11 | Notes maintenance: execute the triage decided by `2026-08-23-architecture-1` | pending |

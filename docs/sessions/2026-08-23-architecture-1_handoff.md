@@ -23,11 +23,18 @@ existing ADR.
 - The code debts found by the code reading are listed, not fixed.
 
 ## Status
-`interrupted` — questions 1 and 5 are decided; questions 2, 3, 4 and 6 wait for the `documentation`
-session of §5 and for the first scenarios, because a gap is decided against its consumer.
+`completed` — questions 1 and 5 were decided on 2026-08-23; the session was interrupted while
+questions 2, 3, 4 and 6 waited for the `documentation` session of §5 and for the first scenarios,
+and was resumed and completed on 2026-08-24 with all of them decided.
 
 ## Result
-To be completed.
+- The twelve gaps of §2 are decided in its table: ADR 014 returns to a narrow Draft and is
+  decoupled from ADR 019 (G1, G2), with three shared-mechanism guards so the two instruction
+  channels cannot drift; G3 and G8 are covered; G4–G6 are measured by the exit scenario; G7, G11
+  and G12 are deferred with named triggers; G9 narrows ADR 019; G10 is a `fix/` session.
+- §3, §4 and §6 are settled below; the roadmap steps 5–11 were rewritten to the §6 order.
+- The class 2 exit-scenario document moves ahead of the ADR 014 Draft edit, so that its
+  `Consumer` section names an existing scenario (rule 11).
 
 ## Decisions
 
@@ -62,25 +69,25 @@ Corrections to the reviewer's first analysis that the discussion produced: the n
 support-intake scenario is an interview with one answerer and is not the shape the purpose
 measures against, so it is not the phase 2 exit condition.
 
-### 2. Architecture measured against the purpose (question 2, under discussion)
+### 2. Architecture measured against the purpose (question 2, settled at the 2026-08-24 resumption)
 Each gap carries the reviewer's proposal; the decision column is filled as the discussion goes.
 
 | # | Gap | Evidence | Proposal | Decision |
 | --- | --- | --- | --- | --- |
-| G1 | No LLM node. The purpose's central component does not exist. | ADR 014 Draft; no `@register_provider`, no `providers` config in `src/` | ADR 014, returned to a narrower Draft: action + `format` parsing, provider registry, `fake` adapter, `providers` config, `llm_called` event, error classes. Cut until a scenario asks: `pre_functions`/`post_functions`, `prompt_ref` as a generic channel, the in-repo reference package. The first real adapter is an OpenAI-compatible local server as an external module (the existing out-of-tree POC). | pending |
-| G2 | Ordering: ADR 019 §2 makes the LLM node consume the rendered question document; ADR 014 §1 makes the prompt template text. Two Drafts contradict on one field. | ADR 019 Consequences "Constrains: ADR 014"; ADR 014 §1 | Decouple. The LLM node's input is a prompt (ADR 016 template text) plus the answer declaration; the question document of ADR 019 is for an answerer outside the run. Edit ADR 019 (Draft) to drop the constraint. Order: ADR 014 first, because the exit scenario needs it and needs no external answerer; ADR 019 second. | pending |
-| G3 | Model tiering per step and context limited to the declared inputs. | ADR 014 §1 `provider`/`model` per node; ADR 016 references | Already covered by ADR 014 as drafted and by ADR 016. No work beyond G1. | pending |
-| G4 | Nothing checks that a structured answer has the shape the step declared: `type: dict` accepts any dictionary. | `support-intake` note gap 4; ADR-0083 note | A guard over answer keys (component work under ADR 002; the guard name is the error code). Declaring the shape in `answer` is an ADR 013 change and is not taken until a scenario shows the guard is not enough. | pending |
-| G5 | The function inventory is filesystem sediment: 21 of 30 functions are file work; no function creates or sets a dictionary parameter; no generic fetch/parse/aggregate step. | code audit; `support-intake` gap 1 | Core gets only generic bus work: `init_dict_param`, `set_dict_item` (component work under ADR 006). Scenario-specific fetching and parsing ship as an external module beside the scenario in `examples/`, the way the purpose keeps vendor and domain code outside the core. The 15 file-info functions leave the core in a later `refactor/` session. | pending |
-| G6 | One output shape, a table in six syntaxes; a handover is a structured document; an artifact name cannot carry a run value; template text is confined to the ten `ask` fields. | `support-intake` gaps 2 and 3; `template=True` appears only in `action_ask.py` | One ADR: template text outside `ask` (function parameters declared template text in their metadata) and document artifacts — a JSON artifact of author-defined shape and a text artifact rendered from template text. Opened when the exit scenario needs its handover, not before; it amends the scope of ADR 016 and ADR 011. | pending |
-| G7 | The unforeseen exit. A node that fails with no matching transition fails the run; every handover route has to be written per node. | ADR 002 transition semantics; overview "A node" | Defer. The scenario writes its failure transitions explicitly; if that proves verbose, a workflow-level default failure route is its own ADR amending ADR 002. Retry/backoff by error class (recovery note (b)) waits for ADR 014's error classes, as already decided. | pending |
-| G8 | A run explained and repeated from the journal. | ADR 018 journal and guard traces; ADR 014 §4 prompt/reply artifacts | Covered by ADR 018 and ADR 014 §4 as drafted; a replay mode is not needed for "done" and is deferred. | pending |
-| G9 | An external answerer cannot compose an answer from the published block alone. | ADR 019 Draft, context | ADR 019 stays, after ADR 014, narrowed: typed document, `md` and `json` renderers, the protocol published inside, `node.` references, one publishing command. §7 `instruction_file` and §9 audit copy are cut until asked for. The codec-name question of `adr012-deferred-questions` §2 is settled inside it, since both touch `CodecMetadata`. | pending |
-| G10 | `state.json` is overwritten in place; nothing protects a session from two processes. | recovery note (c); `storage/` has no `os.replace` | One `fix/` session without an ADR: atomic write and a session lock or concurrent-access check. Already planned since 2026-08-19; still undone. | pending |
-| G11 | "An author who knows the domain writes it from the documentation alone" has no authoring surface: no command validates a definition without running it and no `describe-workflow`. | `adr012-deferred-questions` §3 | Defer until the exit scenario has been written by hand; then one ADR for the authoring surfaces (validate, describe) as additive commands under the ADR 007 contract. | pending |
-| G12 | No licence, no version flag, no delivery channel. | `installation-and-distribution` note; `pyproject.toml` | Publication gate, not phase 2. `--version` is a chore. | pending |
+| G1 | No LLM node. The purpose's central component does not exist. | ADR 014 Draft; no `@register_provider`, no `providers` config in `src/` | ADR 014, returned to a narrower Draft: action + `format` parsing, provider registry, `fake` adapter, `providers` config, `llm_called` event, error classes. Cut until a scenario asks: `pre_functions`/`post_functions`, `prompt_ref` as a generic channel, the in-repo reference package. The first real adapter is an OpenAI-compatible local server as an external module (the existing out-of-tree POC). | Decided 2026-08-24 (resumed): the narrow Draft as proposed; the cut items move to Leaves open. Order amended: the class 2 exit-scenario document is written before ADR 014 enters Implementing, so its `Consumer` section (rule 11) has a scenario to name. |
+| G2 | Ordering: ADR 019 §2 makes the LLM node consume the rendered question document; ADR 014 §1 makes the prompt template text. Two Drafts contradict on one field. | ADR 019 Consequences "Constrains: ADR 014"; ADR 014 §1 | Decouple. The LLM node's input is a prompt (ADR 016 template text) plus the answer declaration; the question document of ADR 019 is for an answerer outside the run. Edit ADR 019 (Draft) to drop the constraint. Order: ADR 014 first, because the exit scenario needs it and needs no external answerer; ADR 019 second. | Decided 2026-08-24: decoupled; ADR 019 is edited in place (the constraint and the §2 prompt paragraph go). Three shared mechanisms are recorded in both Drafts so the channels cannot drift: one answer-shape generator from the answer declaration and the codec value forms, consumed by the ADR 019 protocol section and, when a scenario asks, by the ADR 014 prompt; one template-file loader, `prompt_ref` its first instance; `node.` as a prefix of the template-text contract, resolved on any node, not an `ask` property. |
+| G3 | Model tiering per step and context limited to the declared inputs. | ADR 014 §1 `provider`/`model` per node; ADR 016 references | Already covered by ADR 014 as drafted and by ADR 016. No work beyond G1. | Decided 2026-08-24: covered; `provider`/`model` per node and the single-pass interpolation stay in the narrow Draft, no separate work. |
+| G4 | Nothing checks that a structured answer has the shape the step declared: `type: dict` accepts any dictionary. | `support-intake` note gap 4; ADR-0083 note | A guard over answer keys (component work under ADR 002; the guard name is the error code). Declaring the shape in `answer` is an ADR 013 change and is not taken until a scenario shows the guard is not enough. | Decided 2026-08-24: the guard, as component work under ADR 002, built when a scenario asks for it (support-intake gap 4, the exit scenario); the escalation trigger to a shape declaration in `answer` is recorded: the published shape description (the shared generator of G2) and the check must feed from one source. |
+| G5 | The function inventory is filesystem sediment: 21 of 30 functions are file work; no function creates or sets a dictionary parameter; no generic fetch/parse/aggregate step. | code audit; `support-intake` gap 1 | Core gets only generic bus work: `init_dict_param`, `set_dict_item` (component work under ADR 006). Scenario-specific fetching and parsing ship as an external module beside the scenario in `examples/`, the way the purpose keeps vendor and domain code outside the core. The 15 file-info functions leave the core in a later `refactor/` session. | Decided 2026-08-24: the dict functions are built when the exit-scenario document names its aggregate step, not ahead of it; scenario fetch/parse ships as an external module beside the scenario; the eviction of the file functions is out of phase 2 (the phase is additive) and is re-decided at the phase exit or the publication gate. |
+| G6 | One output shape, a table in six syntaxes; a handover is a structured document; an artifact name cannot carry a run value; template text is confined to the ten `ask` fields. | `support-intake` gaps 2 and 3; `template=True` appears only in `action_ask.py` | One ADR: template text outside `ask` (function parameters declared template text in their metadata) and document artifacts — a JSON artifact of author-defined shape and a text artifact rendered from template text. Opened when the exit scenario needs its handover, not before; it amends the scope of ADR 016 and ADR 011. | Decided 2026-08-24: deferred to the exit scenario's handover; the outcome of the hand-built scenario must either open the ADR or record why the existing means sufficed; the opening session checks rule 3 — whether template text outside `ask` and document artifacts are one decision or two. |
+| G7 | The unforeseen exit. A node that fails with no matching transition fails the run; every handover route has to be written per node. | ADR 002 transition semantics; overview "A node" | Defer. The scenario writes its failure transitions explicitly; if that proves verbose, a workflow-level default failure route is its own ADR amending ADR 002. Retry/backoff by error class (recovery note (b)) waits for ADR 014's error classes, as already decided. | Decided 2026-08-24: deferred; the trigger is the verbosity of the explicit failure transitions in the hand-written exit scenario. |
+| G8 | A run explained and repeated from the journal. | ADR 018 journal and guard traces; ADR 014 §4 prompt/reply artifacts | Covered by ADR 018 and ADR 014 §4 as drafted; a replay mode is not needed for "done" and is deferred. | Decided 2026-08-24: covered; §4 audit stays in the narrow Draft (the purpose requires every model answer recorded), replay deferred with no trigger. |
+| G9 | An external answerer cannot compose an answer from the published block alone. | ADR 019 Draft, context | ADR 019 stays, after ADR 014, narrowed: typed document, `md` and `json` renderers, the protocol published inside, `node.` references, one publishing command. §7 `instruction_file` and §9 audit copy are cut until asked for. The codec-name question of `adr012-deferred-questions` §2 is settled inside it, since both touch `CodecMetadata`. | Decided 2026-08-24: narrowed as proposed, with four clarifications: the `text` renderer is cut too, `md` serving a human who takes over, and `simple_render.py` is replaced by the `md` renderer; the file loader keeps `prompt_ref` as its only instance, `instruction_file` recorded in Leaves open as its second; the counter guard demotes from `Depends on` to Leaves open; `Consumer` names `repository-interview`. |
+| G10 | `state.json` is overwritten in place; nothing protects a session from two processes. | recovery note (c); `storage/` has no `os.replace` | One `fix/` session without an ADR: atomic write and a session lock or concurrent-access check. Already planned since 2026-08-19; still undone. | Decided 2026-08-24: a `fix/` session without an ADR — the lock implements a promise `purpose.md` already states; independent of the ADR chain, to be taken without further delay. |
+| G11 | "An author who knows the domain writes it from the documentation alone" has no authoring surface: no command validates a definition without running it and no `describe-workflow`. | `adr012-deferred-questions` §3 | Defer until the exit scenario has been written by hand; then one ADR for the authoring surfaces (validate, describe) as additive commands under the ADR 007 contract. | Decided 2026-08-24: deferred; the trigger is the hand-building of the exit scenario, which gives the lower bound of the authoring need; the final measure is the phase done-condition. |
+| G12 | No licence, no version flag, no delivery channel. | `installation-and-distribution` note; `pyproject.toml` | Publication gate, not phase 2. `--version` is a chore. | Decided 2026-08-24: publication gate; `--version` is a chore outside architecture work. |
 
-### 3. State of the development and the diagnosis of the wrong path (question 3, to be discussed)
+### 3. State of the development and the diagnosis of the wrong path (question 3, settled)
 Facts established by the reading, for the discussion to weigh:
 - ADR 013 §6 ("the engine has no way to know who is reading, so it declares nothing about the
   intended audience") was decided on 2026-08-19 and diagnosed as wrong on 2026-08-22. Between the
@@ -105,7 +112,13 @@ Facts established by the reading, for the discussion to weigh:
 - Reviewer's position: the wrong path is a process defect, not a design defect, and the repair is
   the purpose document plus the consumer rule of §5 below; no code is rolled back.
 
-### 4. Notes triage against the purpose (question 4, to be discussed)
+Decision (2026-08-24): the reviewer's position is confirmed. The same code that carried the defect
+now carries the `repository-interview` scenario, so nothing is rolled back; ADR 019 repairs the
+published surface forward as a regular supersede; the process repair — `purpose.md`, the consumer
+rule, scenarios as documents — is in force, and the G1–G12 pass of this session is its first
+application: ADR 014 was caught on the same pattern before implementation instead of after.
+
+### 4. Notes triage against the purpose (question 4, settled)
 Eleven notes open, four promoted, none dropped; about 14,700 words open; the batch of 2026-08-19
 (seven notes) has resolved none. Reviewer's proposal per note:
 
@@ -124,6 +137,20 @@ Eleven notes open, four promoted, none dropped; about 14,700 words open; the bat
 
 Proposed rule for the channel: a registry row is one sentence; a note that is amended a third time
 is closed or split.
+
+Decisions (2026-08-24): the table's proposals stand, with the three open choices resolved:
+
+- `adr0083-scenarios-coverage` closes as `promoted → ADR 015, 016, 017` with no successor note:
+  both residuals — the in-graph budget checkpoint as an ADR 010 change, and a guard over pending
+  writes when a second flow asks — stay recorded inside the closed note, findable through the
+  registry.
+- `node-save-as-redundancy` is dropped: no consumer asks for it, and it is re-raised by the
+  output-family ADR of G6 or by a scenario that needs author-named outputs.
+- `support-intake` stays open; its reformatting into a class 2 scenario is its own `documentation`
+  session, scheduled beside the ADR 019 narrowing, whose second consumer it is.
+
+Executing the status edits is the notes-maintenance session (roadmap step 11), now mechanical. That
+session also checks the proposed third-amendment rule and adds it to the notes rules if absent.
 
 ### 5. The documentation system (question 5, decided)
 - What works: the registries hold the truth after an audit, not during the work; the freeze gate
@@ -198,7 +225,7 @@ Documents the `documentation` session changes: `docs/rules/adr-rules.md` (§5, �
 `docs/sessions/README.md` (phase registry and archive), new `docs/architecture/roadmap.md` and
 `docs/architecture/scenarios/README.md`; then the session that writes the first class 2 scenario.
 
-### 6. Priorities (question 6, to be discussed)
+### 6. Priorities (question 6, settled)
 Reviewer's proposed order, to be revised by the decisions on G1–G12:
 1. Commit the 2026-08-22 session; write `purpose.md`, the map row and the reading rule (done in
    this session).
@@ -221,21 +248,28 @@ Reviewer's proposed order, to be revised by the decisions on G1–G12:
 Not now: retry/backoff, authoring surfaces (G11), distribution, Skill, entry-point discovery,
 the team-process carrier, the counter guard of ADR 019 alternative H, parallel nodes.
 
+Decided 2026-08-24: the order stands with one change, written into `docs/architecture/roadmap.md`
+as steps 5–11: the class 2 exit-scenario document is written before the ADR 014 Draft edit, because
+rule 11 names the consumer from Draft on and a scenario is written before the decisions it needs.
+The `fix/` session of G10 is independent of the ADR chain and is taken at any pause. The "not now"
+list stands unchanged.
+
 ## Open questions
-1. G1/G2: whether ADR 014 goes first and is decoupled from the ADR 019 document (reviewer: yes).
-2. Each row of G3–G12 and of the notes table.
+None.
 
 ## Next steps
-1. The `documentation` session of §5, then the session that writes the first class 2 scenario.
-2. Resume this session: decide G1–G12 in order, then §3, §4 and §6. G2, G10 and G12 need no
-   scenario and may be decided first.
-2. Complete this note, update the notes registry for the notes the decisions touch, close the
-   session with its commit.
+1. Roadmap step 5: a `documentation` session writes the class 2 exit-scenario document.
+2. Roadmap step 6: an `architecture` session edits the two Drafts — ADR 014 to the narrow Draft
+   (G1), ADR 019 decoupled with the three guards (G2) — fills their `Consumer` sections and moves
+   ADR 014 into Implementing.
+3. The `fix/` session of G10, taken at any pause.
 
 ## References
-- Branch: `development` — documentation only; to be confirmed when the session closes.
-- Documents to be changed: `docs/architecture/purpose.md` (new), `docs/rules/documentation-rules.md`
-  (map row), `docs/rules/adr-rules.md` (reading rule), the notes registry, the session registry.
+- Branch: `development` — documentation only.
+- Documents changed: `docs/architecture/purpose.md` (new, 2026-08-23),
+  `docs/rules/documentation-rules.md` (map row), `docs/rules/adr-rules.md` (reading rule),
+  `docs/architecture/roadmap.md` (steps 5–11 rewritten at the resumption), the session registry.
+  The notes status edits themselves go to the maintenance session (§4).
 - Related ADRs: ADR 014 (Draft), ADR 019 (Draft), ADR 013, ADR 016, ADR 002, ADR 011.
 - Code audit of this date: 458 tests pass, `ruff check` clean; the code debts it listed are
   recorded for a later `refactor/` session and not decided here.
