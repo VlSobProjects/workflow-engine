@@ -193,6 +193,16 @@ workflow definition travels between installations and that permission does not. 
 re-checked against the server before anything is released, because it is a cache of a fact living
 outside the process: where the two disagree, the server is right.
 
+What a model is loaded with belongs to the same seat. Because the load is a request the adapter
+makes itself rather than something the chat call arranges, the settings that request accepts — the
+context window among them — are declared once in the provider block and forwarded unread, by the
+rule that already keeps a call's options opaque. They are configuration and not a node's
+instruction: a definition travels between installations, while what a machine can hold resident does
+not. They govern a load the adapter performs and nothing else — a model the server already holds is
+used as it stands, whatever it was loaded with, because re-loading it would evict what someone else
+is working with. A per-node window, and a re-load to change the window of a resident model, stay
+open until a scenario needs two windows for one model.
+
 ### 3. Provider configuration and secrets
 
 The engine configuration file (ADR 008) gains a `providers` section: per provider name, the adapter
@@ -485,3 +495,9 @@ ADR 013 answer binding lives, and the layout of the in-repository adapter packag
   provider seat's memory lives by, ownership and re-checking, now that a real server exercises them.
   The `finalize` policy itself stays the adapter's own, as this decision always said: a run that
   ended releases, a pause keeps.
+- 2026-08-25: amended in session `2026-08-25-implementation-2`. §2: what a model is loaded with is
+  declared in the provider block and reaches the load request unread. The preceding session had
+  recorded the opposite — that the load endpoint takes a model name and rejects anything else — from
+  an assumption rather than a measurement; the endpoint does accept load settings, and the note that
+  said otherwise is corrected where it stands. The scope of the settings is decided with them: they
+  govern a load the adapter performs, never a model the server already holds.

@@ -175,6 +175,12 @@ addressed by the name the listing gave it and never by the name of its model.
   them, and a run cannot know them - it can only read back what the server reports about the
   instance it got. Whether that matters is a question for a scenario that needs two different
   context lengths for one model.
+  **Corrected in `2026-08-25-implementation-2`:** this was assumed rather than asked, and it is
+  wrong. The load endpoint does accept a load configuration, a context length among it, and the
+  adapter now carries one, declared once in the provider block and forwarded unread. The claim is
+  left standing rather than deleted, because the trail records what was believed and when. What
+  survives of this entry is where it ended: two different context lengths for one model still want a
+  scenario, and a model the server already holds is still used as it stands.
 - The action-registry twin of the provider-registry bug, carried over from
   `2026-08-24-implementation-5` and still unowned.
 

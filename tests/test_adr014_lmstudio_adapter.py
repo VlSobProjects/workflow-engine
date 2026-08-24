@@ -31,6 +31,7 @@ from workflow_engine.providers.provider_seat import (
 )
 from workflow_engine_providers.lmstudio import (
     ADAPTER_NAME,
+    LOAD_CONFIG_OPTION,
     LOAD_FAILED_TYPE,
     RELEASE_FOREIGN_OPTION,
     RELEASE_OPTION,
@@ -106,6 +107,12 @@ class _Handler(BaseHTTPRequestHandler):
         if self.server.fail_load is not None:
             self._respond(self.server.fail_load.status, self.server.fail_load.body)
             return
+        unknown = sorted(set(body) - self.server.known_load_fields)
+        if unknown:
+            # The real endpoint validates its request, which is what makes forwarding a load
+            # configuration unread safe: a setting nobody knows is refused rather than dropped.
+            self._respond(400, {"error": {"type": "invalid_request", "message": f"unknown fields: {unknown}"}})
+            return
         model = body.get("model")
         if model not in self.server.installed:
             self._respond(404, {"error": {"type": "model_not_found", "message": f"{model} not downloaded"}})
@@ -137,6 +144,17 @@ class FakeLmStudio(ThreadingHTTPServer):
     def __init__(self) -> None:
         super().__init__(("127.0.0.1", 0), _Handler)
         self.installed: list[str] = [INSTALLED_MODEL, ANOTHER_MODEL]
+        # The documented load configuration of the product, whose members depend on the engine a
+        # model runs under - which is why the adapter forwards the block rather than enumerating it.
+        self.known_load_fields: set[str] = {
+            "model",
+            "echo_load_config",
+            "context_length",
+            "eval_batch_size",
+            "flash_attention",
+            "num_experts",
+            "offload_kv_cache_to_gpu",
+        }
         self.loaded: dict[str, str] = {}
         self.requests: list[tuple[str, str, dict[str, object]]] = []
         self.fail_load: Failure | None = None
@@ -178,6 +196,11 @@ def settings_for(server: FakeLmStudio, **options: object) -> ProviderSettings:
 
 def a_call(model: str = INSTALLED_MODEL, **options: object) -> ProviderCall:
     return ProviderCall(prompt="Classify it.", model=model, options=MappingProxyType(dict(options)))
+
+
+def load_bodies(server: FakeLmStudio) -> list[dict[str, object]]:
+    """What the server was actually asked to load, which is where a load configuration is measured."""
+    return [body for _, path, body in server.requests if path == "/api/v1/models/load"]
 
 
 class TestFindingTheNativeApi:
@@ -237,6 +260,53 @@ class TestLoadingBeforeTheCall:
         provider.complete(a_call())
 
         assert provider.loaded_by_this_adapter == frozenset({INSTALLED_MODEL})
+
+
+class TestWhatAModelIsLoadedWith:
+    """The load configuration of the provider block, forwarded to the load endpoint unread."""
+
+    def test_the_declared_configuration_reaches_the_load_request(self, lms: FakeLmStudio) -> None:
+        settings = settings_for(lms, **{LOAD_CONFIG_OPTION: {"context_length": 4096, "flash_attention": True}})
+        provider = LmStudioProvider(settings)
+
+        reply = provider.complete(a_call())
+
+        assert not reply.failed
+        assert load_bodies(lms) == [{"context_length": 4096, "flash_attention": True, "model": INSTALLED_MODEL}]
+
+    def test_a_block_without_a_configuration_loads_exactly_as_before(self, lms: FakeLmStudio) -> None:
+        provider = LmStudioProvider(settings_for(lms))
+
+        provider.complete(a_call())
+
+        assert load_bodies(lms) == [{"model": INSTALLED_MODEL}]
+
+    def test_the_configuration_cannot_redirect_the_load_onto_another_model(self, lms: FakeLmStudio) -> None:
+        """Ownership is what every release rule rests on, so the model of a load stays the adapter's."""
+        provider = LmStudioProvider(settings_for(lms, **{LOAD_CONFIG_OPTION: {"model": ANOTHER_MODEL}}))
+
+        provider.complete(a_call())
+
+        assert load_bodies(lms) == [{"model": INSTALLED_MODEL}]
+        assert lms.loaded == {INSTALLED_MODEL: INSTALLED_MODEL}
+
+    def test_a_setting_the_server_refuses_is_a_classified_failure_and_no_call_is_made(self, lms: FakeLmStudio) -> None:
+        provider = LmStudioProvider(settings_for(lms, **{LOAD_CONFIG_OPTION: {"nonsense_setting": 1}}))
+
+        reply = provider.complete(a_call())
+
+        assert reply.error_class is ProviderErrorClass.INVALID_REQUEST
+        assert "/v1/chat/completions" not in lms.paths
+
+    def test_a_model_the_server_already_holds_is_used_as_it_stands(self, lms: FakeLmStudio) -> None:
+        """The configuration governs a load performed here; someone else's model is never re-loaded."""
+        lms.load_from_elsewhere(INSTALLED_MODEL)
+        provider = LmStudioProvider(settings_for(lms, **{LOAD_CONFIG_OPTION: {"context_length": 4096}}))
+
+        reply = provider.complete(a_call())
+
+        assert not reply.failed
+        assert load_bodies(lms) == []
 
 
 class TestReleasingAfterOneCall:

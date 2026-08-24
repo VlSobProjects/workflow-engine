@@ -299,6 +299,10 @@ class TestTheFailuresItClassifies:
             "the prompt is too long for the context window",
             "Please reduce the length of the messages",
             "context_length_exceeded",
+            # Measured against a real server in `2026-08-25-implementation-2`, once a load window
+            # small enough to overflow could be asked for: the wording no marker had covered.
+            "request (24522 tokens) exceeds the available context size (4096 tokens), try increasing it",
+            "exceed_context_size_error",
         ],
     )
     def test_a_bad_request_that_names_the_context_is_an_overflow_and_not_an_invalid_request(

@@ -48,6 +48,8 @@ ADAPTER_OWN_OPTIONS = (TIMEOUT_OPTION, SYSTEM_OPTION)
 _CONTEXT_OVERFLOW_MARKERS = (
     "context length",
     "context_length",
+    "context size",
+    "context_size",
     "context window",
     "maximum context",
     "too many tokens",
@@ -59,6 +61,11 @@ _CONTEXT_OVERFLOW_MARKERS = (
 There is no status code for it and no cross-vendor error code, so the body is the only signal. A
 marker that is missed costs the run a routable overflow, not a wrong answer: the call still fails,
 as ``invalid_request``, and the branch that would have split the data is simply not taken.
+
+The list grows by measurement and never by imagination. The ``size`` wordings were added in session
+``2026-08-25-implementation-2``, when a local server first refused an oversized prompt on demand -
+``exceeds the available context size``, under an error type of the same word - and every marker
+written before it missed the one refusal the class exists for.
 """
 
 

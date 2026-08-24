@@ -51,6 +51,14 @@ DEFAULT_LOAD_TIMEOUT_SECONDS = 600.0
 
 API_BASE_URL_OPTION = "api_base_url"
 LOAD_TIMEOUT_OPTION = "load_timeout"
+LOAD_CONFIG_OPTION = "load_config"
+"""What a model is loaded with, declared once in the provider block.
+
+Its members are the server's vocabulary rather than this adapter's - a context length, an
+attention setting, whatever the product adds next - so a setting the server gains later needs no
+release here. The name is the server's own: it is what a load echoes back under
+'echo_load_config'.
+"""
 RELEASE_FOREIGN_OPTION = "release_foreign"
 RELEASE_OPTION = "release"
 
@@ -99,6 +107,9 @@ class LmStudioResidencyError(WorkflowRuntimeError):
         "A model the adapter did not load - one loaded from the application, or by another process - "
         f"is never unloaded, unless the provider block sets '{RELEASE_FOREIGN_OPTION}'. A run does "
         "not evict what it did not put there.",
+        "What a model is loaded with is declared once in the provider block and reaches the server "
+        "unread. It applies to a load the adapter performs; a model the server already holds is used "
+        "as it stands, whatever window it was loaded with.",
         "What the adapter remembers about the server is a cache of a fact outside this process: it "
         "is re-checked before anything is released, and the server is right when the two disagree.",
         "A model left resident is never a failed workflow. A release that fails is reported on the "
@@ -129,6 +140,7 @@ class LmStudioResidencyError(WorkflowRuntimeError):
             "model",
             API_BASE_URL_OPTION,
             LOAD_TIMEOUT_OPTION,
+            LOAD_CONFIG_OPTION,
             RELEASE_FOREIGN_OPTION,
         ),
     ),
@@ -168,6 +180,21 @@ class LmStudioProvider(OpenAICompatibleProvider):
         if isinstance(value, bool) or not isinstance(value, int | float):
             return DEFAULT_LOAD_TIMEOUT_SECONDS
         return float(value)
+
+    def _load_config(self) -> dict[str, Any]:
+        """What a load performed here asks for beyond the model itself, forwarded unread.
+
+        Unread by the same rule that already keeps the options of the chat call opaque: these are the
+        product's settings and they change on its release cycle, not on this adapter's. A member the
+        server does not know is refused by the server and arrives as a classified failure, which is a
+        better report than a setting silently dropped on the way.
+
+        It applies to a load this adapter performs and to nothing else. A model the server already
+        holds is used as it stands, whatever it was loaded with, because reloading it would evict
+        what someone else is working with - the ownership rule the whole release policy is built on.
+        """
+        declared = self.settings.options.get(LOAD_CONFIG_OPTION)
+        return dict(declared) if isinstance(declared, dict) else {}
 
     def _may_release_foreign(self) -> bool:
         """Whether a run may unload a model it did not load. An operator's decision, not a flow's.
@@ -267,7 +294,10 @@ class LmStudioProvider(OpenAICompatibleProvider):
             return self._failure_from(explanation, model, "Reading which models the server holds")
         if instances:
             return None
-        payload, explanation = self._native_call(LOAD_PATH, {"model": model}, self._load_timeout())
+        # The model is written last on purpose: a load configuration cannot redirect the load onto
+        # another model, and every rule about what this adapter may release rests on that ownership.
+        request = {**self._load_config(), "model": model}
+        payload, explanation = self._native_call(LOAD_PATH, request, self._load_timeout())
         if payload is None:
             return self._failure_from(explanation, model, f"Loading the model '{model}'")
         instance_id = payload.get(INSTANCE_ID_KEY) if isinstance(payload, dict) else None
