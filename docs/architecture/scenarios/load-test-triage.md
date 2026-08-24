@@ -34,11 +34,13 @@
 This is the exit scenario of phase 2: the done condition of `docs/architecture/purpose.md`
 describes this run, and the roadmap closes the phase when it passes. The recipient of the run is
 the load-testing analyst, who gets a verdict they can trust or a handover they can act on — never
-a silent stop. ADR 014 names this scenario in its `Consumer` section: every judgment step here is
-an `llm` node, so the scenario is the evidence at that ADR's freeze gate. The second half of the
-done condition — written by an author who knows the domain but not the engine, from the
-documentation alone — is measured when the scenario is built by hand (roadmap step 8), and
-gap G11 takes the lower bound of the authoring need from that build.
+a silent stop. ADR 014 names this scenario in its `Consumer` section as its phase consumer: every
+judgment step here is an `llm` node; the evidence at that ADR's own freeze gate is the class 4
+inventory variants it names beside it, because this scenario gates the phase — and with it every
+ADR of the phase (`2026-08-24-architecture-1`). The second half of the done condition — written by
+an author who knows the domain but not the engine, from the documentation alone — is measured when
+the scenario is built by hand (roadmap step 10), and gap G11 takes the lower bound of the
+authoring need from that build.
 
 ## What ships where
 
@@ -127,8 +129,9 @@ the same prepared variant takes the same path, and the journal shows it.
    scenario is the trigger that decision named.
 4. **The handover has no document shape.** The report is a composed document; the core renders a
    table, cannot write composed text into a file or an artifact, and an artifact name cannot
-   carry a run value (gap G6). The hand-build of roadmap step 8 measures this and opens the
-   output-family ADR or records why the existing means sufficed.
+   carry a run value (gap G6). The output-family ADR now precedes ADR 014 (roadmap step 7, from
+   the `result-file-composition` note); the hand-build measures whether the delivered family
+   carries this handover.
 5. **Every failure route is written per node.** The handover on the unforeseen exists only as
    explicit failure transitions on every node (gap G7); the verbosity of the hand-written flow is
    the trigger for a workflow-level default failure route.

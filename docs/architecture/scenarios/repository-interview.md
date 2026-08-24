@@ -20,7 +20,7 @@
   function guards, and the interview record exported as a deliverable; failure under
   `max_visits_exceeded`, under a declared failure answer code such as `interview_abandoned`, or under
   a guard name when a terminal check refuses; every question in between is an ordinary pause.
-- **ADRs exercised:** ADR 011, ADR 013, ADR 015, ADR 016, ADR 017, ADR 018
+- **ADRs exercised:** ADR 011, ADR 013, ADR 015, ADR 016, ADR 017, ADR 018, ADR 019
 
 ## The consumer
 

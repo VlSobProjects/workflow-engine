@@ -39,6 +39,14 @@ Two facts of the engine bound the decision. The only template mechanism is refer
 no layout templating and no LLM node in the tree (ADR 014 is Draft). And no guard reads the
 counters: the only exit from a re-ask loop is the engine's `max_attempts_exceeded` failure.
 
+## Consumer
+
+The party that acts on this decision is the answerer outside the run — the agent (a model with
+tools) that reads the published document and answers through `resume --answer`, or the human who
+takes over the same node. The scenario it serves is `repository-interview`
+(`docs/architecture/scenarios/repository-interview.md`), whose every step is answered by such an
+agent from the published surface alone.
+
 ## Decision
 
 ### 1. What an interactive action publishes
@@ -60,8 +68,11 @@ declaration, the protocol (§5) and the runtime values of §6 the author referen
 did not set is absent from the document, not empty. The document is the published contract that
 ADR 013 §3 called the `question` block, typed and versioned; `PresentResponse` stays internal.
 
-The same document is what the future LLM node hands its model (ADR 014): the prompt of that node is
-this document rendered, not a second assembly.
+The document serves the answerer outside the run and nothing else. The `llm` node of ADR 014 is
+not its consumer: an autonomous model step takes a prompt — template text under ADR 016 — with the
+ADR 013 answer declaration, and the two channels are decoupled (session `2026-08-23-architecture-1`,
+G2). What they may not do is drift apart: the mechanisms both channels stand on are single, named
+in §5, §6 and §7 and fixed against accepted ADRs, never against the other Draft.
 
 ### 3. Renderers
 
@@ -92,13 +103,18 @@ plain statement of which field carries what for a human, as a schema for `json`.
 Every codec declares the form of a value it accepts — a schema fragment and an example — as part of
 its registration metadata (ADR 005, ADR 009). The protocol section is generated from the answer
 declaration and those forms; the codec name alone, which is what the block publishes today, tells an
-answerer nothing it can act on unless it already knows the engine's Python types.
+answerer nothing it can act on unless it already knows the engine's Python types. The generator
+is one component: any surface that states the expected answer's shape — the prompt of an `llm`
+node included, should a scenario ever ask it to — consumes this generator rather than assembling a
+second description.
 
 ### 6. The bounds become references
 
 ADR 016 gains a fourth reference prefix, `node.`, with a closed vocabulary resolved at presentation
 time: `attempt`, `max_attempts`, `attempts_left`, `visit`, `max_visits`, `collected`, `minimum`,
-`nodes_visited`, `max_nodes_visited`, `last_error`. An author who wants the answerer to know how many
+`nodes_visited`, `max_nodes_visited`, `last_error`. The prefix belongs to the template-text
+contract, not to `ask`: it resolves on any node whose fields are template text, so a template-text
+field of another action reads the same vocabulary. An author who wants the answerer to know how many
 attempts remain writes `${node.attempts_left}` into the instruction; the engine does the arithmetic. An
 unknown name is a build-time configuration error, like a malformed template. Conditions on these
 values are written in prose by the author and read by the answerer; the engine supplies values, not a
@@ -108,7 +124,9 @@ template language.
 
 An author who has a finished prompt for a node sets the node's `instruction_file` to a path relative
 to the workflow file. The file is template text in the sense of ADR 016: every reference, `node.`
-included, is interpolated. In this mode the document carries the interpolated file as its
+included, is interpolated. The file is read by the one loader that serves every field sourcing
+template text from an authored file; `instruction_file` shares it with any later instance instead
+of adding a second reader. In this mode the document carries the interpolated file as its
 instruction and the protocol of §5, and nothing of the presentation fields: the author who chose the
 mode has written the options and the explanations, and the engine does not repeat them. The error
 catalogue is protocol — the answerer has to name the codes — and is published in both modes.
@@ -175,7 +193,7 @@ as a dependency rather than widening.
 
 - Enables: an answerer — human or model — that can answer from the document alone; a document a model
   pays for once per field; bounds the answerer can see; a prompt the author owns, interpolated by
-  the engine; one document that the LLM node of ADR 014 consumes.
+  the engine.
 - Costs: a typed document class with a schema version; three core renderers and a registry for
   them; a `format` key on node and workflow and a `--format` option; a new command and the removal of
   the `question` block from the `run`/`resume` result (a breaking change of the ADR 007 contract,
@@ -191,7 +209,8 @@ as a dependency rather than widening.
 - Amends, when accepted: ADR 007 (a publishing command; the `question` block leaves the run result),
   ADR 016 (the `node.` prefix; `instruction_file` as template text), ADR 005 and ADR 009 (renderers
   as components; the value form in codec metadata).
-- Constrains: ADR 014 — the LLM node's prompt is the rendered document.
+- Decoupled from: ADR 014 — the `llm` prompt is not the rendered document; the shared mechanisms
+  of §5, §6 and §7 keep the two channels from drifting (session `2026-08-23-architecture-1`, G2).
 - Depends on, to be opened: the counter guard (alternative H).
 - Leaves open: whether an external codec without a value form is refused or published as a string;
   whether the audit copy is a file or an event; whether a later transport (ADR 013 alternative D)
@@ -202,8 +221,8 @@ as a dependency rather than widening.
 - Supersedes in part: ADR 013 (§3, §6, alternative G).
 - Depends on: ADR 005 (registration), ADR 007 (command contract), ADR 013 (the answer contract it
   publishes), ADR 016 (interpolation), ADR 017 (the counters `node.` reads).
-- Touches: ADR 009 (codec metadata), ADR 018 (the session read surfaces keep the telemetry).
-- Constrains: ADR 014.
+- Touches: ADR 009 (codec metadata), ADR 018 (the session read surfaces keep the telemetry),
+  ADR 014 (decoupled; shared mechanisms only).
 - Promoted from: `docs/architecture/notes/2026-08-20-question-rendering-for-an-audience.md`,
   `2026-08-21-answer-document-and-its-audience.md`,
   `2026-08-21-command-result-cost-for-a-machine-reader.md`.
@@ -220,3 +239,11 @@ renderer over the document.
 
 - 2026-08-22: opened as Draft in session `2026-08-22-architecture-1`, from the findings of session
   `2026-08-21-investigation-2` and the three notes it promotes.
+- 2026-08-24: decoupled from ADR 014 in session `2026-08-24-architecture-1`, executing G2 of
+  `2026-08-23-architecture-1`: the constraint on ADR 014 and the §2 paragraph handing the document
+  to the `llm` node are removed — the document serves the answerer outside the run. The three
+  shared mechanisms are recorded so the two instruction channels cannot drift: the answer-shape
+  generator as one component (§5), `node.` as a prefix of the template-text contract resolved on
+  any node (§6), one loader for every file-sourced template-text field (§7). The `Consumer`
+  section is added, naming `repository-interview`. The G9 narrowing of this Draft waits for
+  roadmap step 11.

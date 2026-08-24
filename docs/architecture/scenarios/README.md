@@ -45,7 +45,7 @@ into `development`.
 
 | Identifier | Class | Summary | ADRs exercised | Link |
 | --- | --- | --- | --- | --- |
-| `repository-interview` | 2 | An agent interviews the human and creates the repository and documents that seed the consuming project's development loop | ADR 011, 013, 015, 016, 017, 018 | [repository-interview.md](repository-interview.md) |
+| `repository-interview` | 2 | An agent interviews the human and creates the repository and documents that seed the consuming project's development loop | ADR 011, 013, 015, 016, 017, 018, 019 | [repository-interview.md](repository-interview.md) |
 | `folder-inventory-to-csv` | 4 | Walks a folder tree and writes a CSV inventory of the files it finds as the `file_scan_table` deliverable | ADR 002, 006, 011, 012 | [folder-inventory-to-csv.md](../../../examples/folder-inventory-to-csv.md) |
 | `flatten-copy-tree` | 4 | Copies every file of a tree into one flat directory and reports what it copied as the `copy_report` deliverable | ADR 002, 006, 011, 012 | [flatten-copy-tree.md](../../../examples/flatten-copy-tree.md) |
 | `approve-and-copy` | 4 | Asks for a decision and copies the file only if the answer approves it | ADR 002, 006, 012, 013, 016 | [approve-and-copy.md](../../../examples/approve-and-copy.md) |

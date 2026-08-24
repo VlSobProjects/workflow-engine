@@ -33,10 +33,27 @@ Constraints:
   defining a second one.
 - Guards stay deterministic boolean predicates over values (ADR 002); a model is never a guard.
 
+## Consumer
+
+The party that acts on this decision is the model behind a registered provider adapter: the engine
+builds the prompt from the declared parameters, calls the model itself inside the run and binds the
+typed reply — no external answerer is involved. The freeze-gate evidence is class 4 and small on
+purpose: the named variants the implementation adds to the `folder-inventory-to-csv` walkthrough —
+`described` (a guard routes files of the formats a parameter lists to an `llm` node that writes a
+description column), `tiered` (a second, larger model composes an optimization proposal over the
+accumulated table; the model of a step is chosen per node, per-type routing is graph branching),
+`chunked` (an oversized file routed on `context_overflow` through the split-and-accumulate loop) —
+each covered by `fake`-adapter tests and run by hand against a local model; the walkthrough and the
+scenario registry list this ADR when the feature branch merges. The phase consumer is
+`load-test-triage` (`docs/architecture/scenarios/load-test-triage.md`): every judgment step there
+is an `llm` node, and that scenario gates the phase, not this ADR alone — the phase exit already
+gates every ADR of the phase, so a per-ADR gate stays local.
+
 ## Decision
 
-All open points this Draft carried are settled (see the change log); the decision below is ready
-to enter Implementing.
+All open points this Draft carried are settled, and session `2026-08-23-architecture-1` (G1) then
+narrowed the decision to what the `load-test-triage` scenario asks of it; the cut items sit in
+Leaves open with their triggers (see the change log).
 
 ### 1. A provider-neutral LLM action in the core
 
@@ -45,12 +62,9 @@ A core action (working name `llm`) whose node configuration declares:
 - `provider`: the name of a registered provider adapter;
 - `model`: a model identifier passed to the adapter, optionally defaulted by the provider
   configuration;
-- `prompt`: the prompt text, declared template text under ADR 016, or `prompt_ref`: the path to an
-  authored file holding the same template text;
+- `prompt`: the prompt text, declared template text under ADR 016;
 - `answer`: the typed answer declaration of ADR 013 — which parameters the reply must yield and
   how they are typed — plus a `format` (`text` | `json`) that tells the action how to read the reply;
-- optional `pre_functions` and `post_functions`: ordered lists of registered function
-  configurations, the call's own tooling (below);
 - optional provider call options (temperature, max tokens, …) passed through opaquely.
 
 The prompt is template text under the ADR 016 contract, inherited whole rather than adapted: the
@@ -60,20 +74,12 @@ error that fails the run, values rendered by the single rendering rule, and sing
 substitution — an inserted value is never re-scanned, so state values full of `$` need no escaping
 and cannot smuggle a reference in. ADR 016 §1a reserved this seat when it was accepted.
 
-`prompt_ref` is the file form of the same field, and the channel is defined once, not for this
-action: any field the ADR 009 surface marks as template text may be sourced from an authored file
-kept with the definition — one loader beside the interpolation module — instantiated here only by
-`prompt`. The file is read when the node is built, so a malformed template in it is still a
-build-time configuration error, and its references stay visible in review as ADR 016 requires.
-Extending the `ask` presentation fields to the same channel is a later decision of their own (their
-configuration shape is frozen by ADR 013 and ADR 016), taken over the same loader when evidence
-asks for it.
-
 Prompt construction beyond interpolation — template libraries, parameterized inserts, per-model
 instruction formatting — is the concern of registered components, possibly external modules, never
 of this action: a registered function assembles the prompt into a parameter, and `${param.<name>}`
-inserts it in one pass. An artifact-sourced `prompt_ref`, the direct channel for a run-generated
-prompt, is deferred until a scenario shows it, not rejected (see Leaves open).
+inserts it in one pass. This is the sanctioned channel for every prompt this decision does not
+cover: the authored-file form `prompt_ref` and, behind it, an artifact-sourced prompt are deferred
+to Leaves open until a scenario asks for them.
 
 The action resolves the prompt, calls the adapter, parses the reply according to `format`, decodes
 the declared values through their codecs, and returns an `ActionNodeOutput` whose `param_writes`
@@ -84,27 +90,6 @@ error out — is one code path shared with the ADR 013 answer binding, so the tw
 drift; the extraction of raw values from the reply (`format`) and the failure semantics stay the
 action's own: an invalid reply is a routable error value here, where a refused answer in `ask`
 changes nothing and re-presents. The action is automatic: the run does not pause.
-
-An LLM call is not a bare deterministic function: it needs preparations before and cleaning after,
-and those belong to the call, not to the process around it. The node may therefore declare
-`pre_functions` and `post_functions` — ordered lists of registered function configurations, the
-same composition of functions inside one automatic action that the `functions` node already
-practises. The engine sees none of it: one node, one `ActionNodeOutput`, one journal event, so
-ADR 002 holds — and the ADR 015 rejection of an engine-level pre/post concept for every node stays
-untouched, because this is the configuration of one action, not a node mechanism.
-
-Four semantics are fixed. The pre chain runs first and prepares the call: its `param_writes` are
-visible to the prompt's template resolution as an overlay over the state view and leave the node in
-the final output, applied by the engine at once as ADR 006 requires. The post chain runs on the raw
-reply text before parsing: each function receives the running text as the output text of its
-predecessor and hands its result onward, so a reply is stripped of markdown fences or cut down to
-its JSON before `format` reads it. A failing function anywhere is the node's error value, carrying
-the code the function reported, routable like every other — and a failed pre chain means the
-adapter is never called. The audit artifacts of §4 bracket the provider, not the chains: the prompt
-artifact records what was actually sent — after the pre chain and the template resolution — and the
-reply artifact the raw reply as received, before the post chain, so every post-processing stays
-reproducible from the recorded raw material. Both lists are optional; a bare `llm` node stays
-trivial.
 
 The `llm` action is the automatic counterpart of the interactive `ask` (ADR 013): the two share the
 answer declaration but sit on opposite sides of one boundary. `ask` binds an answer produced outside
@@ -136,12 +121,17 @@ call option. Structured messages and conversation history are a later decision, 
 scenario shows them: the `llm` node holds no dialogue by construction, so a history would arrive as
 a parameter, not as node state.
 
-The core ships no provider adapter. The generic OpenAI-compatible HTTP adapter built on `urllib` —
-the route the POC took, covering LM Studio and compatible servers without a vendor SDK — is the
-first external module (ADR 005 `external_modules`) and lives in this repository as its own package
-beside the engine: the reference plugin. This keeps provider semantics — endpoints, auth headers,
-protocol drift — out of the core's release cadence, and it exercises the plugin model with a real
-consumer across a package boundary, which nothing has done yet. The one adapter the core does carry
+The core ships no provider adapter. The first real adapter is an external module (ADR 005
+`external_modules`) speaking to a local model server — the route the POC took against LM Studio.
+Which protocol it speaks is the module's decision, not the core's: the LM Studio API, whose model
+management loads and unloads models with nothing running but an installed LM Studio; the generic
+OpenAI-compatible HTTP protocol, which reaches compatible local servers and cloud models alike; or
+both as variants of one module. The core fixes only the adapter signature and the error classes.
+This keeps provider semantics — endpoints, auth headers, protocol drift — out of the core's release
+cadence, and it exercises the plugin model with a real consumer, which nothing has done yet. The
+module lives in this repository as its own package beside the engine — an officially supported
+add-on, its layout a choice of the implementation and its productization deferred. The one adapter
+the core does carry
 is `fake` (§6): not a provider but the null implementation of the contract — no network, scripted
 replies — so the action's own tests, the help surface of a bare install and the example workflows
 stand without any plugin.
@@ -190,6 +180,25 @@ action's hidden behaviour (alternative F).
 The `fake` adapter ships with the core (§2) and returns scripted replies, so `llm` nodes are
 covered by deterministic tests, a bare install registers one adapter on its help surface, and the
 example workflows never call a network in `pytest`.
+
+### 7. Three shared mechanisms with the question document
+
+Session `2026-08-23-architecture-1` (G2) decoupled this decision from the question document of
+ADR 019: the input of an `llm` node is a prompt — template text under ADR 016 — plus the answer
+declaration of ADR 013, not a rendered question document; the document serves an answerer outside
+the run. So that the two instruction channels cannot drift apart, three mechanisms are fixed as
+shared, each written against an accepted ADR rather than against the other Draft:
+
+- **One answer-shape generator.** The description of the expected answer — generated from the
+  ADR 013 answer declaration and the value form each codec declares — is produced by one
+  component. This decision does not put it into the prompt; if a scenario asks the prompt to state
+  the answer's shape, the prompt consumes that generator, never a second assembly.
+- **One template-file loader.** Any field that sources template text from an authored file is
+  served by one loader beside the interpolation module; `prompt_ref` (Leaves open) is its first
+  instance when a scenario brings it back.
+- **`node.` is a prefix of the template-text contract.** If the ADR 016 contract gains a reference
+  prefix over the node's own counters, it resolves on any node whose fields are template text —
+  the `llm` prompt included — not as a property of `ask`.
 
 ### Open points
 
@@ -251,24 +260,40 @@ chunk and an accumulating function collecting the replies, the accumulating patt
 already carries. The splitters and accumulators are registered functions, natural neighbours of the
 instruction-formatting module (Leaves open).
 
+### G. A model-selecting `llm` action
+
+Give the action a list of candidate models and let it pick an available or fitting one at call
+time. Rejected: which model does a step is a decision of the flow, and flow decisions live in the
+graph, made by guards in code and explained by their traces — selection inside the action is
+hidden policy, and an availability fallback makes two runs on the same data differ for a reason no
+trace records. Per-node `model` plus graph branching covers the tiering the scenarios need; if
+run-time selection is ever needed, its deterministic form is recorded in Leaves open: a registered
+function chooses and writes the model name into a parameter, and `model` resolves it as an
+engine-resolved reference — the choice stays declared, coded and journaled.
+
 ## Consequences
 
 - Enables: one node per model step, vendor-neutral workflows, typed model output on the bus, audit
   of every call, a place for credentials, and error classes a later retry policy can use.
 - Costs: a new core action, a registration kind with its registry and help-contract adapter, a
-  `providers` config section, two or three session event codes, the `fake` adapter in the core, the
-  file loader for template-text fields, the pre/post function chains of the action, and a reference
-  plugin package maintained in the same repository.
+  `providers` config section, two or three session event codes, the `fake` adapter in the core, and
+  the provider-adapter package maintained in this repository as an external module.
 - Closes off: vendor SDKs and provider adapters in the core (`fake` is the null implementation of
   the contract, not a provider); models as guards.
 - Leaves open: retry/backoff (recovery note (b)); token or cost budgets next to the node cap
-  (ADR 010) — not in scope until a run shows the need; an artifact-sourced `prompt_ref` — the
-  direct channel for a run-generated prompt, deferred until a scenario shows it and then decided
-  literal or templated, while a registered function assembling the prompt into a parameter is the
-  sanctioned channel today; the instruction-formatting module the deferral protects — prompt
-  template libraries and per-model formatting as external components, the same concern the
-  question-rendering note holds on the `ask` side, with the chunking splitters and accumulators as
-  its natural neighbours; and extending the template-file channel to the `ask` presentation fields.
+  (ADR 010) — not in scope until a run shows the need; `pre_functions`/`post_functions` — the
+  call's own preparation and cleaning chains, cut by G1 until a scenario asks, their four settled
+  semantics kept in the 2026-08-21 change log entry; `prompt_ref` — the authored-file form of the
+  prompt, deferred until a scenario asks (the hand-build of `load-test-triage` measures it), served
+  by the shared loader of §7 when it returns, with an artifact-sourced prompt as its later,
+  separately decided case; the adapter package's protocol set and its productization; run-time
+  model selection — the `model` field as an engine-resolved reference filled by a deterministic
+  selection function, taken only if the `tiered` gate variant shows per-node models and graph
+  branching insufficient (alternative G stays rejected); the
+  instruction-formatting module the deferral protects — prompt template libraries and per-model
+  formatting as external components, the same concern the question-rendering note holds on the
+  `ask` side, with the chunking splitters and accumulators as its natural neighbours; and extending
+  the template-file channel to the `ask` presentation fields.
 
 ## Related ADRs
 
@@ -276,21 +301,24 @@ instruction-formatting module (Leaves open).
   (configuration file), ADR 011 (artifacts), ADR 013 (answer declaration), ADR 016 (the template
   text contract the prompt inherits).
 - Touches: ADR 002 (guards stay deterministic), ADR 004 (session record, if snapshotted), ADR 009
-  (help contract gains a component type and the file-sourced template field), ADR 012 (deferred
-  question §1, narrowed by ADR 016), ADR 015 (reply normalisation as a post function).
+  (help contract gains a component type), ADR 012 (deferred question §1, narrowed by ADR 016),
+  ADR 015 (the composition-inside-one-action pattern the cut chains would follow), ADR 019 (Draft;
+  decoupled by G2, the shared mechanisms of §7).
 
 ## Implementation notes
 
 The existing out-of-repository LM Studio POC is the reference for the adapter signature. No POC
 under this ADR: the two questions one was meant to answer (former open points 1 and 6) were settled
-on paper, point 1 largely by the accepted ADR 016. The acceptance scenario for implementation: an
-example workflow with two `llm` nodes (extract → summarize) running against the fake adapter in
-tests and against LM Studio by hand, with the prompts and replies recorded as artifacts.
+on paper, point 1 largely by the accepted ADR 016. The freeze-gate evidence is the three class 4
+variants named in Consumer. The variants keep to the surface this ADR owns: the `tiered` report
+stays two deliverables — the CSV table and a proposal text written by a file function — so the
+gate profits from the output-family ADR without depending on it; the splitter and accumulator of
+the `chunked` variant are the generic bus work of G5, component work under ADR 006; prompts and
+replies are recorded as artifacts (`record: true`).
 
 Choices the feature branch makes, not this decision: where the decode function shared with the
-ADR 013 answer binding lives; the layout of the reference plugin package beside the engine package
-and its example `external_modules` configuration; and how the prompt file path is resolved, under
-the ADR 008 path policy.
+ADR 013 answer binding lives, and the layout of the in-repository adapter package with its example
+`external_modules` configuration and the protocol set it starts with.
 
 ## Change log
 
@@ -326,3 +354,20 @@ the ADR 008 path policy.
   routable node error value, and the audit artifacts bracket the provider call. An abstract action
   family with chunking subclasses is rejected as alternative F — chunking is a graph pattern over
   splitter and accumulator functions.
+- 2026-08-24: narrowed in session `2026-08-24-architecture-1`, executing G1 and G2 of
+  `2026-08-23-architecture-1`. Kept: the action with `format` parsing, the provider registry with
+  the `fake` adapter, the `providers` configuration, the call audit and the error classes. Moved
+  to Leaves open with their triggers: `pre_functions`/`post_functions` and `prompt_ref`. The
+  `Consumer` section is added; §7 records the three mechanisms shared with the ADR 019 Draft — the
+  answer-shape generator, the single template-file loader, `node.` as a contract prefix — so the
+  two instruction channels cannot drift.
+- 2026-08-24: revised in the same session at the owner's review. The personal freeze gate is
+  decoupled from the phase exit: `Consumer` names the class 4 `described`/`tiered`/`chunked`
+  variants of `folder-inventory-to-csv` as the gate evidence and `load-test-triage` as the phase
+  consumer — the phase gates every ADR of the phase, so a per-ADR gate stays local and small. The
+  adapter package's home is decided — this repository, an officially supported add-on — while its
+  protocol set stays the module's own choice (the LM Studio API with model load and unload, the
+  generic OpenAI-compatible HTTP that also reaches cloud models, or both); alternative G rejects a
+  model-selecting action, with the deterministic selection form in Leaves open. The Implementing
+  transition is deferred behind the output-family ADR that the operator's
+  `result-file-composition` note opens (roadmap step 7).
