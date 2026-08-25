@@ -31,9 +31,10 @@
 
 ## The consumer
 
-The phase 2 done condition ends with "written by an author who knows the domain but not the engine
-from the documentation alone" (`docs/architecture/purpose.md`). This scenario mechanizes that
-sentence for any target workflow: the engine knowledge — which components exist, what a transition
+The done condition of `docs/architecture/purpose.md` ends with the authoring claim — an author who
+knows the domain but not the engine — and phase 3 gates it in its assisted form, with the
+blind-agent experiment over the `agent` variant as the phase exit. This scenario mechanizes that
+claim for any target workflow: the engine knowledge — which components exist, what a transition
 needs, what a guard may read — lives inside the authoring workflow as its questions and its checks,
 so the author brings only the intent. The `agent` variant serves the consuming project of
 `repository-interview`: an agent that scaffolds a repository will next need workflows for it, and

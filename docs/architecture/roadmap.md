@@ -7,18 +7,32 @@ Form: one sentence per row. A row is rewritten, not appended to. The content is 
 the session that changes it records why in its session note. A phase is closed when its exit scenario
 passes and every `open` note in `docs/architecture/notes/` has been triaged.
 
+Only the current phase carries a step list; a later phase opens its list in the architecture session
+that starts it.
+
 ## Phases
 
 | Phase | Exit scenario | State |
 | --- | --- | --- |
 | 1 | The installed `workflow-engine` command runs a shipped template end to end and exports its deliverable (ADR 001–012, `v0.1.0`) | closed at the merge of `development` into `main` after the `v0.1.0` tag (2026-08-19) |
-| 2 | A fetch → aggregate → decide → branch → hand over workflow runs end to end on prepared data with a local model, its path chosen by the data and explained by the journal, written by an author who knows the domain but not the engine from the documentation alone | current |
+| 2 | The `load-test-triage` scenario, written by hand by an author deliberately working from the operator documentation alone, runs end to end on generated prepared data with a local model, its path chosen by the data, explained by the journal, and matching the numbers declared before the runs against the `fake`-adapter reference | current |
+| 3 | Assisted authoring: blind authoring agents of different vendors, handed the same brief composed outside this repository, author a triage-class workflow through the published surfaces alone, at least one produced definition validating and running its expected path, with the divergence between agents measured by criteria declared beforehand | not started |
 | publication | The phase 2 scenario runs live against a real system under test; licence, version flag and delivery channel exist | not started |
+
+Phase 3 gates the authoring half of the done condition in `purpose.md`; its exit is an experiment
+that must be runnable, so the enforcement of the answerer/operator split stays outside the phase —
+the narrow entry plus a kept transcript is the blindness evidence — and a vendor agent that fails is
+a data point, not a gate failure. Its step list is opened when the phase starts; the work known to
+belong to it: ADR 019 into Implementing, the authoring surfaces (G11), the answerer/operator
+capability decision, the `workflow-authoring` scenario, the `support-intake` note as a class 2
+scenario, and the drift-A experiment protocol.
 
 ## Phase 2 steps
 
-Order as decided by `2026-08-23-architecture-1` §6 and revised by `2026-08-24-architecture-1`,
-which moved the output-family ADR ahead of ADR 014; the session notes record why.
+Order as decided by `2026-08-23-architecture-1` §6, revised by `2026-08-24-architecture-1`, which
+moved the output-family ADR ahead of ADR 014, and by `2026-08-25-architecture-2`, which narrowed the
+phase to the engine for hand-written workflows and moved the authoring work into phase 3; the
+session notes record why.
 
 | # | Step | State |
 | --- | --- | --- |
@@ -31,7 +45,8 @@ which moved the output-family ADR ahead of ADR 014; the session notes record why
 | 7 | The output-family ADR from the operator's `result-file-composition` note, checking rule 3 (one decision or two), then its implementation | done: ADR 020 opened in `2026-08-24-architecture-2`, implemented and accepted in `2026-08-24-implementation-1` |
 | 8 | The node-record channel as its own ADR and its implementation first, then ADR 014 into Implementing and its implementation: the `llm` action and `fake` adapter in the core, the adapter package in this repository, the `described`/`tiered`/`chunked` variants of `folder-inventory-to-csv` as the freeze evidence | done: ADR 021 opened in `2026-08-24-architecture-3` and accepted in `2026-08-24-implementation-2`; ADR 014 implemented over six sessions and accepted in `2026-08-25-documentation-1` |
 | 9 | Atomic state write and a session lock, one `fix/` session without an ADR, taken at any pause | done in `2026-08-25-implementation-4` |
-| 10 | Build the exit scenario by hand on prepared data, measuring the answer-shape and function-inventory gaps and the lower bound of the authoring need | pending |
-| 11 | ADR 019 narrowed into Implementing; the `support-intake` note reformatted as a class 2 scenario beside it | pending |
-| 12 | One `refactor/` session for the code debts of the 2026-08-23 audit, after ADR 019 | pending |
-| 13 | Notes maintenance: execute the triage decided by `2026-08-23-architecture-1` | pending |
+| 10 | Hand-build a reduced slice of the exit scenario on a toy dataset, measuring the answer-shape guard (G4), the dictionary half that remains of G5, the failure-route verbosity (G7) and whether inline template text carries the prompts | pending |
+| 11 | Data generators for the dataset variants and the drift-B experiment protocol: the numbers declared before the runs, the route read from the ADR 021 record channel, the `fake` adapter as the reference run, cloud providers as extended measurement outside the gate | pending |
+| 12 | Build the full exit scenario by hand on the generated variants and run the drift-B measurement that closes the phase | pending |
+| 13 | One `refactor/` session for the code debts of the 2026-08-23 audit, taken at any pause | pending |
+| 14 | Notes maintenance: execute the triage decided by `2026-08-23-architecture-1` | pending |
