@@ -1,0 +1,386 @@
+{
+  "schema_version": "1",
+  "flow_id": "folder-inventory-to-csv-tiered",
+  "start_node_id": "INIT_QUEUE",
+  "inputs": [
+    {
+      "name": "scan_root",
+      "type": "Path",
+      "required": true,
+      "description": "Root folder whose files are inventoried into the CSV report"
+    },
+    {
+      "name": "described_formats",
+      "type": "list",
+      "required": true,
+      "description": "MIME types whose files are read and described by the model, for example [\"text/plain\", \"text/markdown\"]"
+    }
+  ],
+  "deliverables": [
+    "file_scan_table",
+    "optimization_proposal"
+  ],
+  "nodes": [
+    {
+      "id": "INIT_QUEUE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "init_deque_param",
+        "function_parameters": {
+          "param_name": "scan_queue"
+        }
+      },
+      "transitions": [
+        {
+          "next": "INIT_ROWS"
+        }
+      ]
+    },
+    {
+      "id": "INIT_ROWS",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "init_list_param",
+        "function_parameters": {
+          "param_name": "table_rows"
+        }
+      },
+      "transitions": [
+        {
+          "next": "SEED_QUEUE"
+        }
+      ]
+    },
+    {
+      "id": "SEED_QUEUE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "enqueue_folder_entries",
+        "function_parameters": {
+          "folder_path": "param.scan_root",
+          "deque_param_name": "scan_queue"
+        }
+      },
+      "transitions": [
+        {
+          "next": "POP_NEXT"
+        }
+      ]
+    },
+    {
+      "id": "POP_NEXT",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "set_param_from_deque",
+        "function_parameters": {
+          "deque_param_name": "scan_queue",
+          "param_name": "cur_path",
+          "on_empty": "empty",
+          "on_set": "has_item"
+        }
+      },
+      "transitions": [
+        {
+          "validator": {
+            "equals": "empty"
+          },
+          "next": "WRITE_TABLE"
+        },
+        {
+          "next": "EMIT_CUR_PATH"
+        }
+      ]
+    },
+    {
+      "id": "EMIT_CUR_PATH",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "echo_value",
+        "function_parameters": {
+          "value": "param.cur_path"
+        }
+      },
+      "transitions": [
+        {
+          "validator": {
+            "function_name": "is_output_exist_file"
+          },
+          "next": "CLASSIFY_FORMAT"
+        },
+        {
+          "next": "ENQUEUE"
+        }
+      ]
+    },
+    {
+      "id": "CLASSIFY_FORMAT",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "file_mime_type",
+        "function_parameters": {
+          "file_path": "param.cur_path"
+        }
+      },
+      "transitions": [
+        {
+          "validator": {
+            "function_name": "is_output_in_collection",
+            "function_parameters": {
+              "collection": "param.described_formats"
+            }
+          },
+          "next": "READ_FILE"
+        },
+        {
+          "next": "NOT_DESCRIBED"
+        }
+      ]
+    },
+    {
+      "id": "READ_FILE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "read_text_file",
+        "function_parameters": {
+          "file_path": "param.cur_path",
+          "param_name": "file_text"
+        }
+      },
+      "transitions": [
+        {
+          "errors": [
+            "file_not_found",
+            "file_not_text",
+            "file_read_error"
+          ],
+          "next": "NOT_DESCRIBED"
+        },
+        {
+          "next": "DESCRIBE"
+        }
+      ]
+    },
+    {
+      "id": "DESCRIBE",
+      "action_type": "llm",
+      "action_parameters": {
+        "provider": "local",
+        "prompt": "You are given one file out of a folder inventory.\n\nFile: ${param.cur_path}\n\nContents:\n${param.file_text}\n\nWrite one sentence of at most 25 words saying what this file contains. Answer with the sentence alone, without a preamble and without quotes.",
+        "answer": [
+          {
+            "name": "file_description",
+            "description": "One sentence saying what the file contains"
+          }
+        ],
+        "format": "text",
+        "record": true
+      },
+      "max_attempts": 3,
+      "transitions": [
+        {
+          "guard": {
+            "no_error": true
+          },
+          "next": "COLLECT"
+        },
+        {
+          "errors": [
+            "transient",
+            "rate_limited",
+            "timeout",
+            "llm_answer_invalid"
+          ],
+          "next": "DESCRIBE",
+          "attempts": true
+        },
+        {
+          "errors": [
+            "context_overflow"
+          ],
+          "next": "NOT_DESCRIBED"
+        },
+        {
+          "fail": "description_unavailable"
+        }
+      ]
+    },
+    {
+      "id": "NOT_DESCRIBED",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "echo_value",
+        "function_parameters": {
+          "value": "not described"
+        }
+      },
+      "save_as": "file_description",
+      "transitions": [
+        {
+          "next": "COLLECT"
+        }
+      ]
+    },
+    {
+      "id": "COLLECT",
+      "action_type": "functions",
+      "action_parameters": {
+        "save_to_list": "table_rows",
+        "functions": {
+          "Folder": {
+            "function_name": "file_parent_folder",
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
+          },
+          "Name": {
+            "function_name": "file_name",
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
+          },
+          "Size": {
+            "function_name": "file_size_human",
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
+          },
+          "MIME": {
+            "function_name": "file_mime_type",
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
+          },
+          "Modified": {
+            "function_name": "file_modify_time",
+            "function_parameters": {
+              "file_path": "param.cur_path"
+            }
+          },
+          "Description": {
+            "function_name": "echo_value",
+            "function_parameters": {
+              "value": "param.file_description"
+            }
+          }
+        }
+      },
+      "transitions": [
+        {
+          "next": "POP_NEXT"
+        }
+      ]
+    },
+    {
+      "id": "ENQUEUE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "enqueue_folder_entries",
+        "function_parameters": {
+          "folder_path": "param.cur_path",
+          "deque_param_name": "scan_queue"
+        }
+      },
+      "transitions": [
+        {
+          "next": "POP_NEXT"
+        }
+      ]
+    },
+    {
+      "id": "WRITE_TABLE",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "dict_list_to_pretty_table",
+        "function_parameters": {
+          "artifact_name": "file_scan_table",
+          "dict_param_name": "table_rows",
+          "artifact_path": "reports/file_scan_table.csv",
+          "table_format": "csv"
+        }
+      },
+      "transitions": [
+        {
+          "errors": [
+            "pretty_table_no_data",
+            "pretty_table_artifact_exists",
+            "pretty_table_write_error"
+          ]
+        },
+        {
+          "next": "PROPOSE"
+        }
+      ]
+    },
+    {
+      "id": "PROPOSE",
+      "action_type": "llm",
+      "action_parameters": {
+        "provider": "local",
+        "model": "a-publisher/a-larger-model",
+        "prompt": "You are given the inventory of a folder tree as a JSON list of rows, one row per file, each with the description of what the file contains.\n\n${param.table_rows}\n\nPropose how the storage of these files could be improved: what to archive, what looks duplicated, what belongs in another folder. Write at most ten short numbered points, each naming the files it is about. Answer with the points alone, without a preamble.",
+        "answer": [
+          {
+            "name": "proposal_text",
+            "description": "The optimization proposal over the whole inventory, as plain text"
+          }
+        ],
+        "format": "text",
+        "record": true
+      },
+      "max_attempts": 3,
+      "transitions": [
+        {
+          "guard": {
+            "no_error": true
+          },
+          "next": "WRITE_PROPOSAL"
+        },
+        {
+          "errors": [
+            "transient",
+            "rate_limited",
+            "timeout",
+            "llm_answer_invalid"
+          ],
+          "next": "PROPOSE",
+          "attempts": true
+        },
+        {
+          "errors": [
+            "context_overflow"
+          ],
+          "fail": "inventory_too_large"
+        },
+        {
+          "fail": "proposal_unavailable"
+        }
+      ]
+    },
+    {
+      "id": "WRITE_PROPOSAL",
+      "action_type": "function",
+      "action_parameters": {
+        "function_name": "write_text_artifact",
+        "function_parameters": {
+          "artifact_name": "optimization_proposal",
+          "text": "param.proposal_text",
+          "artifact_path": "reports/optimization_proposal.txt",
+          "artifact_description": "What the larger model proposes to do with the inventoried files"
+        }
+      },
+      "transitions": [
+        {
+          "errors": [
+            "text_artifact_not_text",
+            "text_artifact_write_error",
+            "artifact_overwritten",
+            "artifact_path_conflict"
+          ]
+        },
+        {
+          "stop": true
+        }
+      ]
+    }
+  ]
+}

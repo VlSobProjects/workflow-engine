@@ -309,6 +309,51 @@ class TestWhatAModelIsLoadedWith:
         assert load_bodies(lms) == []
 
 
+class TestSwappingTheResidentModel:
+    """A load is a swap: what this run put there for an earlier step goes back first. See ADR 014 §2."""
+
+    def test_a_call_for_another_model_releases_the_one_this_run_loaded(self, lms: FakeLmStudio) -> None:
+        provider = LmStudioProvider(settings_for(lms))
+        provider.complete(a_call())
+
+        provider.complete(a_call(ANOTHER_MODEL))
+
+        assert lms.loaded == {ANOTHER_MODEL: ANOTHER_MODEL}
+        assert provider.loaded_by_this_adapter == frozenset({ANOTHER_MODEL})
+
+    def test_calling_the_same_model_again_releases_nothing_and_loads_nothing(self, lms: FakeLmStudio) -> None:
+        provider = LmStudioProvider(settings_for(lms))
+        provider.complete(a_call())
+        before = list(lms.paths)
+
+        provider.complete(a_call())
+
+        assert lms.loaded == {INSTALLED_MODEL: INSTALLED_MODEL}
+        added = lms.paths[len(before) :]
+        assert "/api/v1/models/load" not in added
+        assert "/api/v1/models/unload" not in added
+
+    def test_a_model_loaded_from_elsewhere_survives_the_swap(self, lms: FakeLmStudio) -> None:
+        """The ownership rule holds on the way into a load as much as on the way out of a run."""
+
+        lms.load_from_elsewhere(INSTALLED_MODEL)
+        provider = LmStudioProvider(settings_for(lms))
+
+        provider.complete(a_call(ANOTHER_MODEL))
+
+        assert lms.loaded == {INSTALLED_MODEL: INSTALLED_MODEL, ANOTHER_MODEL: ANOTHER_MODEL}
+
+    def test_a_release_that_fails_does_not_fail_the_call_that_needed_the_memory(self, lms: FakeLmStudio) -> None:
+        provider = LmStudioProvider(settings_for(lms))
+        provider.complete(a_call())
+        lms.fail_unload = Failure(status=500)
+
+        reply = provider.complete(a_call(ANOTHER_MODEL))
+
+        assert not reply.failed
+        assert ANOTHER_MODEL in lms.loaded
+
+
 class TestReleasingAfterOneCall:
     def test_a_node_that_asks_for_the_memory_back_gets_it(self, lms: FakeLmStudio) -> None:
         provider = LmStudioProvider(settings_for(lms))

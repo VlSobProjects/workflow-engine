@@ -104,6 +104,9 @@ class LmStudioResidencyError(WorkflowRuntimeError):
         "protocol, which is loading and unloading a model.",
         "The model of a call is loaded before the call when the server does not already hold it, so "
         "the adapter knows which resident instance is its own.",
+        "A load is a swap: what this run loaded for an earlier step is released before the new "
+        "model is loaded, because a run uses one model at a time. A model the server already holds "
+        "is called without loading anything, so nothing is released for it.",
         "A model the adapter did not load - one loaded from the application, or by another process - "
         f"is never unloaded, unless the provider block sets '{RELEASE_FOREIGN_OPTION}'. A run does "
         "not evict what it did not put there.",
@@ -119,7 +122,8 @@ class LmStudioResidencyError(WorkflowRuntimeError):
         description=(
             "Speaks the OpenAI-compatible chat protocol of a local LM Studio server and, beside it, "
             "the server's own model API. Before a call it asks the server which instances are "
-            "loaded and loads the model if none is; after a call it releases the instance when the "
+            "loaded and loads the model if none is, releasing what it loaded for an earlier step "
+            "first; after a call it releases the instance when the "
             "node asked for it; when the run ends it releases what it loaded, unless the run only "
             "paused, where the next call is expected shortly. It releases only instances it loaded "
             "itself unless the provider block widens that."
@@ -294,6 +298,13 @@ class LmStudioProvider(OpenAICompatibleProvider):
             return self._failure_from(explanation, model, "Reading which models the server holds")
         if instances:
             return None
+        # A load is a swap when this run already put another model on the server: a run walks its
+        # nodes one at a time, so the model of the step before is of no use to the step being made,
+        # and holding both is what makes a machine that fits either of them fit neither. Only what
+        # this adapter loaded goes back, so the ownership rule the release policy rests on is
+        # untouched, and a release that does not happen never fails the call that was about to be
+        # made - the load that follows reports the memory it could not get.
+        self._release_loaded_here(timeout)
         # The model is written last on purpose: a load configuration cannot redirect the load onto
         # another model, and every rule about what this adapter may release rests on that ownership.
         request = {**self._load_config(), "model": model}
@@ -315,6 +326,20 @@ class LmStudioProvider(OpenAICompatibleProvider):
         _, explanation = self._native_call(UNLOAD_PATH, {INSTANCE_ID_KEY: instance_id}, timeout)
         self._loaded_here.discard(instance_id)
         return explanation
+
+    def _release_loaded_here(self, timeout: float) -> str:
+        """Release every instance this adapter still owns, returning what did not happen.
+
+        The memory is used as it stands rather than re-checked against the server: this runs on the
+        way into a load, where a wasted unload of an instance somebody else already freed costs one
+        request, while reading the listing again costs one on every swap. The release that must not
+        be wrong is the one at the end of the run, and that one re-reads.
+        """
+        return "; ".join(
+            f"{instance_id}: {failure}"
+            for instance_id in sorted(self._loaded_here)
+            if (failure := self._release_instance(instance_id, timeout))
+        )
 
     def _release_model(self, model: str, timeout: float) -> str:
         """Release what this adapter is allowed to release of one model, after a call asked for it.
