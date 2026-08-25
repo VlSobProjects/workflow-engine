@@ -1,5 +1,7 @@
 import dataclasses
 import json
+import os
+import tempfile
 from collections import deque
 from pathlib import Path
 
@@ -48,6 +50,27 @@ def state_encoder(obj):
         return obj.to_dict()
 
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+
+def write_json_atomically(target: Path, payload: object, encoder) -> None:
+    """Write the payload beside the target and replace the target with it in one step.
+
+    The state file is rewritten on every turn, and a write interrupted in place leaves a truncated
+    file that no resume can read. The previous file therefore stays untouched until the new content
+    is complete on disk: the temporary file lives in the target's own directory, so the replace is a
+    rename within one filesystem, and a failed write takes the temporary file with it.
+    """
+    descriptor, temp_name = tempfile.mkstemp(dir=target.parent, prefix=f"{target.name}.", suffix=".tmp")
+    temp_file = Path(temp_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=4, sort_keys=True, default=encoder)
+            f.flush()
+            os.fsync(f.fileno())
+        temp_file.replace(target)
+    except BaseException:
+        temp_file.unlink(missing_ok=True)
+        raise
 
 
 class JsonStorage(Storage):
@@ -166,8 +189,7 @@ class JsonStorage(Storage):
         try:
             self._ensure_storage_directory()
             state_file.parent.mkdir(parents=True, exist_ok=True)
-            with state_file.open("w", encoding="utf-8") as f:
-                json.dump(state.__dict__, f, indent=4, sort_keys=True, default=state_encoder)
+            write_json_atomically(state_file, state.__dict__, state_encoder)
         except WorkflowConfigurationError:
             raise
         except Exception as ex:

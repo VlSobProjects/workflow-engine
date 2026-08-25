@@ -399,6 +399,26 @@ with `--json` stdout still carries one command result with `"command_status": "e
 that parses stdout never gets usage text instead of a document. Full CLI and artifact contracts:
 `docs/architecture/overview.md`.
 
+## One process per session
+
+A session is run by one process at a time. A command that writes the session — `run`, `resume`,
+`set-input`, `set-limit` — holds it for the duration of the call, and a second one asking for the same
+session is refused with exit code `4` and a message naming the process that holds it:
+
+```
+Session 6f1c... is held by process 4812 since 2026-08-25T09:14:03+00:00. If that process is gone,
+remove the lock file to release the session: <work_dir>/sessions/<SESSION_ID>/session.lock
+```
+
+The hold is that `session.lock` file in the session directory. Reading a session never waits: the five
+read commands and `export-artifact` answer while a run is in progress.
+
+The lock does not expire, because a node waiting on a slow model call holds its session legitimately
+for minutes. If a process was killed and left the file behind, delete it — nothing else uses it.
+
+The state file itself is replaced rather than rewritten, so a run interrupted mid-write leaves the
+previous state readable and the session resumable.
+
 ## Hitting the hard node cap
 
 A recursive scan over a large tree can pause with `event_code: "workflow_paused_safety_limit"` (exit

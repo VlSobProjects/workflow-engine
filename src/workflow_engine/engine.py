@@ -16,6 +16,7 @@ from workflow_engine.artifacts_export import (
 )
 from workflow_engine.bootstrap.config_loader import CONFIG_FILE_NAME
 from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowSessionsFactory
+from workflow_engine.bootstrap.session_lock import SessionLock
 from workflow_engine.bootstrap.storage_fatcory import StorageFactory
 from workflow_engine.collection_param_handlers import WriteParamMode
 from workflow_engine.exceptions import (
@@ -604,6 +605,7 @@ class WorkflowEngine:
     export_dir: str | None
     runtime: SessionRuntime | None
     last_export: DeliverableExport | None
+    session_locks: dict[str, SessionLock]
 
     def __init__(
         self,
@@ -620,6 +622,7 @@ class WorkflowEngine:
         self.export_dir = export_dir
         self.runtime = None
         self.last_export = None
+        self.session_locks = {}
 
     @property
     def session(self) -> WorkflowSession | None:
@@ -658,6 +661,20 @@ class WorkflowEngine:
         self.runtime = runtime
         return runtime
 
+    def _session_lock(self, session_id: str) -> SessionLock:
+        """The hold this engine takes around every call that writes the session's state.
+
+        Held for the duration of one call rather than for the lifetime of the engine: a session is
+        mutated only inside these calls, and a reader of the same session is never made to wait. The
+        instance is kept per session id, because the hold is re-entrant only for its owner.
+        """
+
+        lock = self.session_locks.get(session_id)
+        if lock is None:
+            lock = SessionLock(session_id, self.session_factory.require_session_dir(session_id))
+            self.session_locks[session_id] = lock
+        return lock
+
     @staticmethod
     def _commit(runtime: SessionRuntime) -> None:
         runtime.storage.save_state(runtime.state)
@@ -670,18 +687,19 @@ class WorkflowEngine:
             )
         workflow = WorkflowSource.upload_workflow_from_file(workflow_path)
         session = self.session_factory.new_session(workflow, self.storage_factory.storage_config())
-        storage = self.storage_factory.build_storage(session.storage)
-        state = session.create_state(workflow, workflow_dir=workflow_path.expanduser().resolve(strict=False).parent)
-        storage.save_workflow(state.session_id, workflow)
-        runtime = _build_runtime(session, storage, state, workflow)
-        self.runtime = runtime
-        state.record_session_event(
-            SessionEvent.operator_event(
-                SessionEventCode.SESSION_CREATED,
-                {"session_id": state.session_id, "flow_id": workflow.flow_id, "node_id": state.current_node_id},
+        with self._session_lock(session.session_id):
+            storage = self.storage_factory.build_storage(session.storage)
+            state = session.create_state(workflow, workflow_dir=workflow_path.expanduser().resolve(strict=False).parent)
+            storage.save_workflow(state.session_id, workflow)
+            runtime = _build_runtime(session, storage, state, workflow)
+            self.runtime = runtime
+            state.record_session_event(
+                SessionEvent.operator_event(
+                    SessionEventCode.SESSION_CREATED,
+                    {"session_id": state.session_id, "flow_id": workflow.flow_id, "node_id": state.current_node_id},
+                )
             )
-        )
-        self._commit(runtime)
+            self._commit(runtime)
         return state.session_id
 
     def components_report(self) -> str:
@@ -697,45 +715,48 @@ class WorkflowEngine:
         question again, consuming no attempt and no visit (§6).
         """
         self.last_export = None
-        released = False
-        try:
-            runtime = self._acquire(session_id)
-            if runtime.setup_error is not None:
-                runtime.state.record_session_event(
-                    SessionEvent.engine_event(
-                        SessionEventCode.WORKFLOW_SETUP_FAILED,
-                        {
-                            "node_id": runtime.state.current_node_id,
-                            "title": runtime.setup_error.title,
-                            "error_count": len(runtime.setup_error.errors or {}),
-                        },
+        with self._session_lock(session_id):
+            released = False
+            try:
+                runtime = self._acquire(session_id)
+                if runtime.setup_error is not None:
+                    runtime.state.record_session_event(
+                        SessionEvent.engine_event(
+                            SessionEventCode.WORKFLOW_SETUP_FAILED,
+                            {
+                                "node_id": runtime.state.current_node_id,
+                                "title": runtime.setup_error.title,
+                                "error_count": len(runtime.setup_error.errors or {}),
+                            },
+                        )
                     )
-                )
+                    self._commit(runtime)
+                    released = True
+                    self._release_providers(_finalize_reason(runtime.state), runtime.setup_error)
+                    return runtime.setup_error, runtime.state
+
+                self._require_bound_inputs(runtime, session_id)
+                bound = self._accept_answer(runtime, answer) if answer is not None else None
+
+                runtime.state.record_session_event(_run_entry_event(runtime.state))
+                if answer is not None and bound is not None:
+                    runtime.state.record_session_event(_answered_event(runtime.state, answer, bound))
                 self._commit(runtime)
+                output = bound.output if bound is not None else None
+                response = _start_engine(
+                    runtime.nodes, runtime.storage, runtime.state, output, self.hard_max_nodes_visited
+                )
+                # The outcome is read before the export, which records events of its own after it.
+                reason = _finalize_reason(runtime.state)
+                self._commit(runtime)
+                self._export_on_completion(runtime, export_dir)
                 released = True
-                self._release_providers(_finalize_reason(runtime.state), runtime.setup_error)
-                return runtime.setup_error, runtime.state
-
-            self._require_bound_inputs(runtime, session_id)
-            bound = self._accept_answer(runtime, answer) if answer is not None else None
-
-            runtime.state.record_session_event(_run_entry_event(runtime.state))
-            if answer is not None and bound is not None:
-                runtime.state.record_session_event(_answered_event(runtime.state, answer, bound))
-            self._commit(runtime)
-            output = bound.output if bound is not None else None
-            response = _start_engine(runtime.nodes, runtime.storage, runtime.state, output, self.hard_max_nodes_visited)
-            # The outcome is read before the export, which records events of its own after it.
-            reason = _finalize_reason(runtime.state)
-            self._commit(runtime)
-            self._export_on_completion(runtime, export_dir)
-            released = True
-            self._release_providers(reason, response)
-            return response, runtime.state
-        finally:
-            # A run that left by an unforeseen path still releases what its adapters hold.
-            if not released:
-                self._release_providers(FinalizeReason.ABORTED)
+                self._release_providers(reason, response)
+                return response, runtime.state
+            finally:
+                # A run that left by an unforeseen path still releases what its adapters hold.
+                if not released:
+                    self._release_providers(FinalizeReason.ABORTED)
 
     def _release_providers(self, reason: FinalizeReason, response: PresentResponse | None = None) -> None:
         """Finalize the seated provider adapters, reporting an adapter that failed to release.
@@ -775,30 +796,31 @@ class WorkflowEngine:
         return self.last_export
 
     def set_session_limits(self, session_id: str, max_nodes_visited: int) -> StateReadOnlyView:
-        runtime = self._acquire(session_id)
-        state = runtime.state
-        limit_before = state.max_nodes_visited
-        if max_nodes_visited == 0:
-            state.max_nodes_visited = 0
-        elif max_nodes_visited < state.max_nodes_visited:
-            raise WorkflowEngineError(
-                f"Cannot set max_nodes_visited to {max_nodes_visited} "
-                f"because it is less than the current max_nodes_visited {state.max_nodes_visited}"
+        with self._session_lock(session_id):
+            runtime = self._acquire(session_id)
+            state = runtime.state
+            limit_before = state.max_nodes_visited
+            if max_nodes_visited == 0:
+                state.max_nodes_visited = 0
+            elif max_nodes_visited < state.max_nodes_visited:
+                raise WorkflowEngineError(
+                    f"Cannot set max_nodes_visited to {max_nodes_visited} "
+                    f"because it is less than the current max_nodes_visited {state.max_nodes_visited}"
+                )
+            else:
+                state.max_nodes_visited = max_nodes_visited
+            state.record_session_event(
+                SessionEvent.operator_event(
+                    SessionEventCode.OPERATOR_LIMIT_UPDATED,
+                    {
+                        "nodes_visited": state.nodes_visited,
+                        "limit_before": limit_before,
+                        "limit_after": state.max_nodes_visited,
+                    },
+                )
             )
-        else:
-            state.max_nodes_visited = max_nodes_visited
-        state.record_session_event(
-            SessionEvent.operator_event(
-                SessionEventCode.OPERATOR_LIMIT_UPDATED,
-                {
-                    "nodes_visited": state.nodes_visited,
-                    "limit_before": limit_before,
-                    "limit_after": state.max_nodes_visited,
-                },
-            )
-        )
-        self._commit(runtime)
-        return StateReadOnlyView.from_state(runtime.state)
+            self._commit(runtime)
+            return StateReadOnlyView.from_state(runtime.state)
 
     def get_status(self, session_id: str) -> StateReadOnlyView:
         runtime = self._acquire(session_id)
@@ -830,38 +852,41 @@ class WorkflowEngine:
         land in ``state.params`` as ``SET`` writes through the normal write path; the recorded event carries
         the bound names and resolved codec names, never the values.
         """
-        runtime = self._acquire(session_id)
-        state = runtime.state
-        if state.has_session_event(SessionEventCode.WORKFLOW_STARTED):
-            raise WorkflowInputError(f"Cannot set inputs on session {session_id}: the run has already started")
-        declared = {declaration.name: declaration for declaration in runtime.workflow.inputs}
-        seen: set[str] = set()
-        names: list[str] = []
-        codecs: dict[str, str | None] = {}
-        for assignment in assignments:
-            declaration = declared.get(assignment.name)
-            if declaration is None:
-                raise WorkflowInputError(f"Undeclared input '{assignment.name}'. Declared inputs: {sorted(declared)}")
-            if assignment.name in seen:
-                raise WorkflowInputError(f"Duplicate input '{assignment.name}' in one invocation")
-            seen.add(assignment.name)
-            value, codec_name = decode_input_value(assignment, declaration)
-            error = state._param_write(
-                assignment.name,
-                ParamWrite(mode=WriteParamMode.SET, value=value, allow_overwrite=True),
-                # An input is bound before the first node runs, so the node the session starts at is
-                # the closest thing to a producer this write has.
-                state.current_node_id,
+        with self._session_lock(session_id):
+            runtime = self._acquire(session_id)
+            state = runtime.state
+            if state.has_session_event(SessionEventCode.WORKFLOW_STARTED):
+                raise WorkflowInputError(f"Cannot set inputs on session {session_id}: the run has already started")
+            declared = {declaration.name: declaration for declaration in runtime.workflow.inputs}
+            seen: set[str] = set()
+            names: list[str] = []
+            codecs: dict[str, str | None] = {}
+            for assignment in assignments:
+                declaration = declared.get(assignment.name)
+                if declaration is None:
+                    raise WorkflowInputError(
+                        f"Undeclared input '{assignment.name}'. Declared inputs: {sorted(declared)}"
+                    )
+                if assignment.name in seen:
+                    raise WorkflowInputError(f"Duplicate input '{assignment.name}' in one invocation")
+                seen.add(assignment.name)
+                value, codec_name = decode_input_value(assignment, declaration)
+                error = state._param_write(
+                    assignment.name,
+                    ParamWrite(mode=WriteParamMode.SET, value=value, allow_overwrite=True),
+                    # An input is bound before the first node runs, so the node the session starts at is
+                    # the closest thing to a producer this write has.
+                    state.current_node_id,
+                )
+                if error is not None:
+                    raise WorkflowInputError(f"Cannot bind input '{assignment.name}': [{error[0]}] {error[1]}")
+                names.append(assignment.name)
+                codecs[assignment.name] = codec_name
+            state.record_session_event(
+                SessionEvent.operator_event(SessionEventCode.INPUTS_SET, {"names": names, "codecs": codecs})
             )
-            if error is not None:
-                raise WorkflowInputError(f"Cannot bind input '{assignment.name}': [{error[0]}] {error[1]}")
-            names.append(assignment.name)
-            codecs[assignment.name] = codec_name
-        state.record_session_event(
-            SessionEvent.operator_event(SessionEventCode.INPUTS_SET, {"names": names, "codecs": codecs})
-        )
-        self._commit(runtime)
-        return StateReadOnlyView.from_state(state)
+            self._commit(runtime)
+            return StateReadOnlyView.from_state(state)
 
     @staticmethod
     def _accept_answer(runtime: SessionRuntime, answer: Answer) -> BoundAnswer:

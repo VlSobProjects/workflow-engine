@@ -220,3 +220,37 @@ def test_state_file_written_as_raw_utf8_keeps_non_ascii_parameter_values(tmp_pat
     state_file.write_text(json.dumps(raw, ensure_ascii=False, indent=4), encoding="utf-8")
 
     assert json_storage.load_state(SESSION_ID).params["test_param"].value == "a résumé of the naïve café"
+
+
+def test_a_failed_state_write_leaves_the_previous_state_readable(json_storage):
+    """Roadmap step 9: the state file is replaced, never rewritten in place.
+
+    The write is made to fail after the file has been opened, which is what a crash mid-write looks
+    like from the previous state's side: the session must still be resumable from what was there.
+    """
+    state = json_storage.load_state(SESSION_ID)
+    state.outputs["test_node_id"] = object()  # No encoder handles it, so the write fails while writing.
+
+    with pytest.raises(StateLoadError, match="Failed to save state"):
+        json_storage.save_state(state)
+
+    assert json_storage.load_state(SESSION_ID).session_id == SESSION_ID
+
+
+def test_a_failed_state_write_leaves_no_temporary_file_behind(json_storage):
+    state = json_storage.load_state(SESSION_ID)
+    state.outputs["test_node_id"] = object()
+
+    with pytest.raises(StateLoadError):
+        json_storage.save_state(state)
+
+    assert [entry.name for entry in (json_storage.storage_dir / SESSION_ID).iterdir()] == ["state.json"]
+
+
+def test_a_completed_state_write_leaves_only_the_state_file(json_storage):
+    state = json_storage.load_state(SESSION_ID)
+    state.outputs["test_node_id"] = "test_node_id_output"
+
+    json_storage.save_state(state)
+
+    assert [entry.name for entry in (json_storage.storage_dir / SESSION_ID).iterdir()] == ["state.json"]
