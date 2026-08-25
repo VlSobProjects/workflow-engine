@@ -63,13 +63,14 @@ writing the deliverable, with `pretty_table_write_error` and an `[Errno 2]` mess
 
 ## Running the examples
 
-`examples/` ships three validated templates, each with its own walkthrough:
+`examples/` ships four validated templates, each with its own walkthrough:
 
 | Template | What it does | Waits for an answer |
 | --- | --- | --- |
 | [`folder-inventory-to-csv`](examples/folder-inventory-to-csv.md) | Walks a folder tree and writes what it finds twice: a flat CSV inventory and a report holding one table per folder | no |
 | [`flatten-copy-tree`](examples/flatten-copy-tree.md) | Copies every file of a tree into one flat directory and reports what it copied | no |
 | [`approve-and-copy`](examples/approve-and-copy.md) | Asks for a decision, and copies the file only if the answer approves it | yes |
+| [`reorganize-folder`](examples/reorganize-folder.md) | Audits a folder tree — hashes, duplicate groups, a category per file — and delivers a reorganization plan as prose and as a moves dictionary | no |
 
 `folder-inventory-to-csv` ships in three named variants beside its base definition — `described`,
 `tiered` and `chunked` — in which a model writes what each file contains, proposes what to do with
