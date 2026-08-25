@@ -5,6 +5,10 @@ one, and the listing reports what it holds. That is the point: the ownership rul
 policy are then measured by asking the server what is loaded, rather than by counting the requests
 the adapter made, so a test fails when the model is left in memory rather than when an internal call
 stopped happening.
+
+A server is also what residency is counted per, so several provider blocks appear here as several
+adapter objects pointed at one loopback server, which is how the two-block gap of the live rehearsal
+is measured.
 """
 
 from __future__ import annotations
@@ -37,6 +41,7 @@ from workflow_engine_providers.lmstudio import (
     RELEASE_OPTION,
     LmStudioProvider,
     LmStudioResidencyError,
+    reset_residency,
 )
 
 INSTALLED_MODEL = "a-publisher/a-small-model"
@@ -173,6 +178,14 @@ class FakeLmStudio(ThreadingHTTPServer):
         return [path for _, path, _ in self.requests]
 
 
+@pytest.fixture(autouse=True)
+def residency_guard() -> Iterator[None]:
+    """Keep what one test's run holds out of the next one: the registry is module state by design."""
+    reset_residency()
+    yield
+    reset_residency()
+
+
 @pytest.fixture
 def lms() -> Iterator[FakeLmStudio]:
     server = FakeLmStudio()
@@ -184,9 +197,9 @@ def lms() -> Iterator[FakeLmStudio]:
     thread.join(timeout=5)
 
 
-def settings_for(server: FakeLmStudio, **options: object) -> ProviderSettings:
+def settings_for(server: FakeLmStudio, name: str = "local", **options: object) -> ProviderSettings:
     return ProviderSettings(
-        name="local",
+        name=name,
         adapter=ADAPTER_NAME,
         base_url=server.base_url,
         model=INSTALLED_MODEL,
@@ -354,6 +367,86 @@ class TestSwappingTheResidentModel:
         assert ANOTHER_MODEL in lms.loaded
 
 
+class TestOneServerAndSeveralProviderBlocks:
+    """Residency is counted per server, not per provider block. See the live rehearsal findings.
+
+    Two blocks pointed at one server are the normal way to give one flow two windows of one model,
+    and until this was measured they behaved as two runs sharing a machine: both models resident at
+    once, and the second block's load configuration never reaching the server at all.
+    """
+
+    def test_a_load_releases_what_another_block_of_the_run_loaded(self, lms: FakeLmStudio) -> None:
+        first = LmStudioProvider(settings_for(lms, name="first"))
+        second = LmStudioProvider(settings_for(lms, name="second"))
+        first.complete(a_call())
+
+        second.complete(a_call(ANOTHER_MODEL))
+
+        assert lms.loaded == {ANOTHER_MODEL: ANOTHER_MODEL}
+        assert first.loaded_by_this_adapter == frozenset()
+        assert second.loaded_by_this_adapter == frozenset({ANOTHER_MODEL})
+
+    def test_a_block_declaring_the_same_settings_uses_the_resident_instance(self, lms: FakeLmStudio) -> None:
+        window = {LOAD_CONFIG_OPTION: {"context_length": 4096}}
+        first = LmStudioProvider(settings_for(lms, name="first", **window))
+        second = LmStudioProvider(settings_for(lms, name="second", **window))
+        first.complete(a_call())
+
+        second.complete(a_call())
+
+        assert load_bodies(lms) == [{"context_length": 4096, "model": INSTALLED_MODEL}]
+        assert lms.loaded == {INSTALLED_MODEL: INSTALLED_MODEL}
+
+    def test_a_block_declaring_another_window_gets_the_model_loaded_again(self, lms: FakeLmStudio) -> None:
+        """The gap itself: what a second block declares has to reach the server, or it declares nothing."""
+        first = LmStudioProvider(settings_for(lms, name="first", **{LOAD_CONFIG_OPTION: {"context_length": 4096}}))
+        second = LmStudioProvider(settings_for(lms, name="second", **{LOAD_CONFIG_OPTION: {"context_length": 16384}}))
+        first.complete(a_call())
+
+        reply = second.complete(a_call())
+
+        assert not reply.failed
+        assert load_bodies(lms) == [
+            {"context_length": 4096, "model": INSTALLED_MODEL},
+            {"context_length": 16384, "model": INSTALLED_MODEL},
+        ]
+        assert lms.loaded == {INSTALLED_MODEL: INSTALLED_MODEL}
+        assert second.loaded_by_this_adapter == frozenset({INSTALLED_MODEL})
+
+    def test_a_model_loaded_from_elsewhere_survives_the_reload(self, lms: FakeLmStudio) -> None:
+        """Sharing residency widens what a run may release, never what it may take from someone else."""
+        lms.load_from_elsewhere(ANOTHER_MODEL)
+        first = LmStudioProvider(settings_for(lms, name="first", **{LOAD_CONFIG_OPTION: {"context_length": 4096}}))
+        second = LmStudioProvider(settings_for(lms, name="second", **{LOAD_CONFIG_OPTION: {"context_length": 16384}}))
+        first.complete(a_call())
+
+        second.complete(a_call())
+
+        assert lms.loaded == {ANOTHER_MODEL: ANOTHER_MODEL, INSTALLED_MODEL: INSTALLED_MODEL}
+
+    def test_finalizing_one_block_leaves_what_another_block_loaded(self, lms: FakeLmStudio) -> None:
+        first = LmStudioProvider(settings_for(lms, name="first"))
+        second = LmStudioProvider(settings_for(lms, name="second"))
+        first.complete(a_call())
+        second.complete(a_call(ANOTHER_MODEL))
+
+        first.finalize(FinalizeReason.COMPLETED)
+
+        assert lms.loaded == {ANOTHER_MODEL: ANOTHER_MODEL}
+
+    def test_a_block_whose_model_another_block_swapped_away_finalizes_quietly(self, lms: FakeLmStudio) -> None:
+        """The swap took the instance out of the run's holdings, so there is nothing left to report."""
+        first = LmStudioProvider(settings_for(lms, name="first"))
+        second = LmStudioProvider(settings_for(lms, name="second"))
+        first.complete(a_call())
+        second.complete(a_call(ANOTHER_MODEL))
+        lms.fail_unload = Failure(500)
+
+        first.finalize(FinalizeReason.COMPLETED)
+
+        assert lms.loaded == {ANOTHER_MODEL: ANOTHER_MODEL}
+
+
 class TestReleasingAfterOneCall:
     def test_a_node_that_asks_for_the_memory_back_gets_it(self, lms: FakeLmStudio) -> None:
         provider = LmStudioProvider(settings_for(lms))
@@ -406,6 +499,80 @@ class TestReleasingAfterOneCall:
 
         assert reply.failed
         assert lms.loaded == {}
+
+
+class TestEmptyingTheServerForTheRun:
+    """The widened permission: a run allowed to evict is a run that starts on an empty server.
+
+    It happens before the first residency check rather than before the first load, because the check
+    is what would otherwise call a foreign instance of the very model asked for - with someone
+    else's window, and with the memory still spent on whatever sits beside it.
+    """
+
+    def test_the_server_is_emptied_before_the_run_first_looks_at_it(self, lms: FakeLmStudio) -> None:
+        lms.load_from_elsewhere(ANOTHER_MODEL)
+        lms.load_from_elsewhere(INSTALLED_MODEL)
+        options = {RELEASE_FOREIGN_OPTION: True, LOAD_CONFIG_OPTION: {"context_length": 4096}}
+        provider = LmStudioProvider(settings_for(lms, **options))
+
+        reply = provider.complete(a_call())
+
+        assert not reply.failed
+        assert lms.loaded == {INSTALLED_MODEL: INSTALLED_MODEL}
+        assert load_bodies(lms) == [{"context_length": 4096, "model": INSTALLED_MODEL}]
+        assert provider.loaded_by_this_adapter == frozenset({INSTALLED_MODEL})
+
+    def test_a_block_without_the_permission_empties_nothing(self, lms: FakeLmStudio) -> None:
+        lms.load_from_elsewhere(ANOTHER_MODEL)
+        provider = LmStudioProvider(settings_for(lms))
+
+        provider.complete(a_call())
+
+        assert lms.loaded == {ANOTHER_MODEL: ANOTHER_MODEL, INSTALLED_MODEL: INSTALLED_MODEL}
+
+    def test_one_clearing_serves_every_block_of_the_run(self, lms: FakeLmStudio) -> None:
+        """The permission belongs to the run: a second block does not empty the server under the first."""
+        first = LmStudioProvider(settings_for(lms, name="first", **{RELEASE_FOREIGN_OPTION: True}))
+        second = LmStudioProvider(settings_for(lms, name="second", **{RELEASE_FOREIGN_OPTION: True}))
+        first.complete(a_call())
+
+        second.complete(a_call())
+
+        assert lms.loaded == {INSTALLED_MODEL: INSTALLED_MODEL}
+        assert load_bodies(lms) == [{"model": INSTALLED_MODEL}]
+
+    def test_a_model_that_appears_while_the_run_works_is_not_swept_up(self, lms: FakeLmStudio) -> None:
+        """The run emptied the server at its start; what someone loads afterwards is not its clearing."""
+        provider = LmStudioProvider(settings_for(lms, **{RELEASE_FOREIGN_OPTION: True}))
+        provider.complete(a_call())
+        lms.load_from_elsewhere(ANOTHER_MODEL)
+
+        provider.complete(a_call())
+
+        assert lms.loaded == {INSTALLED_MODEL: INSTALLED_MODEL, ANOTHER_MODEL: ANOTHER_MODEL}
+
+    def test_a_listing_that_could_not_be_read_leaves_the_permission_unspent(self, lms: FakeLmStudio) -> None:
+        """One unreachable moment must not cancel the permission for the rest of the run."""
+        lms.load_from_elsewhere(ANOTHER_MODEL)
+        provider = LmStudioProvider(settings_for(lms, **{RELEASE_FOREIGN_OPTION: True}))
+        reachable, provider.api_base_url = provider.api_base_url, "http://127.0.0.1:1/api/v1"
+        assert provider.complete(a_call()).failed
+        provider.api_base_url = reachable
+
+        provider.complete(a_call())
+
+        assert lms.loaded == {INSTALLED_MODEL: INSTALLED_MODEL}
+
+    def test_the_next_run_empties_the_server_again(self, lms: FakeLmStudio) -> None:
+        """A spent permission belongs to the run that spent it, and that run ended at its finalize."""
+        provider = LmStudioProvider(settings_for(lms, **{RELEASE_FOREIGN_OPTION: True}))
+        provider.complete(a_call())
+        provider.finalize(FinalizeReason.COMPLETED)
+        lms.load_from_elsewhere(ANOTHER_MODEL)
+
+        provider.complete(a_call())
+
+        assert lms.loaded == {INSTALLED_MODEL: INSTALLED_MODEL}
 
 
 class TestReleasingWhenTheRunEnds:

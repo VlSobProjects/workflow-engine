@@ -258,9 +258,9 @@ process, which is what the test suite and the shipped examples run on. The other
 `workflow_engine_providers`, an add-on package beside the engine that is loaded the way any plugin
 is loaded, by naming it in `external_modules` — `openai_compatible` speaks the OpenAI-compatible
 chat protocol and reaches a local server and a hosted vendor alike, and `lmstudio` speaks the same
-protocol and additionally loads and unloads models on an LM Studio server, releasing only what it
-loaded itself. `src/workflow_engine_providers/example_config.json` carries a filled-in example of
-all of it, and `help-component --component-type providers` lists what the installation has.
+protocol and additionally loads and unloads models on an LM Studio server, releasing only what the
+run loaded itself. `src/workflow_engine_providers/example_config.json` carries a filled-in example
+of all of it, and `help-component --component-type providers` lists what the installation has.
 
 An adapter that holds a resource is told when the run ends and decides for itself what to release.
 If releasing fails, the failure is reported under a `provider:<name>` key in the `errors` of the

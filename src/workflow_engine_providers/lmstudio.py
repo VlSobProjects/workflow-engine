@@ -9,6 +9,10 @@ This is also the adapter the provider seat was built for. ADR 014 §2 made an ad
 one speaking to a local server has to remember what that server is holding for it; everything below
 is that memory, and the rules it lives by: it starts empty, it is re-checked against the server
 before anything is released, and the server is right whenever the two disagree.
+
+What the memory is kept per turned out to be the server and not the adapter object: a machine has
+one memory however many provider blocks point at it, so the registry sits beside the class and every
+block of a run shares it. Nothing else about the rules changed.
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from workflow_engine.exceptions import WorkflowRuntimeError
@@ -85,6 +90,63 @@ KEEP_LOADED_ON = (FinalizeReason.PAUSED,)
 only be followed by a reload a minute later. Every other outcome ends the run. See ADR 014 §2."""
 
 
+@dataclass(frozen=True, slots=True)
+class _Holding:
+    """One instance a run put on a server: which block loaded it, of what, and with what settings.
+
+    The load configuration is kept because it is the only thing that can tell a later request
+    whether the resident instance answers it: two provider blocks naming one model differ in
+    nothing else.
+    """
+
+    owner: str
+    model: str
+    load_config: dict[str, Any]
+
+
+@dataclass(slots=True)
+class _ServerResidency:
+    """What one model server holds for the run, shared by every provider block pointing at it.
+
+    A run has one machine's memory, not one per provider block, and the live rehearsal of
+    `2026-08-25-implementation-8` measured what a per-block memory costs: two blocks on one server
+    sat on two resident models at once, against this adapter's own rule that a run uses one model at
+    a time, and a second block naming the same model reused the resident instance without its own
+    load configuration ever reaching the server. Counting residency per server rather than per block
+    is what makes both rules true.
+
+    ``cleared`` records the widened permission having emptied the server once. It says nothing about
+    what is loaded afterwards, which is the run's own.
+    """
+
+    holdings: dict[str, _Holding] = field(default_factory=dict)
+    cleared: bool = False
+
+
+_RESIDENCY: dict[str, _ServerResidency] = {}
+"""Per model API root, what this run holds there.
+
+Module state for the reason the provider seat is module state: the blocks that have to share it are
+separate objects seated under separate names, and the fact they share - which models one server is
+holding for this run - lives outside all of them.
+
+Two provider blocks are the same server when their model API roots are the same string. A block that
+declares its own is therefore declaring which residency it joins, which is the honest reading: this
+adapter cannot know that two spellings of a URL reach one machine.
+"""
+
+
+def reset_residency() -> None:
+    """Forget what the run holds, releasing nothing: the server keeps whatever it keeps.
+
+    The counterpart of ``reset_providers`` for this registry and there for the same reason - one
+    run's residency must not be carried into the next by a process that outlives it. Forgetting is
+    always safe, because the memory is a cache of a fact outside the process; what it costs is that
+    an instance the run loaded is no longer released at the end of it.
+    """
+    _RESIDENCY.clear()
+
+
 class LmStudioResidencyError(WorkflowRuntimeError):
     """A model this adapter loaded could not be released when the run ended.
 
@@ -105,14 +167,18 @@ class LmStudioResidencyError(WorkflowRuntimeError):
         "The model of a call is loaded before the call when the server does not already hold it, so "
         "the adapter knows which resident instance is its own.",
         "A load is a swap: what this run loaded for an earlier step is released before the new "
-        "model is loaded, because a run uses one model at a time. A model the server already holds "
-        "is called without loading anything, so nothing is released for it.",
+        "model is loaded, because a run uses one model at a time. Residency is counted per server "
+        "and not per provider block, so the swap releases what any block of the run loaded there. A "
+        "model the server already holds is called without loading anything, so nothing is released "
+        "for it.",
         "A model the adapter did not load - one loaded from the application, or by another process - "
-        f"is never unloaded, unless the provider block sets '{RELEASE_FOREIGN_OPTION}'. A run does "
-        "not evict what it did not put there.",
+        f"is never unloaded, unless the provider block sets '{RELEASE_FOREIGN_OPTION}', which also "
+        "empties the server once, before this run first looks at it. A run does not evict what it "
+        "did not put there.",
         "What a model is loaded with is declared once in the provider block and reaches the server "
-        "unread. It applies to a load the adapter performs; a model the server already holds is used "
-        "as it stands, whatever window it was loaded with.",
+        "unread. It applies to a load the adapter performs: an instance another block of this run "
+        "loaded with other settings is loaded again under this block's, while a model the server "
+        "already held is used as it stands, whatever window it was loaded with.",
         "What the adapter remembers about the server is a cache of a fact outside this process: it "
         "is re-checked before anything is released, and the server is right when the two disagree.",
         "A model left resident is never a failed workflow. A release that fails is reported on the "
@@ -122,11 +188,11 @@ class LmStudioResidencyError(WorkflowRuntimeError):
         description=(
             "Speaks the OpenAI-compatible chat protocol of a local LM Studio server and, beside it, "
             "the server's own model API. Before a call it asks the server which instances are "
-            "loaded and loads the model if none is, releasing what it loaded for an earlier step "
-            "first; after a call it releases the instance when the "
-            "node asked for it; when the run ends it releases what it loaded, unless the run only "
-            "paused, where the next call is expected shortly. It releases only instances it loaded "
-            "itself unless the provider block widens that."
+            "loaded and loads the model unless one that answers the call is resident, releasing "
+            "what this run loaded for an earlier step first; after a call it releases the instance "
+            "when the node asked for it; when the run ends it releases what it loaded, unless the "
+            "run only paused, where the next call is expected shortly. It releases only instances "
+            "the run loaded itself unless the provider block widens that."
         ),
         call_options={
             RELEASE_OPTION: ProviderOptionDoc(
@@ -157,7 +223,6 @@ class LmStudioProvider(OpenAICompatibleProvider):
     def __init__(self, settings: ProviderSettings) -> None:
         super().__init__(settings)
         self.api_base_url = self._resolve_api_base_url()
-        self._loaded_here: set[str] = set()
 
     def _resolve_api_base_url(self) -> str:
         """Where the server's own model API lives, derived from the chat endpoint or declared.
@@ -176,8 +241,14 @@ class LmStudioProvider(OpenAICompatibleProvider):
 
     @property
     def loaded_by_this_adapter(self) -> frozenset[str]:
-        """The instances this adapter loaded, as far as it knows. Never treated as the truth."""
-        return frozenset(self._loaded_here)
+        """The instances this block loaded, as far as the run knows. Never treated as the truth."""
+        return frozenset(
+            instance_id for instance_id, holding in self._residency().holdings.items() if holding.owner == self.name
+        )
+
+    def _residency(self) -> _ServerResidency:
+        """What the run holds on the server this block speaks to, opened on first use."""
+        return _RESIDENCY.setdefault(self.api_base_url, _ServerResidency())
 
     def _load_timeout(self) -> float:
         value = self.settings.options.get(LOAD_TIMEOUT_OPTION)
@@ -287,27 +358,44 @@ class LmStudioProvider(OpenAICompatibleProvider):
             if isinstance(instance, dict) and isinstance(instance.get(LISTED_INSTANCE_ID_KEY), str)
         }, ""
 
+    @staticmethod
+    def _answers_the_call(residency: _ServerResidency, instance_id: str, load_config: dict[str, Any]) -> bool:
+        """Whether a resident instance serves this call as it stands, without a load.
+
+        Two of them do, for opposite reasons. An instance this run did not load belongs to whoever
+        put it there: it is used with whatever window it carries, because re-loading it would evict
+        what someone else is working with. An instance the run loaded is the run's own, so it is
+        reused only when it was loaded with what the asking block declares; a block declaring
+        another window gets that window, which is the whole reason a second block names one model.
+        """
+        holding = residency.holdings.get(instance_id)
+        return holding is None or holding.load_config == load_config
+
     def _ensure_loaded(self, model: str, timeout: float) -> ProviderReply | None:
-        """Load the model unless the server already holds it, and return a failure where it cannot.
+        """Load the model unless a usable instance is already resident, failing where it cannot.
 
         A model the server already holds is left alone and is deliberately *not* recorded as this
-        adapter's: whoever put it there owns it, and the release rules follow that ownership.
+        run's: whoever put it there owns it, and the release rules follow that ownership.
         """
+        residency = self._residency()
+        self._clear_the_server_once(residency, timeout)
         instances, explanation = self._instances_of(model, timeout)
         if instances is None:
             return self._failure_from(explanation, model, "Reading which models the server holds")
-        if instances:
+        load_config = self._load_config()
+        if any(self._answers_the_call(residency, instance_id, load_config) for instance_id in instances):
             return None
-        # A load is a swap when this run already put another model on the server: a run walks its
-        # nodes one at a time, so the model of the step before is of no use to the step being made,
-        # and holding both is what makes a machine that fits either of them fit neither. Only what
-        # this adapter loaded goes back, so the ownership rule the release policy rests on is
-        # untouched, and a release that does not happen never fails the call that was about to be
-        # made - the load that follows reports the memory it could not get.
-        self._release_loaded_here(timeout)
+        # A load is a swap when this run already put a model on the server: a run walks its nodes one
+        # at a time, so the model of the step before is of no use to the step being made, and holding
+        # both is what makes a machine that fits either of them fit neither. What goes back is what
+        # the run loaded, by any of its provider blocks, because the memory being competed for is the
+        # server's and not the block's; a model loaded from elsewhere stays, so the ownership rule the
+        # release policy rests on is untouched. A release that does not happen never fails the call
+        # that was about to be made - the load that follows reports the memory it could not get.
+        self._release_run_holdings(residency, timeout)
         # The model is written last on purpose: a load configuration cannot redirect the load onto
         # another model, and every rule about what this adapter may release rests on that ownership.
-        request = {**self._load_config(), "model": model}
+        request = {**load_config, "model": model}
         payload, explanation = self._native_call(LOAD_PATH, request, self._load_timeout())
         if payload is None:
             return self._failure_from(explanation, model, f"Loading the model '{model}'")
@@ -318,17 +406,43 @@ class LmStudioProvider(OpenAICompatibleProvider):
                 f"The load of model '{model}' answered without an '{INSTANCE_ID_KEY}': {text_of(payload)}",
                 model=model,
             )
-        self._loaded_here.add(instance_id)
+        residency.holdings[instance_id] = _Holding(owner=self.name, model=model, load_config=load_config)
         return None
 
+    def _clear_the_server_once(self, residency: _ServerResidency, timeout: float) -> None:
+        """Under a widened permission, empty the server before this run first looks at it.
+
+        The option says the machine's memory belongs to this run, and only an empty server makes that
+        true: a foreign instance of the very model the run is about to ask for would otherwise be
+        called as it stands, with whatever window someone else loaded it with, so the run would get
+        neither its settings nor the memory. That is why it happens before the first residency check
+        rather than before the first load - the check is what would reuse that instance.
+
+        A listing that could not be read leaves the permission unspent, because one unreachable
+        moment must not cancel it for the rest of the run, and a clearing failure never fails the
+        call that follows: the load reports the memory it could not get, as it does after a swap.
+        """
+        if residency.cleared or not self._may_release_foreign():
+            return
+        instances, _ = self._loaded_instance_ids(timeout)
+        if instances is None:
+            return
+        for instance_id in sorted(instances):
+            self._release_instance(instance_id, timeout)
+        residency.cleared = True
+
     def _release_instance(self, instance_id: str, timeout: float) -> str:
-        """Unload one instance, returning an explanation where it did not happen."""
+        """Unload one instance and forget it, returning an explanation where it did not happen."""
         _, explanation = self._native_call(UNLOAD_PATH, {INSTANCE_ID_KEY: instance_id}, timeout)
-        self._loaded_here.discard(instance_id)
+        self._residency().holdings.pop(instance_id, None)
         return explanation
 
-    def _release_loaded_here(self, timeout: float) -> str:
-        """Release every instance this adapter still owns, returning what did not happen.
+    def _release_run_holdings(self, residency: _ServerResidency, timeout: float) -> str:
+        """Release every instance this run still holds on the server, returning what did not happen.
+
+        Whichever block loaded it: a swap that stopped at the edge of a provider block would leave a
+        server holding two models for a run that uses one at a time, which is what the live rehearsal
+        of `2026-08-25-implementation-8` found it doing.
 
         The memory is used as it stands rather than re-checked against the server: this runs on the
         way into a load, where a wasted unload of an instance somebody else already freed costs one
@@ -337,25 +451,27 @@ class LmStudioProvider(OpenAICompatibleProvider):
         """
         return "; ".join(
             f"{instance_id}: {failure}"
-            for instance_id in sorted(self._loaded_here)
+            for instance_id in sorted(residency.holdings)
             if (failure := self._release_instance(instance_id, timeout))
         )
 
     def _release_model(self, model: str, timeout: float) -> str:
-        """Release what this adapter is allowed to release of one model, after a call asked for it.
+        """Release what this run is allowed to release of one model, after a call asked for it.
 
         The server is asked what it holds rather than the memory being trusted: another process may
-        have unloaded the instance already, and an instance this adapter never loaded is left where
-        it is unless the operator widened the permission.
+        have unloaded the instance already, and an instance this run never loaded is left where it
+        is unless the operator widened the permission. What any block of the run loaded goes back,
+        because the node asked for the memory of that model and not for one block's share of it.
         """
         instances, explanation = self._instances_of(model, timeout)
         if instances is None:
             return explanation
         may_release_foreign = self._may_release_foreign()
+        holdings = self._residency().holdings
         failures = [
             failure
             for instance_id in instances
-            if instance_id in self._loaded_here or may_release_foreign
+            if instance_id in holdings or may_release_foreign
             if (failure := self._release_instance(instance_id, timeout))
         ]
         return "; ".join(failures)
@@ -377,31 +493,42 @@ class LmStudioProvider(OpenAICompatibleProvider):
         return reply
 
     def finalize(self, reason: FinalizeReason) -> None:
-        """Release what this adapter loaded, unless the run only paused. See ADR 014 §2.
+        """Release what this block loaded, unless the run only paused. See ADR 014 §2.
 
         The engine reports the outcome and holds no policy; this is the policy. A pause keeps the
         model, because the answer that resumes the run is expected shortly and a release there buys
         an unload and a reload for nothing. Every other reason ends the run or rebuilds the seat, and
         a model held for a run that is over is held for no one.
+
+        What a block releases here is what it loaded and not everything the run holds: every seated
+        block is finalized, so between them the run's holdings are covered exactly once, and a block
+        whose settings are replaced mid-process does not take another block's model down with it.
         """
         if reason in KEEP_LOADED_ON:
             return
         timeout = self._timeout({})
+        residency = self._residency()
         still_loaded, explanation = self._loaded_instance_ids(timeout)
+        mine = sorted(self.loaded_by_this_adapter)
         if still_loaded is not None:
             # The server is right: an instance it no longer holds was released by someone else, and
             # asking it to release the model twice would report a failure where nothing is wrong.
-            for gone in self._loaded_here - still_loaded:
-                self._loaded_here.discard(gone)
+            for gone in [instance_id for instance_id in mine if instance_id not in still_loaded]:
+                residency.holdings.pop(gone, None)
+            mine = [instance_id for instance_id in mine if instance_id in still_loaded]
         failures = [
             f"{instance_id}: {failure}"
-            for instance_id in sorted(self._loaded_here)
+            for instance_id in mine
             if (failure := self._release_instance(instance_id, timeout))
         ]
         if still_loaded is None and failures:
             # The listing could not be read, so the releases above were attempted blind; say so,
             # because otherwise the report names the unload rather than the reason it went blind.
             failures.append(f"the model listing could not be read first: {explanation}")
+        if not residency.holdings:
+            # Nothing of this run is left on the server, so the next one begins with the permission
+            # to empty it unspent rather than inheriting a clearing it never performed.
+            _RESIDENCY.pop(self.api_base_url, None)
         if failures:
             raise LmStudioResidencyError(
                 f"Provider '{self.name}' could not release {len(failures)} model(s) it loaded: {'; '.join(failures)}"
