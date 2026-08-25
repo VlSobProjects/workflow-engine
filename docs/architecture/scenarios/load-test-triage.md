@@ -37,10 +37,10 @@ the load-testing analyst, who gets a verdict they can trust or a handover they c
 a silent stop. ADR 014 names this scenario in its `Consumer` section as its phase consumer: every
 judgment step here is an `llm` node; the evidence at that ADR's own freeze gate is the class 4
 inventory variants it names beside it, because this scenario gates the phase — and with it every
-ADR of the phase (`2026-08-24-architecture-1`). The second half of the done condition — written by
-an author who knows the domain but not the engine, from the documentation alone — is measured when
-the scenario is built by hand (roadmap step 10), and gap G11 takes the lower bound of the
-authoring need from that build.
+ADR of the phase (`2026-08-24-architecture-1`). The authoring half of the done condition is gated
+by phase 3 in its assisted form; the hand-build of this scenario (roadmap steps 10 and 12), made
+deliberately from the operator documentation alone, gives gap G11 the lower bound of the authoring
+need.
 
 ## What ships where
 
@@ -120,9 +120,10 @@ the same prepared variant takes the same path, and the journal shows it.
 1. **No `llm` node.** The central step of every path but the first does not exist; ADR 014
    (Draft) decides it — the action, the provider registry, the `fake` adapter, the `providers`
    configuration, the error classes, the call audit — and this scenario is the consumer it names.
-2. **Nothing assembles the aggregate.** No function creates or sets a dictionary parameter, the
-   chunk loop has no splitter, and `append_to_param` is the only accumulator. Gap G5 builds the
-   dict functions and the splitter as component work under ADR 006 when this scenario names its
+2. **Nothing assembles the aggregate into a dictionary.** The chunk loop has its splitter
+   (`split_text_to_deque`) and its accumulators (`append_to_param`, `collect_answer`) since the
+   ADR 014 variants; what remains of gap G5 is the dictionary half — no function creates or sets a
+   dictionary parameter. Built as component work under ADR 006 when this scenario names its
    aggregate step — this document is that naming.
 3. **The verdict's keys are unchecked.** The decision binds a dict and `type: dict` accepts any
    dictionary (gap G4); the guard over answer keys is component work under ADR 002, and this
@@ -135,9 +136,9 @@ the same prepared variant takes the same path, and the journal shows it.
 5. **Every failure route is written per node.** The handover on the unforeseen exists only as
    explicit failure transitions on every node (gap G7); the verbosity of the hand-written flow is
    the trigger for a workflow-level default failure route.
-6. **The authoring half is unmeasured.** "From the documentation alone" has no authoring surface —
-   no validation without a run, no description of a definition (gap G11); the hand-build gives
-   the lower bound, and `workflow-authoring` mechanizes the same sentence as a workflow.
+6. **The authoring half is unmeasured.** The authoring claim has no authoring surface — no
+   validation without a run, no description of a definition (gap G11); the hand-build gives the
+   lower bound, and `workflow-authoring` mechanizes the same claim as a workflow in phase 3.
 7. **Where the prompts live.** The aggregation and decision prompts are paragraphs of instruction,
    not lines; whether inline template text suffices or the authored-file channel (`prompt_ref`,
    deferred by the narrowed ADR 014 until a scenario asks) must return is measured by the
