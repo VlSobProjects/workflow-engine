@@ -22,7 +22,7 @@ from workflow_engine.help_contract.renderers import (
     render_components_list_text,
 )
 from workflow_engine.inputs import parse_input_assignment
-from workflow_engine.models.state import SessionEventCode, StateReadOnlyView
+from workflow_engine.models.state import SessionEventCode, StateModel, StateReadOnlyView
 from workflow_engine.tools import render_value_as_text
 
 
@@ -98,13 +98,18 @@ def init_session(command_name: CommandName, args: Namespace) -> CommandResult:
     )
 
 
-def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
-    engine = _get_engine(args)
-    session_id = engine.init_new_session(workflow_path=Path(args.workflow_file))
-    assignments = _parse_input_assignments(args)
-    if assignments:
-        engine.set_inputs(session_id=session_id, assignments=assignments)
-    res, state = engine.start_workflow(session_id=session_id, export_dir=getattr(args, "export_dir", None))
+def _run_result(
+    command_name: CommandName,
+    engine: WorkflowEngine,
+    session_id: str,
+    res: PresentResponse,
+    state: StateModel,
+) -> CommandResult:
+    """The envelope both commands that move the workflow return: `run` and `resume` differ only in how they get here.
+
+    Whether the run was started or continued is already in the workflow status and the event code, so
+    the two commands have nothing of their own to add after the engine call.
+    """
     state_view = StateReadOnlyView.from_state(state)
     result = _with_engine_errors(
         CommandResult.from_state(
@@ -118,6 +123,16 @@ def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
     result.data["deliverables"] = engine.get_deliverables(session_id)
     result.data["inputs"] = engine.get_inputs(session_id)
     return _with_export_destination(_with_pending_question(result, res, state_view), engine)
+
+
+def run_workflow(command_name: CommandName, args: Namespace) -> CommandResult:
+    engine = _get_engine(args)
+    session_id = engine.init_new_session(workflow_path=Path(args.workflow_file))
+    assignments = _parse_input_assignments(args)
+    if assignments:
+        engine.set_inputs(session_id=session_id, assignments=assignments)
+    res, state = engine.start_workflow(session_id=session_id, export_dir=getattr(args, "export_dir", None))
+    return _run_result(command_name, engine, session_id, res, state)
 
 
 def set_input(command_name: CommandName, args: Namespace) -> CommandResult:
@@ -143,19 +158,7 @@ def resume_workflow(command_name: CommandName, args: Namespace) -> CommandResult
     res, state = engine.start_workflow(
         session_id=session_id, answer=answer, export_dir=getattr(args, "export_dir", None)
     )
-    state_view = StateReadOnlyView.from_state(state)
-    result = _with_engine_errors(
-        CommandResult.from_state(
-            command=command_name,
-            command_status=CommandStatus.COMPLETED,
-            state=state_view,
-            message=res.description,
-        ),
-        res,
-    )
-    result.data["deliverables"] = engine.get_deliverables(session_id)
-    result.data["inputs"] = engine.get_inputs(session_id)
-    return _with_export_destination(_with_pending_question(result, res, state_view), engine)
+    return _run_result(command_name, engine, session_id, res, state)
 
 
 def export_artifact(command_name: CommandName, args: Namespace) -> CommandResult:
@@ -198,11 +201,12 @@ def show_state(command_name: CommandName, args: Namespace) -> CommandResult:
     engine = _get_engine(args)
     session_id = args.session_id
     state = engine.get_status(session_id=session_id)
-    result = CommandResult.from_state_full(
+    result = CommandResult.from_state(
         command=command_name,
         command_status=CommandStatus.COMPLETED,
         state=state,
         message=f"State for session {session_id}",
+        full=True,
     )
     result.data["deliverables"] = engine.get_deliverables(session_id)
     return result
