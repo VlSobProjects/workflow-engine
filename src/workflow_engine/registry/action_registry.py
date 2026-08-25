@@ -96,7 +96,14 @@ def create_action(action_type: str, data: dict[str, object]) -> BaseAction:
 
 
 def get_registered_actions_info() -> dict[str, str]:
-    return ACTION_DESCRIPTIONS
+    """The registered actions and their descriptions, as a snapshot rather than as the registry.
+
+    A copy, because the component loader tells core components from external ones by taking this
+    view before the external modules are imported and comparing it with the view after. Handing out
+    the live dictionary makes that comparison subtract a set from itself, and every action a plugin
+    registers is reported as if the core shipped it.
+    """
+    return dict(ACTION_DESCRIPTIONS)
 
 
 def get_summary_for_action(action_type: str) -> str:
