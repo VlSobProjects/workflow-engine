@@ -136,6 +136,23 @@ class StateLoadParameterError(WorkflowRuntimeError):
         )
 
 
+class SessionBusyError(WorkflowRuntimeError):
+    """Another process holds the session a mutating call asked for.
+
+    The engine is a single writer per session, so a second writer is refused rather than allowed to
+    overwrite what the first one is about to write.
+    """
+
+    def __init__(self, session_id: str, lock_path: str, holder: str) -> None:
+        self.session_id = session_id
+        self.lock_path = lock_path
+        self.holder = holder
+        super().__init__(
+            f"Session '{session_id}' is held by {holder}. "
+            f"If that process is gone, remove the lock file to release the session: {lock_path}"
+        )
+
+
 class ArtifactPathError(WorkflowRuntimeError):
     error_code: str = "invalid_artifact_path"
 

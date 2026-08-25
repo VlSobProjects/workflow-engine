@@ -94,8 +94,26 @@ class WorkflowSessionsFactory:
             return []
         return [session.name for session in (self.work_dir / SESSION_DIRECTORY).iterdir() if session.is_dir()]
 
+    def session_dir(self, session_id: str) -> Path:
+        """The directory a session owns, which is where anything about the session itself lives."""
+
+        return self.work_dir / SESSION_DIRECTORY / session_id
+
     def is_session(self, session_id: str) -> bool:
-        return (self.work_dir / SESSION_DIRECTORY / session_id).is_dir()
+        return self.session_dir(session_id).is_dir()
+
+    def require_session_dir(self, session_id: str) -> Path:
+        """The session directory, refusing an id that names no session.
+
+        A caller that needs the directory before the session record is read — taking the lock is the
+        one case — must still report a mistyped id as a missing session and not as a failure of what
+        it was about to do.
+        """
+
+        session_dir = self.session_dir(session_id)
+        if not session_dir.is_dir():
+            raise WorkflowRuntimeError(f"Session '{session_id}' not found at path: {session_dir.absolute()}")
+        return session_dir
 
     @classmethod
     def check_session(cls, session: WorkflowSession, session_path: Path, session_id: str):
@@ -109,7 +127,7 @@ class WorkflowSessionsFactory:
             )
 
     def load_session(self, session_id: str) -> WorkflowSession:
-        session_path = self.work_dir / SESSION_DIRECTORY / session_id / SESSION_FILE
+        session_path = self.session_dir(session_id) / SESSION_FILE
         if not session_path.exists():
             raise WorkflowRuntimeError(f"Session file not found at path: {session_path.absolute()}")
         try:
@@ -128,7 +146,7 @@ class WorkflowSessionsFactory:
 
     def new_session(self, workflow: WorkflowModel, storage_config: MappingProxyType[str, str]) -> WorkflowSession:
         session_id = self._create_session_id()
-        session_dir = self.work_dir / SESSION_DIRECTORY / session_id
+        session_dir = self.session_dir(session_id)
         session_path = session_dir / SESSION_FILE
         storage_dir = parameter_from_dict(storage_config, "storage_dir", str)
         try:

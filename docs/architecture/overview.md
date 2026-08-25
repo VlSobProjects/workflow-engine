@@ -360,6 +360,13 @@ the engine only ever writes to it during a run.
 
 Storage is built per session, not once per process, because a session decides which storage it uses.
 
+The state file is replaced, never rewritten in place: the new content is written to a temporary file
+in the same directory, flushed to disk and then renamed onto `state.json`. A run interrupted while
+writing therefore leaves the previous state readable and the session resumable, which is what makes
+the per-turn write safe to rely on. The workflow definition and the session record are written once
+when the session is created, and the record stream is only ever appended to one line at a time, so
+neither needs the same treatment.
+
 ## Node records
 
 Every node visit leaves one record, written by the engine and by nothing else. See ADR 021.
@@ -417,6 +424,25 @@ it was created under; discovery across several `work_dir` roots is not part of t
 
 Paths are serialized in POSIX form, so a record or a state written from one shell reads back identically
 from another.
+
+### One writer per session
+
+The engine is a single writer per session. Two processes running the same session would each read the
+state, act on it and write it back, and the second write would drop what the first one did without
+either of them noticing. Every call that writes the state — creating a session, starting or continuing
+a run, binding inputs, setting a limit — therefore holds the session for the duration of the call.
+
+The hold is a `session.lock` file in the session directory, created in one step that either succeeds or
+reports that the file is already there. It carries the holder's process id and the moment it was taken,
+so a refusal can name who holds the session. A second writer is refused as an engine error and reaches
+the caller as a setup error; it never waits and never overwrites.
+
+Reading a session takes nothing: `show-state`, `list-parameters`, `show-parameter`, `show-journal`,
+`show-records` and `export-artifact` answer while a run holds the session.
+
+A lock is not expired by age. A node waiting on a slow model call holds its session legitimately for
+minutes, and a hold taken away from a live run protects nothing. A lock left behind by a process that
+died is therefore removed by the operator, and the refusal names the file to remove.
 
 ## CLI
 

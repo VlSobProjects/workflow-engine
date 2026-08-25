@@ -31,9 +31,11 @@ recovery must reintroduce its own surface deliberately, not widen `set-input`.
   self-loop transition). Missing: delay/backoff and distinguishing transient (500 → retry) from
   permanent (400 → fail). Central for API-driven agents. Cost: low. This subsumes the former overview
   "what is not settled yet" item — the error and retry policy beyond a transition's declared allowance.
-- **(c) Crash-safe state write.** `state.json` is overwritten in place each turn; a crash mid-write
-  could corrupt it. Cheap insurance: atomic write (temp + rename). Hardening, not a new model. Cost:
-  very low.
+- **(c) Crash-safe state write.** Delivered by roadmap step 9 (session
+  `2026-08-25-implementation-4`): `state.json` is written to a temporary file in the same directory
+  and renamed onto the target, so an interrupted write leaves the previous state readable. The same
+  session gave a run exclusive hold of its session, which is the other half of "nothing else writes
+  this file behind our back".
 - **(d) Rollback to a checkpoint.** The only genuinely new subsystem. Today state is a single mutable
   snapshot; the journal is audit, not a source the state is rebuilt from. Rollback needs either a
   snapshot history (version `state.json` per node visit instead of overwriting — restore points, like
@@ -61,7 +63,7 @@ recovery must reintroduce its own surface deliberately, not widen `set-input`.
 
 - **Phase 2:** (a) interactive manual takeover, and (b) retry/backoff by error class. Each is its own
   ADR, separate from ADR 012.
-- **Almost free, could land earlier:** (c) atomic `state.json` write.
+- **Done:** (c) atomic `state.json` write, with the session lock beside it.
 - **After phase 2:** (d) snapshot history + rollback + (e) operator-registered compensation — the
   "industrial" tier, whose cost is measured differently and should be justified by a concrete scenario
   where (a)+(b) are not enough.
