@@ -8,10 +8,13 @@
     "value; a local server that needs none omits 'api_key_env' entirely.",
     "'openai_compatible' speaks the chat protocol and nothing else. 'lmstudio' speaks the same",
     "protocol and additionally loads and unloads models on an LM Studio server; it releases only",
-    "what it loaded itself unless 'release_foreign' says otherwise.",
+    "what the run loaded itself unless 'release_foreign' says otherwise, and that option also",
+    "empties the server once, before the run first looks at it.",
     "'load_config' is what a model is loaded with. Its members are the server's own and reach it",
     "unread, so a setting the server gains later needs no new adapter. It governs a load the",
-    "adapter performs; a model the server already holds is used as it stands."
+    "adapter performs: two blocks on one server share what the run holds there, so a block asking",
+    "for a model the run already loaded with other settings gets it loaded again under its own,",
+    "while a model the server already held is used as it stands."
   ],
   "external_modules": [
     "workflow_engine_providers"
