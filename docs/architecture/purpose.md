@@ -65,8 +65,8 @@ is known only at run time, large models decide the next step, and a human receiv
 A scenario of that shape — fetch, aggregate, decide, branch, hand over — runs end to end on
 prepared data with a local model; its path is determined by the data and explained by the
 journal; and an author who knows the domain but not the engine can produce it. The documentation
-alone is the floor of that authoring claim; its proof is assisted authoring, where the engine
-asks, validates and assembles and the author brings only the intent. The two halves gate two
+alone is the floor of that authoring claim; its proof is assisted authoring, where a workflow the
+engine runs asks, validates and assembles and the author brings only the intent. The two halves gate two
 phases of the roadmap: the run closes the earlier, the authoring the later.
 
 A run against a live system under test is the gate for publication, not for this condition.

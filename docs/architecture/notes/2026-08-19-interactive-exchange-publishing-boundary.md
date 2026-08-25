@@ -49,6 +49,10 @@ Options, cheapest first:
 - **Keep as is** and rely on the ADR text. Cost: the ADR is the only thing standing between a future
   change and a broken command contract.
 
+**2026-08-25 (`2026-08-25-investigation-1`):** the step 11 refactor (`2026-08-25-implementation-7`)
+removed the unused symbols, so the cheap half of "mark, do not move" is done; what remains of this
+section is the split of the class, which is the shape ADR 019 §2 decides.
+
 ## 2. `actor` is a label, not an identity
 
 `actor` is free text (`operator`, `agent:reviewer-bot`, anything). That is the right shape for the

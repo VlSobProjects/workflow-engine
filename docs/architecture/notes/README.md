@@ -78,7 +78,7 @@ session assigns it a phase.
 
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
-| 2026-08-25 | Two different measurements under one claim — drift B, one definition across providers, is the phase 2 protocol (roadmap steps 11–12); drift A, one brief across authoring agents, is encoded in the phase 3 exit | open | ADR 011, ADR 013, ADR 014, ADR 017, ADR 021 | [2026-08-25-two-drifts-and-their-measurement.md](2026-08-25-two-drifts-and-their-measurement.md) |
+| 2026-08-25 | Two different measurements under one claim — drift B, one definition across providers, is the phase 2 protocol (roadmap steps 13–15); drift A, one brief across authoring agents, is encoded in the phase 3 exit | open | ADR 011, ADR 013, ADR 014, ADR 017, ADR 021 | [2026-08-25-two-drifts-and-their-measurement.md](2026-08-25-two-drifts-and-their-measurement.md) |
 
 ### Later phases
 
