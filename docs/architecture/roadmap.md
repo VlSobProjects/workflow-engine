@@ -31,9 +31,10 @@ scenario, and the drift-A experiment protocol.
 
 Order as decided by `2026-08-23-architecture-1` §6, revised by `2026-08-24-architecture-1`, which
 moved the output-family ADR ahead of ADR 014, by `2026-08-25-architecture-2`, which narrowed the
-phase to the engine for hand-written workflows and moved the authoring work into phase 3, and by
-`2026-08-25-implementation-6`, which replaced the triage slice of step 10 with a class 4
-measurement variant; the session notes record why.
+phase to the engine for hand-written workflows and moved the authoring work into phase 3, by
+`2026-08-25-implementation-6`, which replaced the triage slice of step 10 with the class 4
+measurement build, and by `2026-08-25-documentation-2`, which moved the debts, the notes triage and
+a live-model rehearsal ahead of the data-generation work; the session notes record why.
 
 | # | Step | State |
 | --- | --- | --- |
@@ -46,8 +47,9 @@ measurement variant; the session notes record why.
 | 7 | The output-family ADR from the operator's `result-file-composition` note, checking rule 3 (one decision or two), then its implementation | done: ADR 020 opened in `2026-08-24-architecture-2`, implemented and accepted in `2026-08-24-implementation-1` |
 | 8 | The node-record channel as its own ADR and its implementation first, then ADR 014 into Implementing and its implementation: the `llm` action and `fake` adapter in the core, the adapter package in this repository, the `described`/`tiered`/`chunked` variants of `folder-inventory-to-csv` as the freeze evidence | done: ADR 021 opened in `2026-08-24-architecture-3` and accepted in `2026-08-24-implementation-2`; ADR 014 implemented over six sessions and accepted in `2026-08-25-documentation-1` |
 | 9 | Atomic state write and a session lock, one `fix/` session without an ADR, taken at any pause | done in `2026-08-25-implementation-4` |
-| 10 | Build the plan half of the class 4 `reorganize-folder` example — code hashes and groups duplicates, a model classifies and plans, the plan exports as text and as a dictionary — measuring the answer-keys guard (G4), the dictionary half that remains of G5, the failure-route verbosity (G7) and whether inline template text carries a paragraph prompt | pending |
-| 11 | Data generators for the dataset variants and the drift-B experiment protocol: the numbers declared before the runs, the route read from the ADR 021 record channel, the `fake` adapter as the reference run, cloud providers as extended measurement outside the gate | pending |
-| 12 | Build the full exit scenario by hand on the generated variants and run the drift-B measurement that closes the phase | pending |
-| 13 | One `refactor/` session for the code debts of the 2026-08-23 audit, taken at any pause | pending |
-| 14 | Notes maintenance: execute the triage decided by `2026-08-23-architecture-1` | pending |
+| 10 | Build the plan half of the class 4 `reorganize-folder` example — code hashes and groups duplicates, a model classifies and plans, the plan exports as text and as a dictionary — measuring the answer-keys guard (G4), the dictionary half that remains of G5, the failure-route verbosity (G7) and whether inline template text carries a paragraph prompt | done in `2026-08-25-implementation-6` |
+| 11 | One `refactor/` session for the code debts of the 2026-08-23 audit, and nothing beyond that list | pending |
+| 12 | Notes maintenance: execute the triage decided by `2026-08-23-architecture-1` | pending |
+| 13 | Run the `reorganize-folder` plan variant against a live local model as the rehearsal of the drift-B stack — the adapter, the JSON binding, the keys guard, the paragraph prompt — recording the findings and any prompt fixes, adding no feature | pending |
+| 14 | The data-generation discussion first, then the generators for the dataset variants and the drift-B experiment protocol: the numbers declared before the runs, the route read from the ADR 021 record channel, the `fake` adapter as the reference run, cloud providers as extended measurement outside the gate | pending |
+| 15 | Build the full exit scenario by hand on the generated variants and run the drift-B measurement that closes the phase | pending |
