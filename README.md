@@ -51,6 +51,7 @@ So the first command run in a fresh directory writes a starter config there, rea
 | `export_dir` | Destination deliverables are copied to on workflow completion; `--export-dir` on `run`/`resume` overrides it per call, and if neither is set nothing is exported | `null` |
 | `hard_max_nodes_visited` | Global safety cap on nodes visited per run/resume; config-only, no CLI flag (see "Hitting the hard node cap") | `1000` |
 | `external_modules` | Extra Python module names imported at bootstrap to register plugin components (see "Writing a custom function") | `[]` |
+| `providers` | The model providers an `llm` node may name: per provider name, the adapter that answers for it, its endpoint, its default model and the *name* of the environment variable holding the credential (see "Calling a model") | `{}` |
 
 `work_dir` and `storage.storage_dir` are also overridable per call with `--work-dir`/`--storage-dir`
 or the `WE_WORK_DIR`/`WE_STORAGE_DIR` environment variables, which win over the config file. Full
@@ -70,9 +71,15 @@ writing the deliverable, with `pretty_table_write_error` and an `[Errno 2]` mess
 | [`flatten-copy-tree`](examples/flatten-copy-tree.md) | Copies every file of a tree into one flat directory and reports what it copied | no |
 | [`approve-and-copy`](examples/approve-and-copy.md) | Asks for a decision, and copies the file only if the answer approves it | yes |
 
+`folder-inventory-to-csv` ships in three named variants beside its base definition — `described`,
+`tiered` and `chunked` — in which a model writes what each file contains, proposes what to do with
+the inventory, and reads a file too large for it part by part. They need a provider configured (see
+"Calling a model"), and the "Variants" section of the
+[walkthrough](examples/folder-inventory-to-csv.md) covers all three.
+
 What holds for all of them is in [`examples/README.md`](examples/README.md). What follows here is the
 engine's own contract rather than any template's: how inputs are bound, how a question is answered,
-how the result is retrieved, and how a session is read.
+how a model is called, how the result is retrieved, and how a session is read.
 
 ## Binding inputs
 
@@ -156,6 +163,162 @@ what it bound; `collect_answer` appends the answer to a list parameter prepared 
 and answers `enough` or `more`, so the question that asks accumulates its own answers and decides
 when the loop is over. Both keep the writes the answer carried, and both fail the node under a code
 rather than routing a value that is not there.
+
+## Calling a model
+
+An `llm` node is the automatic counterpart of `ask`: the engine performs the call itself, inside the
+run, and the run does not pause. The node names a configured provider, carries the prompt as template
+text, and declares what the reply must yield in the same shape as an `ask` answer and a workflow
+`inputs` block:
+
+```json
+{
+  "id": "CLASSIFY_FILE",
+  "action_type": "llm",
+  "action_parameters": {
+    "provider": "local",
+    "prompt": "Classify the file ${param.cur_path}. Answer with a JSON object holding \"category\" and \"confidence\".",
+    "answer": [
+      {"name": "category"},
+      {"name": "confidence", "type": "float", "required": false}
+    ],
+    "format": "json",
+    "options": {"temperature": 0},
+    "record": true
+  },
+  "max_attempts": 3,
+  "transitions": [
+    {"guard": {"no_error": true}, "next": "NEXT_FILE"},
+    {"errors": ["transient", "rate_limited"], "next": "CLASSIFY_FILE", "attempts": true},
+    {"errors": ["context_overflow"], "next": "SPLIT_FILE"},
+    {"fail": "classification_unavailable"}
+  ]
+}
+```
+
+The prompt is template text under the same rules as the fields of a question: `${param.<name>}`,
+`${output.<node_id>}` and `${artifact.<logical_name>}` are replaced when the node runs, `$$` writes a
+literal `$`, and substitution is single-pass, so a value full of `$` needs no escaping and cannot
+smuggle a reference in. The values the reply carries are decoded through their codecs onto the bus,
+and the raw reply is the output text of the node, which value guards compare.
+
+`format` says how the reply is read. `text` (the default) binds the whole reply to the one declared
+name; a second name is refused when the workflow is loaded. `json` reads an object whose keys are
+the declared names, and takes the first JSON object the reply carries when the model wraps it in a
+code fence, surrounds it with prose or annotates a member with a comment — what surrounds or
+annotates the object is removed, the object's own syntax is never repaired. A reply the declaration
+refuses is the routable node error `llm_answer_invalid`, with the raw reply still the output text.
+
+`options` travels to the adapter unread by the engine: temperature, token limits, and anything else
+the named adapter understands, including an instruction about its own resources such as releasing
+the model after the call. `help-component --component-type providers --component-name <adapter>`
+lists the options one adapter acts on.
+
+### Configuring a provider
+
+A node names a provider, never an endpoint and never a vendor. The name is resolved in the
+`providers` section of the configuration file, so the same definition runs against a laptop and
+against a hosted vendor without being edited:
+
+```json
+"external_modules": ["workflow_engine_providers"],
+"providers": {
+  "local": {
+    "adapter": "openai_compatible",
+    "base_url": "http://127.0.0.1:1234/v1",
+    "model": "a-publisher/a-small-model",
+    "options": {"timeout": 300}
+  },
+  "hosted": {
+    "adapter": "openai_compatible",
+    "base_url": "https://api.example-vendor.com/v1",
+    "model": "the-vendor-model-id",
+    "api_key_env": "EXAMPLE_VENDOR_API_KEY",
+    "options": {"timeout": 60}
+  }
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `adapter` | Which registered adapter answers for this name. Required |
+| `base_url` | The endpoint root the adapter hangs its paths off |
+| `model` | The model a node that names none is answered by |
+| `api_key_env` | The **name** of the environment variable holding the credential, read at the moment of the call. Never the credential itself |
+| `options` | What only the named adapter understands — a request timeout, what a model is loaded with — passed through unread |
+
+A key beside those five is refused when the configuration is read rather than ignored, so a typo is
+found at load and not at the first model call. A node naming a provider the installation does not
+configure, and a block naming an adapter no loaded module registered, are configuration errors too:
+wrong before the run, not during it, and therefore not routable.
+
+Three adapters exist. `fake` ships in the core: it answers scripted replies without leaving the
+process, which is what the test suite and the shipped examples run on. The other two are in
+`workflow_engine_providers`, an add-on package beside the engine that is loaded the way any plugin
+is loaded, by naming it in `external_modules` — `openai_compatible` speaks the OpenAI-compatible
+chat protocol and reaches a local server and a hosted vendor alike, and `lmstudio` speaks the same
+protocol and additionally loads and unloads models on an LM Studio server, releasing only what it
+loaded itself. `src/workflow_engine_providers/example_config.json` carries a filled-in example of
+all of it, and `help-component --component-type providers` lists what the installation has.
+
+An adapter that holds a resource is told when the run ends and decides for itself what to release.
+If releasing fails, the failure is reported under a `provider:<name>` key in the `errors` of the
+result and changes neither the outcome of the run nor its exit code: a model left resident on a
+server is an operator's problem, not a failed workflow.
+
+### When the call fails
+
+Every failure is a node error code a transition can route, so a retry, a smaller chunk or a
+different branch stays a decision of the graph. The adapter classifies its own failures into six:
+
+| Class | What it says |
+| --- | --- |
+| `transient` | A hiccup; the same call may work again |
+| `rate_limited` | The provider is throttling |
+| `timeout` | No answer within the time the call allowed |
+| `permanent` | The provider refuses and will keep refusing |
+| `invalid_request` | The request itself is wrong |
+| `context_overflow` | The provider refused the prompt as too large |
+
+Three more belong to the action rather than to any provider: `llm_answer_invalid` for a reply the
+answer declaration refused, `provider_failed` for an adapter that raised instead of classifying its
+failure, and `llm_record_failed` for a call that was answered but whose audit files could not be
+written.
+
+`context_overflow` is a class of its own because the engine carries no tokenizer: the provider's
+refusal is the only honest overflow signal there is, and a guard that sees it routes the run into a
+branch that splits the data and calls the model per part. The `chunked` variant of
+[`folder-inventory-to-csv`](examples/folder-inventory-to-csv.md) is that branch, built and measured.
+There is no retry policy yet: a self-targeting transition bounded by the node's `max_attempts` is
+the whole of it.
+
+### What a call leaves behind
+
+Every `llm` visit is accounted for in the node record of that visit, in its `details`: the provider,
+the model that actually answered, the status of the call, the error class where it failed, and the
+token counts the adapter reported.
+
+```
+workflow-engine show-records --session-id <SESSION_ID> --node DESCRIBE
+```
+
+```
+... DESCRIBE visit 2 attempt 1  llm  completed  -> node COLLECT  guards: no_error=pass  writes: file_description (builtins.str, SET)  artifacts: DESCRIBE.prompt.2.1, DESCRIBE.reply.2.1  details: {"model":"a-publisher/a-small-model","provider":"local","status":"answered","usage":{"prompt_tokens":181,"completion_tokens":17}}
+```
+
+The record stream is where this has to live: the state keeps one slot per node and the next visit
+overwrites it, so in a chunking branch or a retry loop only the records can say which model answered
+which call.
+
+The prompt and the reply themselves are artifacts, written when the node sets `record: true`, named
+after the node and numbered by the same visit and attempt the record carries
+(`<node_id>.prompt.<visit>.<attempt>`, `<node_id>.reply.<visit>.<attempt>`), so the files of one
+call and its record are found by the same two numbers. They can be inspected after the run or
+declared deliverables like any other artifact. A failed call leaves its prompt and no reply.
+
+The provider block is deliberately not part of the session record: it is the environment a run
+executes in rather than the identity of the run, so a session moved to another machine resolves the
+providers of the machine it runs on. What actually answered is in the records instead, per call.
 
 ## Retrieving the result
 

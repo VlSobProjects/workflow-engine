@@ -183,6 +183,68 @@ bounded by `max_attempts` like anywhere else; a correction routed through anothe
 a fresh visit, which is what `max_visits` bounds. A question waiting for an answer is not engine work,
 so the ADR 010 node budget does not bound how long it stays open.
 
+## Model call (see ADR 014)
+
+A node whose action is `llm` calls a model and binds its reply, without pausing the run. It is the
+automatic counterpart of `ask`: the two share the answer declaration and sit on opposite sides of one
+boundary — `ask` binds an answer produced outside the engine, `llm` is a call the engine performs
+itself and audits itself.
+
+The node declares `provider`, the prompt as template text under the ADR 016 contract, and `answer`,
+the typed declaration of ADR 013. Optional: `model`, overriding the provider's default as a literal
+that resolves no reference; `format`, `text` (the default, binding the whole reply to at most one
+declared name, a second refused at build time) or `json` (an object keyed by the declared names);
+`options`, passed to the adapter unread; and `record`, opting into the audit artifacts.
+
+The action resolves the prompt, calls the adapter, extracts the raw values according to `format`, and
+decodes them through their codecs — the same decoding path as the ADR 013 answer binding, so the two
+declarations cannot drift. The `param_writes` of the resulting output carry the values and the
+`output_text` is the raw reply. Under `json` the reply is read as it stands, and where it is not JSON
+the first JSON object it carries is taken: what surrounds or annotates the object is removed, its own
+syntax is never repaired.
+
+**Adapters.** A provider adapter is a registered class, not a callable, and the engine seats one
+instance per configured provider name for the lifetime of a process. The seat is module state
+(`providers/provider_seat.py`), reachable from a registered function shipped by an adapter package,
+which the engine object would not be. The instance exists so an adapter speaking to a local model
+server can remember which model is resident; that memory is a cache of a fact outside the process, so
+an adapter works with an empty one and re-checks the server before acting on it.
+
+The contract is two operations: the call — prompt, model, options and the provider settings in, reply
+text or a classified failure out — and `finalize(reason)`, invoked on every seated adapter when a run
+ends, with `completed`, `failed`, `paused`, `aborted` or `reconfigured`. The engine holds no policy
+there. An adapter that fails to release is reported under a `provider:<name>` key in the `errors` of
+the response and changes neither the outcome of the run nor its exit code.
+
+The core ships one adapter, `fake` — the null implementation of the contract, scripted replies and no
+network. The real adapters live in `src/workflow_engine_providers/`, an add-on package beside the
+engine loaded through `external_modules` like any plugin: `openai_compatible`, which speaks that
+protocol and nothing else, and `lmstudio`, which subclasses it and adds model residency.
+
+**Configuration.** The engine configuration file carries a `providers` section: per provider name,
+`adapter`, `base_url`, `model`, `api_key_env` — the *name* of the environment variable holding the
+credential, read at call time, never the credential — and `options` for what only the named adapter
+understands. A key beside those five is a configuration error, as is a node naming an unconfigured
+provider and a block naming an unregistered adapter; none of the three is routable. The section is
+not snapshotted into `session.json`: it is the environment of a run rather than its identity, so a
+moved session resolves the providers of the machine it runs on.
+
+**Failure.** Every failure is a node error code. The adapter classifies its own into six —
+`transient`, `rate_limited`, `permanent`, `invalid_request`, `timeout`, `context_overflow` — and the
+action owns three more: `llm_answer_invalid` for a reply the declaration refused, `provider_failed`
+for an adapter that raised instead of classifying, and `llm_record_failed` for an audit that could
+not be written. `context_overflow` is a class of its own because the engine carries no tokenizer: the
+provider's refusal is the only overflow signal there is, and a guard that sees it routes the run into
+a branch that splits the data. Chunking is that graph pattern and never a hidden behaviour of the
+action. There is no retry policy: the `max_attempts` self-loop allowance is the whole of it.
+
+**Audit.** The account of a call rides on the `details` of the action output into the record of the
+visit (see "Node records"): the provider, the model that answered, the status, the error class where
+it failed, and the token counts the adapter reported. Where the node sets `record: true`, the prompt
+and the reply are written as artifacts named `<node_id>.prompt.<visit>.<attempt>` and
+`<node_id>.reply.<visit>.<attempt>` under `artifacts/llm/`, the same two ordinals the record carries.
+A failed call leaves its prompt and no reply.
+
 ## Registries
 
 Components are registered at import time by decorators and looked up by name from a configuration.
@@ -193,6 +255,7 @@ Components are registered at import time by decorators and looked up by name fro
 | `FUNCTION_REGISTRY` | Functions returning `ActionNodeOutput` | `@register_function` |
 | `VALIDATOR_REGISTRY` | Functions returning `bool`, used by guards | `@register_validator` |
 | `CODECS` and `CODEC_REGISTRY` | Codecs by Python type and by type name | `@register_type` |
+| `PROVIDER_REGISTRY` | Provider adapter classes by adapter name | `@register_provider` |
 
 A module that registers something has to be imported by bootstrap before workflow execution.
 `ComponentLoader` loads built-in core modules first and then configured external modules.
@@ -315,6 +378,9 @@ question has concluded nothing and is recorded when its answer concludes it; an 
 | `guards`, `transition` | The guards the visit was asked, and where it went: a node, the end, a failure |
 | `writes`, `artifacts` | The parameters the visit applied by name, codec and write mode, and the artifacts it registered |
 | `details` | The open member the engine fills per action kind |
+
+`details` is filled by the action rather than by the engine, which copies it and reads nothing in it.
+Only `llm` fills it today, with the account of its call (see "Model call").
 
 A record carries names and codec names and never a value: the ADR 013 §9 journal rule holds for the
 trail unchanged. Values live in the state and in artifacts, and a payload that must survive — the
@@ -488,7 +554,7 @@ with only `--component-type` it renders the type-level view, the description of 
 and the list of its components. `help-components` is the full-list automation surface.
 
 JSON payloads carry a top-level `contract_version`. The list groups components under the normalized
-type keys `actions`, `functions`, `validators`, `guards`, `codecs`; a detail payload keeps the stable
+type keys `actions`, `functions`, `validators`, `guards`, `codecs`, `providers`; a detail payload keeps the stable
 keys `name`, `type`, `summary`, `description`, `parameters`, `source`, `notes`, and an action detail
 adds `execution_mode` and the node-authoring sections (`node_template`,
 `action_parameters.required/optional`, `transition_hints`, `examples`), a guard detail adds `kind` and

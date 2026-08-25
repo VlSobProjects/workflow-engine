@@ -501,3 +501,13 @@ ADR 013 answer binding lives, and the layout of the in-repository adapter packag
   an assumption rather than a measurement; the endpoint does accept load settings, and the note that
   said otherwise is corrected where it stands. The scope of the settings is decided with them: they
   govern a load the adapter performs, never a model the server already holds.
+- 2026-08-25: amended in session `2026-08-25-implementation-3`, which built the class 4 evidence. §2:
+  the adapter releases what it loaded before it loads another model, so "a swap, a load, or nothing
+  at all" is what the residency adapter actually does; the rule was measured rather than argued, on a
+  run that held two models at once and did not finish. Nothing else in the decision moved: the three
+  variants exercise the surface the preceding sessions delivered, and what they needed beyond it was
+  generic bus work under ADR 006.
+- 2026-08-25: closed in session `2026-08-25-documentation-1`. The documentation set the freeze gate
+  asks for is written — `README.md` for the operator surface, `docs/architecture/overview.md` for the
+  delivered architecture, and the walkthrough of `folder-inventory-to-csv` with the three variants as
+  the class 4 evidence the `Consumer` section names. No decision changed; the text stands as built.
