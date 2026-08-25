@@ -62,4 +62,6 @@ against the ready-made alternatives.
   no report document; this may be what forces the question.
 - Generating the data is a task of its own and is the long pole of both experiments: metrics of the
   test run, logs of a fictional service, resource metrics of its host, in a volume that makes triage
-  a real problem rather than a demonstration. Nothing in the roadmap accounts for it today.
+  a real problem rather than a demonstration. Roadmap step 14 now carries it, opened by the
+  data-generation discussion (`2026-08-25-documentation-2`); what stays open here is the content
+  of that discussion, not its place.

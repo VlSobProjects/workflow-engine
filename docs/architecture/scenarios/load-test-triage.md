@@ -38,7 +38,7 @@ a silent stop. ADR 014 names this scenario in its `Consumer` section as its phas
 judgment step here is an `llm` node; the evidence at that ADR's own freeze gate is the class 4
 inventory variants it names beside it, because this scenario gates the phase — and with it every
 ADR of the phase (`2026-08-24-architecture-1`). The authoring half of the done condition is gated
-by phase 3 in its assisted form; the hand-build of this scenario (roadmap step 12), made
+by phase 3 in its assisted form; the hand-build of this scenario (roadmap step 15), made
 deliberately from the operator documentation alone, gives gap G11 the lower bound of the authoring
 need.
 
@@ -115,31 +115,29 @@ the same prepared variant takes the same path, and the journal shows it.
 8. **Failure.** A reply that never parses (`llm_answer_invalid`) or a `permanent` provider
    refusal past `max_attempts` fails the run under its code.
 
-## Open decisions the scenario lacks
+## Open decisions the scenario still lacks
 
-1. **No `llm` node.** The central step of every path but the first does not exist; ADR 014
-   (Draft) decides it — the action, the provider registry, the `fake` adapter, the `providers`
-   configuration, the error classes, the call audit — and this scenario is the consumer it names.
-2. **Nothing assembles the aggregate into a dictionary.** The chunk loop has its splitter
-   (`split_text_to_deque`) and its accumulators (`append_to_param`, `collect_answer`) since the
-   ADR 014 variants; what remains of gap G5 is the dictionary half — no function creates or sets a
-   dictionary parameter. Built as component work under ADR 006 when this scenario names its
-   aggregate step — this document is that naming.
-3. **The verdict's keys are unchecked.** The decision binds a dict and `type: dict` accepts any
-   dictionary (gap G4); the guard over answer keys is component work under ADR 002, and this
-   scenario is the trigger that decision named.
-4. **The handover has no document shape.** The report is a composed document; the core renders a
-   table, cannot write composed text into a file or an artifact, and an artifact name cannot
-   carry a run value (gap G6). The output family is ADR 020 (opened at roadmap step 7 from
-   the `result-file-composition` note), ahead of ADR 014; the hand-build measures whether the
-   delivered family carries this handover.
-5. **Every failure route is written per node.** The handover on the unforeseen exists only as
-   explicit failure transitions on every node (gap G7); the verbosity of the hand-written flow is
-   the trigger for a workflow-level default failure route.
-6. **The authoring half is unmeasured.** The authoring claim has no authoring surface — no
+The list this section opened with is mostly closed: the `llm` node, the provider seat, the `fake`
+adapter, the error classes and the call audit are ADR 014 and ADR 021, accepted; the dictionary
+half of gap G5 (`init_dict_param`, `set_dict_item`, `append_to_dict_key`) and the answer-keys
+guard of gap G4 (`is_answer_keys_valid`) shipped at roadmap step 10; the output family of gap G6
+is ADR 020, delivered. What remains open:
+
+1. **Whether the delivered output family carries the handover.** ADR 020 renders tables, grouped
+   tables, verbatim text and authored templates; the hand-build (roadmap step 15) measures
+   whether the handover document — verdict, confirmed evidence, route — composes from them
+   without a new shape.
+2. **Every failure route is written per node.** The step 10 reading — a third of the
+   `reorganize-folder` definition is failure plumbing (gap G7) — supports the suspicion; the
+   trigger for a workflow-level default failure route stays this scenario's hand-build, as
+   decided.
+3. **Where the prompts live.** The step 10 reading: inline template text carries a
+   paragraph-length prompt mechanically and hurts editorially; the triage prompts decide whether
+   the authored-file channel (`prompt_ref`, deferred by the narrowed ADR 014 until a scenario
+   asks) must return.
+4. **The authoring half is unmeasured.** The authoring claim has no authoring surface — no
    validation without a run, no description of a definition (gap G11); the hand-build gives the
    lower bound, and `workflow-authoring` mechanizes the same claim as a workflow in phase 3.
-7. **Where the prompts live.** The aggregation and decision prompts are paragraphs of instruction,
-   not lines; whether inline template text suffices or the authored-file channel (`prompt_ref`,
-   deferred by the narrowed ADR 014 until a scenario asks) must return is measured by the
-   hand-build.
+5. **The data does not exist.** The dataset variants, the generators that produce them and the
+   numbers declared before the runs are roadmap step 14, opened by the data-generation
+   discussion; until then no path of this scenario can be selected by data.

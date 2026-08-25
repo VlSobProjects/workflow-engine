@@ -7,10 +7,11 @@
 - **Status:** open
 - **Affected:** ADR 006 (bus/journal invariants), ADR 007 (§4 interactive input deferred to phase 2),
   ADR 012 (pre-start binding; deliberately closed off mid-run external writes), ADR 013
-  (Accepted, carries (a) — session `2026-08-19-architecture-2`; (b) is unblocked now that ADR 014
-  is delivered, (c) is a small fix without an ADR — session `2026-08-19-architecture-1`), ADR 014
-  (Accepted; delivered the error classes (b) will consume — sessions `2026-08-21-architecture-1`,
-  `2026-08-25-architecture-1`), ADR 021
+  (Accepted, carries (a) — session `2026-08-19-architecture-2`; (c) was a small fix without an
+  ADR — session `2026-08-19-architecture-1`), ADR 014
+  (Accepted; delivered the error classes (b) will consume, and froze "there is no retry policy",
+  so (b) is now a supersession of that clause, not an addition — sessions
+  `2026-08-21-architecture-1`, `2026-08-25-architecture-1`, `2026-08-25-investigation-1`), ADR 021
   (Accepted; the append-only node-record trail (d) assumes to stay audit-complete across a rollback,
   with the rollback marker left open there — session `2026-08-24-architecture-3`)
 
@@ -61,9 +62,16 @@ recovery must reintroduce its own surface deliberately, not widen `set-input`.
 
 ## Roadmap (agreed direction, not yet ADRs)
 
-- **Phase 2:** (a) interactive manual takeover, and (b) retry/backoff by error class. Each is its own
-  ADR, separate from ADR 012.
+Re-read at the `2026-08-25-investigation-1` audit: the phase 2 assignment below predated the
+narrowing of phase 2 to the hand-written triage (`2026-08-25-architecture-2`) and this note's
+triage into the later phases; nothing here is phase 2 work any more.
+
+- **After phase 2:** (a) interactive manual takeover, and (b) retry/backoff by error class. Each
+  is its own ADR, separate from ADR 012 — and (b) now supersedes the accepted ADR 014 clause
+  "there is no retry policy: the `max_attempts` self-loop allowance is the whole of it", so its
+  cost is no longer low. The step 13 live-model rehearsal is where transient-failure evidence for
+  (b) would come from.
 - **Done:** (c) atomic `state.json` write, with the session lock beside it.
-- **After phase 2:** (d) snapshot history + rollback + (e) operator-registered compensation — the
-  "industrial" tier, whose cost is measured differently and should be justified by a concrete scenario
-  where (a)+(b) are not enough.
+- **After phase 2, behind (a) and (b):** (d) snapshot history + rollback + (e) operator-registered
+  compensation — the "industrial" tier, whose cost is measured differently and should be justified
+  by a concrete scenario where (a)+(b) are not enough.

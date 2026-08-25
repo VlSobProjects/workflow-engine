@@ -19,13 +19,21 @@ that starts it.
 | 3 | Assisted authoring: blind authoring agents of different vendors, handed the same brief composed outside this repository, author a triage-class workflow through the published surfaces alone, at least one produced definition validating and running its expected path, with the divergence between agents measured by criteria declared beforehand | not started |
 | publication | The phase 2 scenario runs live against a real system under test; licence, version flag and delivery channel exist | not started |
 
+The phase 2 hand-build claim carries its own evidence the way phase 3's blindness does: the session
+note of the hand-build records that the author worked from the operator documentation alone, names
+what was consulted, and records any step that needed more than it as a gap rather than patching it
+silently.
+
 Phase 3 gates the authoring half of the done condition in `purpose.md`; its exit is an experiment
 that must be runnable, so the enforcement of the answerer/operator split stays outside the phase —
 the narrow entry plus a kept transcript is the blindness evidence — and a vendor agent that fails is
-a data point, not a gate failure. Its step list is opened when the phase starts; the work known to
-belong to it: ADR 019 into Implementing, the authoring surfaces (G11), the answerer/operator
-capability decision, the `workflow-authoring` scenario, the `support-intake` note as a class 2
-scenario, and the drift-A experiment protocol.
+a data point, not a gate failure. The published surfaces its exit names include the
+`workflow-authoring` flow: the agents author through that assisted cycle, which is the proof
+`purpose.md` demands — a definition written directly from the documentation measures the floor, not
+this exit. Its step list is opened when the phase starts; the work known to belong to it: ADR 019
+into Implementing, the authoring surfaces (G11), the answerer/operator capability decision, the
+`workflow-authoring` scenario, the `support-intake` note as a class 2 scenario, and the drift-A
+experiment protocol.
 
 ## Phase 2 steps
 
