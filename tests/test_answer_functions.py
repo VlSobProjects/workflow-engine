@@ -2,7 +2,7 @@
 
 ADR 015 shipped the stage without components for it. These two are what a data-only node next to a
 question used to do, and the end-to-end proof that they carry it is the ADR-0083 scenario, which runs
-both through the CLI (`tests/test_adr0083_scenario.py`).
+both through the CLI (`tests/test_adr0083_coverage.py`).
 """
 
 from collections import deque

@@ -4,7 +4,8 @@
 - **Trigger:** review of the `FunctionAction` operator metadata during
   `2026-08-19-implementation-3` (the dead `BaseAction.save_as` field), and the user's observation
   that `save_as` predates the typed parameter channel and may have lost its purpose
-- **Status:** open
+- **Status:** dropped (no consumer asks for it; re-raised by the output-family ADR of G6 — ADR 020 —
+  or by a scenario that needs author-named outputs, decided in `2026-08-23-architecture-1` §4)
 - **Affected:** ADR 006 (data flow between nodes), ADR 009 (operator help contract), ADR 013
   (Implementing; author-chosen parameter naming reappears in the typed answer declaration — session
   `2026-08-19-architecture-1`, revisited in `2026-08-19-architecture-2`)

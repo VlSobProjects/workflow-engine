@@ -1,6 +1,6 @@
 """The ADR-0083 questionnaire scenarios as one flow, driven end to end through the CLI.
 
-This is the yardstick of `docs/architecture/notes/2026-08-19-adr0083-scenarios-coverage.md` turned
+This is the yardstick of `docs/architecture/notes/2026-08-19-adr0083-coverage.md` turned
 into a run: one workflow covering `Q`, `A`, `I`, `FQ` and `STOP`, the attempt counters, the node
 `validators` and the error catalogue. `S` is out — it waits for the trust decision about a
 process-running function.

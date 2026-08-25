@@ -11,7 +11,8 @@
   `2026-08-19-implementation-14`),
   ADR 018 (session read surfaces — removes the `inputs` field of `show-state`, sharpening the missing
   workflow-definition introspection surface; Accepted 2026-08-21, publishing the full codec name on two
-  new read surfaces — see §2)
+  new read surfaces — see §2), ADR 019 (Draft; settles §2's codec-name question, both touching
+  `CodecMetadata` — G9 of `2026-08-23-architecture-1`)
 
 Four model choices that outlive the ADR 012 session and are not decisions yet. The facts behind them
 are recorded in the ADR 012 change log; this note carries only the open questions a frozen ADR cannot
@@ -58,6 +59,14 @@ fallback from a fallback to the contract. Open edges: whether the `object_type` 
 spelling, which is a state-migration question; and how an external module claims a short name without
 colliding with the core, which touches the entry-point discovery note
 (`2026-08-19-entry-point-discovery.md`).
+
+Settled inside ADR 019 (Draft): G9 of `2026-08-23-architecture-1` assigned this question there, since
+the typed question document and the codec-name question both touch `CodecMetadata`. ADR 019 §5 does
+not build the canonical-short-name direction proposed above; instead every codec gains a schema
+fragment and an example as registration metadata, so a published answer declaration states what an
+answerer can act on directly and the bare codec name stops being what carries that job. The urgency
+this section raised is moot by that route; the canonical-name proposal itself is superseded, not
+built, and this §2 stays as the record of how the question was found.
 
 ## 3. No introspection surface for the workflow definition
 
