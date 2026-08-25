@@ -1,11 +1,13 @@
 from collections import deque
+from collections.abc import Sized
 from pathlib import Path
 from typing import Annotated
 
-from workflow_engine.collection_param_handlers import WriteParamMode
+from workflow_engine.collection_param_handlers import PARAM_TYPE_MISMATCH, WriteParamMode
 from workflow_engine.models.state import StateReadOnlyView
 from workflow_engine.output import ActionNodeOutput, ParamWrite
 from workflow_engine.registry.function_registry import register_function
+from workflow_engine.tools import render_value_as_text
 from workflow_engine.validators.functions_validators import folder_exists_arg_validator, not_empty_str_arg_validator
 
 FILE_NOT_FOUND = "file_not_found"
@@ -345,4 +347,198 @@ def split_text_to_deque(
     return ActionNodeOutput(
         output_text=str(len(chunks)),
         param_writes={param_name: ParamWrite(mode=WriteParamMode.SET, value=deque(chunks), allow_overwrite=True)},
+    )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"param_name": 0})],
+    summary="Initializes an empty dictionary parameter.",
+)
+def init_dict_param(
+    param_name: Annotated[str, "Name of the state parameter to create as an empty dictionary"],
+    allow_overwrite: Annotated[
+        bool, "Empty the parameter again when it already exists, for a fresh assembly inside a loop"
+    ] = False,
+) -> ActionNodeOutput:
+    """Create an empty dictionary parameter.
+
+    The dictionary half of the collection family: prepare the parameter before the loop that fills
+    it, with 'set_dict_item' writing one key per pass or 'append_to_dict_key' grouping values under
+    one. What the loop assembles is a document a later node reads whole - a plan, findings by
+    subsystem, files by content hash.
+
+    A parameter that already exists is not overwritten unless 'allow_overwrite' says so, and the
+    write fails with 'param_overwrite_forbidden' instead, for the same reason 'init_list_param'
+    refuses: an assembly that survives the loop it was made for is nearly always a mistake.
+    """
+    return ActionNodeOutput(
+        output_text=param_name,
+        param_writes={param_name: ParamWrite(mode=WriteParamMode.SET, value={}, allow_overwrite=allow_overwrite)},
+    )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"dict_param_name": 0})],
+    summary="Sets one key of an existing dictionary parameter.",
+)
+def set_dict_item(
+    dict_param_name: Annotated[str, "Name of the existing dictionary parameter to write into"],
+    key: Annotated[
+        object,
+        "Key to set; a 'param.'/'output.' reference resolves first, and the key is rendered as text "
+        "by the one rule, so a path keys in POSIX form",
+    ],
+    value: Annotated[
+        object,
+        "Value to store under the key; supports 'param.<name>', 'output.<node_id>' and "
+        "'artifact.<logical_name>' references",
+    ],
+    state: Annotated[StateReadOnlyView, "Read-only state view used to check that the parameter exists"],
+    error_not_found: Annotated[
+        str, "Error code to return if the parameter does not exist default 'param_not_found'"
+    ] = "param_not_found",
+) -> ActionNodeOutput:
+    """Set one key of an existing dictionary parameter.
+
+    The setting half of the dictionary family: 'init_dict_param' prepares the parameter and this
+    writes one key at a time, so a loop can key what each pass produced - the category a model
+    answered, keyed by the file it was asked about. The key is rendered as text by the one rule
+    (ADR 008), because a state dictionary round-trips through JSON and its keys are text.
+
+    The write is a DICT_UPDATE of the touched key alone, so the run shows what the node changed
+    rather than the whole dictionary. A parameter that does not exist is the configured error code;
+    one that is not a dictionary is 'param_type_mismatch'.
+    """
+    current = state.get_param(dict_param_name)
+    if current is None:
+        return ActionNodeOutput(
+            output_text="",
+            error_code=error_not_found,
+            error_msg=f"Parameter '{dict_param_name}' not found in state; create it with 'init_dict_param' first.",
+        )
+    if not isinstance(current, dict):
+        return ActionNodeOutput(
+            output_text="",
+            error_code=PARAM_TYPE_MISMATCH,
+            error_msg=f"Parameter '{dict_param_name}' holds {type(current).__name__}, not a dictionary.",
+        )
+    key_text = render_value_as_text(key)
+    return ActionNodeOutput(
+        output_text=key_text,
+        param_writes={dict_param_name: ParamWrite(mode=WriteParamMode.DICT_UPDATE, value={key_text: value})},
+    )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"dict_param_name": 0})],
+    summary="Appends a value to a list kept under one key of a dictionary parameter.",
+)
+def append_to_dict_key(
+    dict_param_name: Annotated[str, "Name of the existing dictionary parameter that groups the values"],
+    key: Annotated[
+        object,
+        "Key to group under; a 'param.'/'output.' reference resolves first, and the key is rendered "
+        "as text by the one rule",
+    ],
+    value: Annotated[
+        object,
+        "Value to append under the key; supports 'param.<name>', 'output.<node_id>' and "
+        "'artifact.<logical_name>' references",
+    ],
+    state: Annotated[StateReadOnlyView, "Read-only state view used to read the current group of the key"],
+    error_not_found: Annotated[
+        str, "Error code to return if the parameter does not exist default 'param_not_found'"
+    ] = "param_not_found",
+) -> ActionNodeOutput:
+    """Append one value to the list kept under one key of a dictionary parameter.
+
+    The grouping half of the dictionary family: where 'set_dict_item' keeps one value per key, this
+    collects every value a key receives - files grouped by their content hash, findings grouped by
+    the subsystem they implicate. A key seen for the first time starts its list with this value.
+
+    The write is a DICT_UPDATE carrying the touched key with its extended list, so the run shows
+    which group grew. A parameter that does not exist is the configured error code; one that is not
+    a dictionary, or a key already holding something that is not a list, is 'param_type_mismatch'.
+    """
+    current = state.get_param(dict_param_name)
+    if current is None:
+        return ActionNodeOutput(
+            output_text="",
+            error_code=error_not_found,
+            error_msg=f"Parameter '{dict_param_name}' not found in state; create it with 'init_dict_param' first.",
+        )
+    if not isinstance(current, dict):
+        return ActionNodeOutput(
+            output_text="",
+            error_code=PARAM_TYPE_MISMATCH,
+            error_msg=f"Parameter '{dict_param_name}' holds {type(current).__name__}, not a dictionary.",
+        )
+    key_text = render_value_as_text(key)
+    existing = current.get(key_text)
+    if existing is None:
+        items: list[object] = [value]
+    elif isinstance(existing, list):
+        items = [*existing, value]
+    else:
+        return ActionNodeOutput(
+            output_text="",
+            error_code=PARAM_TYPE_MISMATCH,
+            error_msg=(
+                f"Key '{key_text}' of '{dict_param_name}' holds {type(existing).__name__}, which cannot be appended to."
+            ),
+        )
+    return ActionNodeOutput(
+        output_text=key_text,
+        param_writes={dict_param_name: ParamWrite(mode=WriteParamMode.DICT_UPDATE, value={key_text: items})},
+    )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"dict_param_name": 0, "target_param_name": 1})],
+    summary="Keeps the entries of a dictionary parameter whose values are large enough.",
+)
+def filter_dict_by_value_size(
+    dict_param_name: Annotated[str, "Name of the existing dictionary parameter to filter"],
+    target_param_name: Annotated[str, "Name of the parameter the kept entries are written to"],
+    minimum: Annotated[int, "Smallest value size that is kept; supports 'param.<name>' references"],
+    state: Annotated[StateReadOnlyView, "Read-only state view used to read the dictionary"],
+    allow_overwrite: Annotated[
+        bool, "Overwrite the target parameter when it already exists, for a filter inside a loop"
+    ] = False,
+    error_not_found: Annotated[
+        str, "Error code to return if the parameter does not exist default 'param_not_found'"
+    ] = "param_not_found",
+) -> ActionNodeOutput:
+    """Keep the entries of a dictionary whose values hold at least 'minimum' items.
+
+    The reading half of a grouping loop: 'append_to_dict_key' collects values under their keys, and
+    this extracts the groups that matter - the hashes more than one file shares are exactly the
+    duplicates, the subsystems with more than one finding are where the evidence points. The check
+    is code, so what the groups mean is decided before any model reads them.
+
+    The kept entries land in the target parameter as a dictionary of their own; the source is not
+    changed. The output text is the number of kept entries, so a transition can route on whether
+    anything qualified. A value that has no size cannot meet the bound and is dropped. A source
+    that does not exist is the configured error code; one that is not a dictionary is
+    'param_type_mismatch'.
+    """
+    current = state.get_param(dict_param_name)
+    if current is None:
+        return ActionNodeOutput(
+            output_text="",
+            error_code=error_not_found,
+            error_msg=f"Parameter '{dict_param_name}' not found in state; create it with 'init_dict_param' first.",
+        )
+    if not isinstance(current, dict):
+        return ActionNodeOutput(
+            output_text="",
+            error_code=PARAM_TYPE_MISMATCH,
+            error_msg=f"Parameter '{dict_param_name}' holds {type(current).__name__}, not a dictionary.",
+        )
+    kept = {key: value for key, value in current.items() if isinstance(value, Sized) and len(value) >= minimum}
+    return ActionNodeOutput(
+        output_text=str(len(kept)),
+        param_writes={
+            target_param_name: ParamWrite(mode=WriteParamMode.SET, value=kept, allow_overwrite=allow_overwrite)
+        },
     )

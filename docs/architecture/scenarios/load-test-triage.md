@@ -38,7 +38,7 @@ a silent stop. ADR 014 names this scenario in its `Consumer` section as its phas
 judgment step here is an `llm` node; the evidence at that ADR's own freeze gate is the class 4
 inventory variants it names beside it, because this scenario gates the phase — and with it every
 ADR of the phase (`2026-08-24-architecture-1`). The authoring half of the done condition is gated
-by phase 3 in its assisted form; the hand-build of this scenario (roadmap steps 10 and 12), made
+by phase 3 in its assisted form; the hand-build of this scenario (roadmap step 12), made
 deliberately from the operator documentation alone, gives gap G11 the lower bound of the authoring
 need.
 

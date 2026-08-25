@@ -8,6 +8,7 @@ and each has its own walkthrough beside it.
 | `folder-inventory-to-csv.json` | Walks a folder tree and writes a CSV inventory of the files it finds | no | [folder-inventory-to-csv.md](folder-inventory-to-csv.md) |
 | `flatten-copy-tree.json` | Copies every file of a tree into one flat directory and reports what it copied | no | [flatten-copy-tree.md](flatten-copy-tree.md) |
 | `approve-and-copy.json` | Asks for a decision, and copies the file only if the answer approves it | yes | [approve-and-copy.md](approve-and-copy.md) |
+| `reorganize-folder.json` | Audits a folder tree — hashes, duplicate groups, a category per file — and delivers a reorganization plan as prose and as a moves dictionary | no | [reorganize-folder.md](reorganize-folder.md) |
 
 `folder-inventory-to-csv` ships in three named variants beside the base definition. A variant is a
 run of its own, not a mode of one file, and the three are covered by the one walkthrough of the
@@ -30,8 +31,8 @@ template they vary — the "Variants" section of
 - None of them reports success without its result: a node that cannot produce what the run declares
   fails under its own error code, and the run ends as a failed workflow.
 
-The three variants add one condition the others do not have: they call a model, so the engine
-configuration file has to name a provider before any of them runs. What that takes is in "Calling a
+The three variants and `reorganize-folder` add one condition the others do not have: they call a
+model, so the engine configuration file has to name a provider before any of them runs. What that takes is in "Calling a
 model" in the root [`README.md`](../README.md), and what these definitions expect of it is in the
 walkthrough. Under `pytest` they run on the `fake` adapter and reach no network.
 
