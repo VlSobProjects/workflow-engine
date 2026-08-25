@@ -43,6 +43,14 @@ class ActionNodeOutput:
     error_msg: str | None = field(default=None)
     param_writes: dict[str, ParamWrite] = field(default_factory=dict)
     artifacts: dict[str, WorkflowArtifact] = field(default_factory=dict)
+    details: dict[str, object] = field(default_factory=dict)
+    """What the action did, for the record of the visit: the open member of ADR 021 §1.
+
+    The engine copies it into the node record and reads nothing in it, the way a provider reads its
+    call options. It carries facts about the work — which provider answered, which model, what it
+    cost — never values: those are in the writes and the artifacts. An action that has nothing to
+    account for leaves it empty, which is every action but ``llm`` today. See ADR 014 §4.
+    """
 
     def get_param(self, name: str, default: object = None) -> object:
         """Read one value this output writes to the bus, without reading the write modes.

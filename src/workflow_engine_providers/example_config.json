@@ -1,0 +1,53 @@
+{
+  "_comment": [
+    "An example engine configuration that reaches the adapters of this package.",
+    "Copy the two keys below into the engine configuration file: 'external_modules' loads the",
+    "package so its adapters register, and 'providers' names the seats a node's 'provider' field",
+    "resolves against. A provider name is free: it is what the workflow says, not what the adapter",
+    "is called. The credential is present as the name of an environment variable and never as a",
+    "value; a local server that needs none omits 'api_key_env' entirely.",
+    "'openai_compatible' speaks the chat protocol and nothing else. 'lmstudio' speaks the same",
+    "protocol and additionally loads and unloads models on an LM Studio server; it releases only",
+    "what it loaded itself unless 'release_foreign' says otherwise.",
+    "'load_config' is what a model is loaded with. Its members are the server's own and reach it",
+    "unread, so a setting the server gains later needs no new adapter. It governs a load the",
+    "adapter performs; a model the server already holds is used as it stands."
+  ],
+  "external_modules": [
+    "workflow_engine_providers"
+  ],
+  "providers": {
+    "local": {
+      "adapter": "openai_compatible",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "model": "qwen2.5:1.5b",
+      "options": {
+        "timeout": 300
+      }
+    },
+    "local-managed": {
+      "adapter": "lmstudio",
+      "base_url": "http://127.0.0.1:1234/v1",
+      "model": "a-publisher/a-small-model",
+      "options": {
+        "timeout": 300,
+        "load_timeout": 600,
+        "release_foreign": false,
+        "load_config": {
+          "context_length": 16384,
+          "flash_attention": true
+        }
+      }
+    },
+    "hosted": {
+      "adapter": "openai_compatible",
+      "base_url": "https://api.example-vendor.com/v1",
+      "model": "the-vendor-model-id",
+      "api_key_env": "EXAMPLE_VENDOR_API_KEY",
+      "options": {
+        "timeout": 60,
+        "system": "You answer with the requested JSON object and nothing else."
+      }
+    }
+  }
+}

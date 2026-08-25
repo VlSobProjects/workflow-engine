@@ -65,7 +65,10 @@ A core action (working name `llm`) whose node configuration declares:
 - `prompt`: the prompt text, declared template text under ADR 016;
 - `answer`: the typed answer declaration of ADR 013 — which parameters the reply must yield and
   how they are typed — plus a `format` (`text` | `json`) that tells the action how to read the reply;
-- optional provider call options (temperature, max tokens, …) passed through opaquely.
+- optional provider call options (temperature, max tokens, …) passed through opaquely — including an
+  instruction addressed to the adapter's own resources, such as releasing the model right after this
+  call: the engine reads nothing in the mapping, so the node stays universal and an adapter with
+  nothing to release ignores it.
 
 The prompt is template text under the ADR 016 contract, inherited whole rather than adapted: the
 braced `${param.}`/`${output.}`/`${artifact.}` form only, `$$` for a literal `$`, a malformed
@@ -91,20 +94,38 @@ drift; the extraction of raw values from the reply (`format`) and the failure se
 action's own: an invalid reply is a routable error value here, where a refused answer in `ask`
 changes nothing and re-presents. The action is automatic: the run does not pause.
 
+`format: json` reads the reply as JSON as it stands, and where it is not JSON takes the first JSON
+object the reply carries, ignoring `//` and `/* */` notes between its members. The tolerance is not
+a convenience: across nine replies sampled from two local model servers, six arrived inside a fenced
+code block or surrounded by prose — two of them despite a prompt that forbade the fence — and one of
+those also annotated a member with a comment, which no strict parser accepts. A strict reading would
+refuse the models this decision exists to call.
+
+Where the tolerance stops is the point of it. It removes what *surrounds or annotates* the object —
+a fence, a sentence, a comment — and it does not repair the object's own syntax: a trailing comma, a
+single-quoted key or a Python literal remains a reply the declaration refuses, because repairing
+those means guessing what the model meant rather than reading what it wrote. The rule is one scan
+for the first position at which an object parses, not a list of known wrappers: it knows nothing of
+markdown, so it holds for a wrapper nobody has seen, and it cannot be misled by a brace inside a
+string. The reply is read exactly as it came before any note is removed, so a comment marker that is
+really part of a value — the `//` of a URL is the common case — is never treated as a comment.
+Nothing is hidden by any of it — the raw reply remains the output text of the node and the reply
+artifact of the call — and a reply that carries no object at all is still `llm_answer_invalid`.
+
 The `llm` action is the automatic counterpart of the interactive `ask` (ADR 013): the two share the
 answer declaration but sit on opposite sides of one boundary. `ask` binds an answer produced outside
 the engine — the answerer initiates the resume, and the pause is the contract; it is built for the
 human-in-the-loop archetype. `llm` is the second archetype, the autonomous model step: a call the
 engine performs itself inside the run and audits itself. The core carries it as a dedicated action
 rather than a convention over registered functions for three reasons: the node contract can require
-the fields the journal must record (provider, model, status), the reply handling every provider
+the fields the audit must record (provider, model, status), the reply handling every provider
 needs — parsing, typing through codecs, error classification — is written once instead of per
 vendor module, and native model steps become a declared capability of the engine rather than an
 installation's habit.
 
 ### 2. Provider adapters as registered components
 
-An adapter is a callable registered under a new registration kind, `@register_provider`, with its
+An adapter is a component registered under a new registration kind, `@register_provider`, with its
 own registry — the fifth kind beside actions, functions, validators and codecs, following the
 one-kind-one-registry pattern the core already has. A convention over `FUNCTION_REGISTRY` was
 weighed and rejected: the help contract promises adapters their own component type, which over
@@ -121,6 +142,24 @@ call option. Structured messages and conversation history are a later decision, 
 scenario shows them: the `llm` node holds no dialogue by construction, so a history would arrive as
 a parameter, not as node state.
 
+The adapter is a class rather than a plain callable, and the engine seats one instance per
+configured provider name for the lifetime of a process. The reason is state: an adapter speaking to
+a local model server has to know which model that server currently holds resident, so that the next
+call is a swap, a load, or nothing at all. That memory is a cache of a fact living outside the
+process — a fresh process knows nothing, and a second process may change it — so an adapter must
+work with an empty cache and may never treat it as the truth. The seat is module state, like the
+registries themselves: a registered function shipped by an adapter package, which is how a node
+reaches provider-specific work such as releasing a model, receives only the state view and the
+previous output, and could not reach a seat owned by the engine object.
+
+Beside the call the contract has one more operation: `finalize(reason)`, which the engine invokes on
+the seated adapters when a run ends, telling them how it ended — completed, failed, paused, aborted,
+or reconfigured when the seat itself is being rebuilt. The engine holds no policy there: a local
+adapter may unload a resident model on a completed run and keep it on a pause, where an answer is
+expected shortly, while an adapter that holds nothing overrides nothing. A failure to release is
+reported on the response of the run and changes neither its outcome nor its exit code — a model left
+resident is an operator's problem, not a failed workflow.
+
 The core ships no provider adapter. The first real adapter is an external module (ADR 005
 `external_modules`) speaking to a local model server — the route the POC took against LM Studio.
 Which protocol it speaks is the module's decision, not the core's: the LM Studio API, whose model
@@ -136,30 +175,69 @@ is `fake` (§6): not a provider but the null implementation of the contract — 
 replies — so the action's own tests, the help surface of a bare install and the example workflows
 stand without any plugin.
 
+The module took the third of those routes, as two adapters rather than one: a protocol adapter that
+speaks OpenAI-compatible HTTP and nothing else, and a product adapter that subclasses it and adds
+model residency. The split is not a matter of taste. An adapter named after a protocol no vendor
+owns cannot carry one vendor's load-and-unload endpoints as options: they would be dead on every
+other server an installation points it at, and a node asking for a release would silently do
+nothing — a workflow whose instruction is honoured on one machine and ignored on the next. As a
+subclass the endpoints exist wherever the adapter is configured at all, and the option means what
+it says.
+
+The residency adapter is where the seat and `finalize` first meet a real server, so two rules of the
+memory the seat exists for are settled here. A run releases only what it loaded itself: a model the
+operator loaded from the application, or another process loaded, is left resident, because a
+workflow evicting what it did not put there is a surprise the engine must not produce — whether it
+may is an operator's decision, carried in the provider block rather than in the node, since a
+workflow definition travels between installations and that permission does not. And the memory is
+re-checked against the server before anything is released, because it is a cache of a fact living
+outside the process: where the two disagree, the server is right.
+
+What a model is loaded with belongs to the same seat. Because the load is a request the adapter
+makes itself rather than something the chat call arranges, the settings that request accepts — the
+context window among them — are declared once in the provider block and forwarded unread, by the
+rule that already keeps a call's options opaque. They are configuration and not a node's
+instruction: a definition travels between installations, while what a machine can hold resident does
+not. They govern a load the adapter performs and nothing else — a model the server already holds is
+used as it stands, whatever it was loaded with, because re-loading it would evict what someone else
+is working with. A per-node window, and a re-load to change the window of a resident model, stay
+open until a scenario needs two windows for one model.
+
 ### 3. Provider configuration and secrets
 
 The engine configuration file (ADR 008) gains a `providers` section: per provider name, the adapter
-to use, its base URL, the default model, and the *name of the environment variable* holding the
-credential — never the credential itself. A session records the provider and model each `llm` node
-actually used in the journal event of the call, so a resumed or audited run knows which model
-answered.
+to use, its base URL, the default model, the *name of the environment variable* holding the
+credential — never the credential itself — and an `options` object for what only the named adapter
+understands, such as a request timeout, read by the rule that keeps call options opaque. A session
+records the provider and model each `llm` node actually used in the record of that visit (§4), so a
+resumed or audited run knows which model answered.
 
 The provider block is **not** snapshotted into `session.json`. The ADR 004 snapshot solves a
 bootstrap problem — without the storage record a resume cannot even find its state — which
 providers do not have: they resolve at call time, when the engine configuration is already read.
 The block is environment, not identity of the run: base URLs and credential variable names are
 facts of one machine, and a snapshot would pin a moved session to the endpoints of the machine it
-left, while ADR 003/008 keep state portable on purpose. Reproducibility is carried by the journal
-instead — what actually answered is recorded per call, so a configuration change between calls is
-visible rather than silent.
+left, while ADR 003/008 keep state portable on purpose. Reproducibility is carried by the record
+stream instead — what actually answered is recorded per call, so a configuration change between
+calls is visible rather than silent.
 
-### 4. Audit as artifacts and events
+### 4. Audit as artifacts and node records
 
-Every call journals a session event (`llm_called`: node id, provider, model, status, error class,
-token counts if the adapter reports them). Prompt and reply are written as artifacts under a
-deterministic name (`<node_id>.prompt`, `<node_id>.reply`, attempt-numbered) when the node opts in
-(`record: true`), so they can be declared deliverables or inspected after the run. Nothing new is
-added to the state model.
+Every call is accounted for in the record of the visit that made it (ADR 021): the provider, the
+model, the status of the call, the error class and the token counts the adapter reports travel in
+the open `details` member the record reserves for exactly this. The account rides on the output of
+the action, which the engine copies into the record after the output has been applied and the
+transition chosen, so an audit exists only for a call whose effects took hold.
+
+This replaces the session event this decision first named (`llm_called`), and the reason is a loop:
+the record stream keeps one entry per visit, while the state keeps one slot per node that the next
+visit overwrites — so in a chunking branch or a retry loop, only the record stream can say which
+model answered which call. Nothing is added to the state model either way.
+
+Prompt and reply are written as artifacts under a deterministic name (`<node_id>.prompt`,
+`<node_id>.reply`) when the node opts in (`record: true`), numbered by the visit and the attempt
+ordinals of ADR 017 §4 — the same two numbers the record carries — so the files of one call and its
+record are found together. They can be declared deliverables or inspected after the run.
 
 ### 5. Error classes, not retry policy
 
@@ -168,6 +246,13 @@ The adapter reports each failure as one of a fixed set of classes (`transient`, 
 node error code. This ADR does not decide delay or backoff: that is the retry-policy decision of
 the recovery note (b), which will consume these classes. Until then the existing
 `max_attempts`/self-loop allowance is the only retry.
+
+Three codes belong to the action rather than to the adapter, and are deliberately kept apart from
+the six classes. `llm_answer_invalid` is a reply that does not fit the answer declaration.
+`provider_failed` is an adapter that raised instead of returning a classified failure: it broke the
+contract, and folding it into `transient` would let a plugin's bug be retried as a hiccup, while
+letting it end the run would lose a workflow to that bug. `llm_record_failed` is a call that was
+answered but whose audit artifacts could not be written, where the node asked for them.
 
 `context_overflow` is deliberately split from `invalid_request`. The engine cannot count a model's
 tokens — tokenizers are model-specific and the core carries none — so the provider's refusal is the
@@ -277,8 +362,9 @@ engine-resolved reference — the choice stays declared, coded and journaled.
 - Enables: one node per model step, vendor-neutral workflows, typed model output on the bus, audit
   of every call, a place for credentials, and error classes a later retry policy can use.
 - Costs: a new core action, a registration kind with its registry and help-contract adapter, a
-  `providers` config section, two or three session event codes, the `fake` adapter in the core, and
-  the provider-adapter package maintained in this repository as an external module.
+  `providers` config section, the call audit carried in the record channel of ADR 021, the `fake`
+  adapter in the core, and the provider-adapter package maintained in this repository as an external
+  module.
 - Closes off: vendor SDKs and provider adapters in the core (`fake` is the null implementation of
   the contract, not a provider); models as guards.
 - Leaves open: retry/backoff (recovery note (b)); token or cost budgets next to the node cap
@@ -372,3 +458,56 @@ ADR 013 answer binding lives, and the layout of the in-repository adapter packag
   model-selecting action, with the deterministic selection form in Leaves open. The Implementing
   transition is deferred behind the output-family ADR that the operator's
   `result-file-composition` note opens (roadmap step 7).
+- 2026-08-24: amended in session `2026-08-24-implementation-4`, the session that built the `llm`
+  action. §4: the call audit is the `details` member of the ADR 021 record of the visit rather than
+  a session event of its own — a retry loop overwrites the per-node slots of the state, so only the
+  record stream can say which model answered which call — and the audit artifacts are numbered by
+  the visit and attempt ordinals the record carries. §5 gains the three codes the action owns beside
+  the six adapter classes: `llm_answer_invalid`, `provider_failed` for an adapter that raised
+  instead of classifying, and `llm_record_failed` for an audit that could not be written. §1 is read
+  as: `format: text` binds the whole reply to at most one declared name, refusing a second at build
+  time, and `format: json` reads an object keyed by the declared names; a reply refused by the
+  declaration keeps the raw reply as the output text.
+- 2026-08-24: amended in session `2026-08-24-implementation-3`, the first implementation session of
+  the branch, where the departures were made. §2: an adapter is a registered class with one call
+  operation rather than a plain callable, seated once per configured provider name for the lifetime
+  of a process, because an adapter speaking to a local model server has to remember which model is
+  resident; the contract gains `finalize(reason)` with the five reasons the seat reports, so
+  releasing a model stays the adapter's decision and never becomes the core's. §1: an instruction
+  addressed to the adapter's own resources — release the model right after this call — travels as
+  one of the opaque call options, so the core learns neither `load` nor `unload` and the node stays
+  universal. §3: the provider block gains an `options` object for what only the named adapter
+  understands.
+- 2026-08-24: amended in session `2026-08-24-implementation-5`, the session that built the adapter
+  package. §1: `format: json` gains its tolerance for a wrapped object, decided against the by-hand
+  evidence rather than on paper — the question that session `2026-08-24-implementation-4` left open
+  is closed by the measurement recorded there, taken on two model servers rather than one. The
+  tolerance covers what surrounds or annotates the object, a comment against a member included, and
+  explicitly not the object's own syntax; the line is drawn in §1 because the alternative is an
+  action that guesses what a model meant. §2: the package keeps to one protocol, the generic
+  OpenAI-compatible HTTP, which reaches a local model server and a hosted vendor alike; the LM Studio
+  native API with its model load and unload is not written, so nothing yet exercises `finalize`
+  against a real server, and it joins Leaves open with the rest of the package's protocol set. The
+  adapter is written on the standard library, so the reference plugin adds no dependency of its own.
+- 2026-08-25: amended in session `2026-08-25-implementation-1`, which added the residency adapter.
+  §2 records the split the module made — a protocol adapter and a product adapter subclassing it —
+  and why residency could not be an option on the protocol one; it also settles the two rules the
+  provider seat's memory lives by, ownership and re-checking, now that a real server exercises them.
+  The `finalize` policy itself stays the adapter's own, as this decision always said: a run that
+  ended releases, a pause keeps.
+- 2026-08-25: amended in session `2026-08-25-implementation-2`. §2: what a model is loaded with is
+  declared in the provider block and reaches the load request unread. The preceding session had
+  recorded the opposite — that the load endpoint takes a model name and rejects anything else — from
+  an assumption rather than a measurement; the endpoint does accept load settings, and the note that
+  said otherwise is corrected where it stands. The scope of the settings is decided with them: they
+  govern a load the adapter performs, never a model the server already holds.
+- 2026-08-25: amended in session `2026-08-25-implementation-3`, which built the class 4 evidence. §2:
+  the adapter releases what it loaded before it loads another model, so "a swap, a load, or nothing
+  at all" is what the residency adapter actually does; the rule was measured rather than argued, on a
+  run that held two models at once and did not finish. Nothing else in the decision moved: the three
+  variants exercise the surface the preceding sessions delivered, and what they needed beyond it was
+  generic bus work under ADR 006.
+- 2026-08-25: closed in session `2026-08-25-documentation-1`. The documentation set the freeze gate
+  asks for is written — `README.md` for the operator surface, `docs/architecture/overview.md` for the
+  delivered architecture, and the walkthrough of `folder-inventory-to-csv` with the three variants as
+  the class 4 evidence the `Consumer` section names. No decision changed; the text stands as built.

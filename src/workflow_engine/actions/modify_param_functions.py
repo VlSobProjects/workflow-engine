@@ -8,6 +8,13 @@ from workflow_engine.output import ActionNodeOutput, ParamWrite
 from workflow_engine.registry.function_registry import register_function
 from workflow_engine.validators.functions_validators import folder_exists_arg_validator, not_empty_str_arg_validator
 
+FILE_NOT_FOUND = "file_not_found"
+FILE_NOT_TEXT = "file_not_text"
+FILE_READ_ERROR = "file_read_error"
+INVALID_CHUNK_SIZE = "invalid_chunk_size"
+SPLIT_NOT_TEXT = "split_not_text"
+SPLIT_NO_TEXT = "split_no_text"
+
 
 def set_items(
     param_writes: dict[str, ParamWrite],
@@ -101,15 +108,23 @@ def init_deque_param(
 )
 def init_list_param(
     param_name: Annotated[str, "Name of the state parameter to create as an empty list"],
+    allow_overwrite: Annotated[
+        bool, "Empty the parameter again when it already exists, for an accumulator inside a loop"
+    ] = False,
 ) -> ActionNodeOutput:
     """Create an empty list parameter.
 
     The main operator use is to prepare an accumulator before a loop that appends to it, for
     example the 'functions' action with 'save_to_list' or 'dict_list_to_pretty_table'.
+
+    A parameter that already exists is not overwritten unless 'allow_overwrite' says so: an
+    accumulator that survives the loop it was made for is nearly always a mistake, and the write
+    fails with 'param_overwrite_forbidden' instead. An inner loop that starts a fresh accumulation
+    on every pass of an outer one - the parts of one file among many - is the case that asks for it.
     """
     return ActionNodeOutput(
         output_text=param_name,
-        param_writes={param_name: ParamWrite(mode=WriteParamMode.SET, value=[])},
+        param_writes={param_name: ParamWrite(mode=WriteParamMode.SET, value=[], allow_overwrite=allow_overwrite)},
     )
 
 
@@ -214,4 +229,120 @@ def append_to_param(
     return ActionNodeOutput(
         output_text=param_name,
         param_writes={param_name: ParamWrite(mode=WriteParamMode.APPEND, value=value)},
+    )
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"param_name": 1})],
+    summary="Reads the text of a file into a parameter.",
+)
+def read_text_file(
+    file_path: Annotated[str | Path, "Path to the file to read"],
+    param_name: Annotated[str, "Name of the parameter the text is written to"],
+    encoding: Annotated[str, "Encoding the file is read with, 'utf-8' by default"] = "utf-8",
+) -> ActionNodeOutput:
+    """Read a file as text and put it on the bus under 'param_name'.
+
+    This is how the content of a file reaches a step that works on text rather than on paths: the
+    parameter is then inserted into a prompt, split into chunks or compared by a guard. Only the
+    content travels; nothing about the file itself is read, which the file information functions do.
+
+    The parameter is overwritten on every call, because a node that reads one file of many lives
+    inside a loop by construction.
+
+    A file that does not exist returns the error code 'file_not_found', a file that does not decode
+    with the given encoding 'file_not_text', and any other read failure 'file_read_error'. All three
+    are routable, so a scan can keep the file in its report instead of losing the run to it.
+    """
+    path = Path(file_path)
+    if not path.is_file():
+        return ActionNodeOutput(
+            output_text="", error_code=FILE_NOT_FOUND, error_msg=f"File '{path.as_posix()}' does not exist"
+        )
+    try:
+        text = path.read_text(encoding=encoding)
+    except (UnicodeDecodeError, LookupError) as e:
+        return ActionNodeOutput(
+            output_text="",
+            error_code=FILE_NOT_TEXT,
+            error_msg=f"File '{path.as_posix()}' does not read as text in '{encoding}': {e}",
+        )
+    except OSError as e:
+        return ActionNodeOutput(
+            output_text="", error_code=FILE_READ_ERROR, error_msg=f"File '{path.as_posix()}' could not be read: {e}"
+        )
+    return ActionNodeOutput(
+        output_text=param_name,
+        param_writes={param_name: ParamWrite(mode=WriteParamMode.SET, value=text, allow_overwrite=True)},
+    )
+
+
+def _text_chunks(text: str, chunk_size: int) -> list[str]:
+    """Cut a text into pieces of at most 'chunk_size' characters, on a line boundary where there is one.
+
+    The engine counts characters and never tokens: a tokenizer belongs to a model, and the core
+    carries none (ADR 014 §5). So the size is a budget rather than a measurement, and the boundary
+    is what makes the pieces usable - a paragraph, else a line, else the hard cut that guarantees
+    progress on a text that carries neither.
+    """
+    chunks: list[str] = []
+    start = 0
+    while start < len(text):
+        if start + chunk_size >= len(text):
+            end = len(text)
+        else:
+            window = text[start : start + chunk_size]
+            boundary = max(window.rfind("\n\n"), window.rfind("\n"))
+            end = start + chunk_size if boundary <= 0 else start + boundary + 1
+        piece = text[start:end]
+        if piece.strip():
+            chunks.append(piece)
+        start = end
+    return chunks
+
+
+@register_function(
+    decorators=[not_empty_str_arg_validator({"param_name": 1})],
+    summary="Splits a text into chunks in a deque.",
+)
+def split_text_to_deque(
+    text: Annotated[str, "The text to split; a 'param.<name>' reference resolves to its value"],
+    param_name: Annotated[str, "Name of the parameter the deque of chunks is written to"],
+    chunk_size: Annotated[int, "Largest size of one chunk, in characters"],
+) -> ActionNodeOutput:
+    """Split a text into chunks and put them in a deque parameter, first chunk at the front.
+
+    The preparing half of a chunked pass: this fills the queue, 'set_param_from_deque' consumes it
+    one chunk per visit, and what each pass produced is accumulated with 'append_to_param'. The
+    output text is the number of chunks, so a transition can route on how much work was made.
+
+    The size is counted in characters and is a budget, not a measurement: the engine cannot count
+    the tokens of a model, so a chunk that is still too large is answered by the provider and
+    routed by the node that made the call. A chunk ends on the last paragraph or line break that
+    fits, and on the budget itself where the text carries neither. Chunks holding nothing but
+    whitespace are dropped rather than sent to a model.
+
+    The parameter is overwritten on every call, because a node that splits one text of many lives
+    inside a loop by construction. A 'chunk_size' below one returns the error code
+    'invalid_chunk_size', a value that is not text 'split_not_text', and a text with nothing in it
+    'split_no_text'.
+    """
+    if not isinstance(text, str):
+        return ActionNodeOutput(
+            output_text="", error_code=SPLIT_NOT_TEXT, error_msg=f"'text' must be a string, got {type(text).__name__}."
+        )
+    if chunk_size < 1:
+        return ActionNodeOutput(
+            output_text="",
+            error_code=INVALID_CHUNK_SIZE,
+            error_msg=f"'chunk_size' must be at least 1 character, got {chunk_size}.",
+        )
+    chunks = _text_chunks(text, chunk_size)
+    if len(chunks) == 0:
+        return ActionNodeOutput(
+            output_text="", error_code=SPLIT_NO_TEXT, error_msg="The text carries nothing that could be split."
+        )
+    return ActionNodeOutput(
+        output_text=str(len(chunks)),
+        param_writes={param_name: ParamWrite(mode=WriteParamMode.SET, value=deque(chunks), allow_overwrite=True)},
     )

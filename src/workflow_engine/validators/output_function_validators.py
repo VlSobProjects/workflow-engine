@@ -1,9 +1,10 @@
-from collections.abc import Sized
+from collections.abc import Iterable, Sized
 from pathlib import Path
 
 from workflow_engine.registry.function_registry import (
     register_validator,
 )
+from workflow_engine.tools import render_value_as_text
 from workflow_engine.validators.functions_validators import not_empty_str_arg_validator
 
 
@@ -69,3 +70,26 @@ def is_collection_size_at_least(
         minimum: The number of items from which the check holds.
     """
     return len(collection) >= minimum
+
+
+@register_validator(summary="Output text is one of the members of a listed collection")
+def is_output_in_collection(
+    output: str,
+    collection: Iterable[object],
+) -> bool:
+    """Holds when the output text is one of the members of the configured collection.
+
+    The routing half of a configured list: a parameter names the cases a branch handles - the file
+    formats worth describing, the categories worth a second pass - and this sends the run down that
+    branch when the node just visited produced one of them. The engine resolves 'param.<name>'
+    before the check, so the collection arrives as the value itself.
+
+    A member is compared as the text of the value, by the one rendering rule (ADR 008), so a
+    collection of paths compares in POSIX form as everything else does. A single string is compared
+    as one member and never letter by letter.
+
+    Args:
+        collection: The collection to look in, normally a 'param.<name>' reference to a list parameter.
+    """
+    members = [collection] if isinstance(collection, str) else collection
+    return any(output == render_value_as_text(member) for member in members)

@@ -44,7 +44,7 @@ from workflow_engine.registry.type_registry import CODEC_REGISTRY
 from workflow_engine.transition.guards import GUARD_CLASSES
 
 STABLE_DETAIL_KEYS = {"name", "type", "summary", "description", "parameters", "source", "notes"}
-NORMALIZED_TYPE_KEYS = {"actions", "functions", "validators", "guards", "codecs"}
+NORMALIZED_TYPE_KEYS = {"actions", "functions", "validators", "guards", "codecs", "providers"}
 PARAMETER_KEYS = {"type", "description", "required", "template"}
 
 

@@ -9,6 +9,7 @@ from types import MappingProxyType
 from platformdirs import user_config_dir
 
 from workflow_engine.exceptions import WorkflowConfigurationError
+from workflow_engine.providers.base_provider import ProviderSettings
 from workflow_engine.tools import parameter_from_dict_default
 
 APPLICATION_DIRECTORY = ".workflow-engine"
@@ -16,6 +17,23 @@ CONFIG_FILE_NAME = "workflow_engine_config.json"
 ENV_WORK_DIR = "WE_WORK_DIR"
 ENV_STORAGE_DIR = "WE_STORAGE_DIR"
 DEFAULT_HARD_MAX_NODES_VISITED = 1000
+PROVIDERS_KEY = "providers"
+
+
+def _providers_from_dict(data: dict[str, object]) -> MappingProxyType[str, ProviderSettings]:
+    """Read the ``providers`` section: per configured name, which adapter answers and how.
+
+    The section is environment rather than identity of a run, so it is read here and never
+    snapshotted into a session record: a session that moves to another machine resolves the
+    providers of the machine it runs on. See ADR 014 §3.
+    """
+    section = parameter_from_dict_default(data, PROVIDERS_KEY, dict, {})
+    providers: dict[str, ProviderSettings] = {}
+    for name, block in section.items():
+        if not isinstance(block, dict):
+            raise WorkflowConfigurationError(f"Provider '{name}' must be an object in the '{PROVIDERS_KEY}' section.")
+        providers[name] = ProviderSettings.from_dict(name, block)
+    return MappingProxyType(providers)
 
 
 def _validated_hard_max_nodes_visited(value: int) -> int:
@@ -33,6 +51,7 @@ class WorkflowEngineConfiguration:
     storage: MappingProxyType[str, str] = field(default_factory=lambda: MappingProxyType({}))
     hard_max_nodes_visited: int = field(default=DEFAULT_HARD_MAX_NODES_VISITED)
     export_dir: str | None = field(default=None)
+    providers: MappingProxyType[str, ProviderSettings] = field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
         _validated_hard_max_nodes_visited(self.hard_max_nodes_visited)
@@ -47,6 +66,7 @@ class WorkflowEngineConfiguration:
                 data, "hard_max_nodes_visited", int, DEFAULT_HARD_MAX_NODES_VISITED
             ),
             export_dir=parameter_from_dict_default(data, "export_dir", str, None),
+            providers=_providers_from_dict(data),
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -56,6 +76,7 @@ class WorkflowEngineConfiguration:
             "storage": dict(self.storage),
             "hard_max_nodes_visited": self.hard_max_nodes_visited,
             "export_dir": self.export_dir,
+            PROVIDERS_KEY: {name: settings.to_dict() for name, settings in self.providers.items()},
         }
 
 
@@ -200,6 +221,7 @@ def load_config_file(
             config_data, "hard_max_nodes_visited", int, DEFAULT_HARD_MAX_NODES_VISITED
         ),
         export_dir=export_dir_value,
+        providers=_providers_from_dict(config_data),
     )
 
     if not resolved_config_path.exists():
