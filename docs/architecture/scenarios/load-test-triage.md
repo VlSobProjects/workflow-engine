@@ -8,20 +8,27 @@
   local model behind an OpenAI-compatible server, a small model for aggregation and a larger one
   for the decision, chosen per node. In tests the `fake` adapter answers with scripted replies.
   The human appears once, at the end, as the recipient of the handover — never as an answerer.
-- **Input data:** one completed load-test run of a fictional order-processing service, prepared on
-  disk as four files: the load profile the test was meant to apply (operations, target rates, ramp
-  — JSON), the test report aggregated per operation (throughput, latency percentiles, error rates
-  — CSV), an excerpt of the service logs covering the run window (plain lines), and the deployment
-  facts (service versions, instance counts, queue and index configuration — JSON). The formats are
-  neutral on purpose: no load-testing tool is named, and the publication gate replaces the
-  prepared files with a live system under test. One prepared variant of the dataset per expected
-  path: each variant plants the evidence that selects its path.
-- **Expected paths:** the pre-check path, where a deterministic comparison answers before any
-  model is called; the clean path; the test-defect and system-defect verdicts, the latter
-  branching per subsystem; the chunked aggregation loop under `context_overflow`; the evidence
-  loop when the decision wants deeper data, bounded by `max_visits`; the handover when the
-  evidence decides nothing; failure when a reply or the provider fails past the retry bound. Each
-  path is selected by its dataset variant. Details in the body.
+- **Input data:** one completed load-test run of a real system under test — a web application
+  with a database, run locally under a real load rig — captured on disk as files: the load
+  profile the test was meant to apply (operations, target rates, ramp — JSON, authored per
+  variant), the injector's report and metrics as the load tool exports them, the resource metrics
+  of the host as the metrics store exports them, an excerpt of the service logs covering the run
+  window, and the deployment facts (service version, instance count, database and pool
+  configuration — JSON, hand-written per variant). The formats are the real export formats of the
+  rig's tools, parsed by the domain module that ships beside the scenario; the publication gate
+  reuses the same rig against the live system instead of the frozen files. Most variants are
+  separate captures whose planted condition is induced for real — fault injection in the system
+  under test, limits on the database server, a misconfigured or starved injector — because a real
+  capture keeps the evidence consistent across all files at once; the remaining variants derive
+  from a capture by selecting the log window or by hand-editing a precondition file. The rig and
+  the system under test live outside this repository and appear here by role only.
+- **Expected paths:** the pre-check exit, where a failed precondition makes the run not worth
+  analyzing; the clean path; the test-defect verdicts, where the load was applied wrong or the
+  injector itself failed; the system-defect verdicts, branching per subsystem the system under
+  test really has; the chunked aggregation loop under `context_overflow`; the evidence loop when
+  the decision wants deeper data, bounded by `max_visits`; the handover when the evidence decides
+  nothing; failure when a reply or the provider fails past the retry bound. Each path is selected
+  by its dataset variant. Details in the body.
 - **Ends with:** end of workflow with the triage report exported as the deliverable — the verdict,
   the confirmed evidence and the route the run took; the handover is also an end of workflow, its
   report stating why the flow stopped and carrying the evidence collected so far, with the
@@ -46,23 +53,33 @@ need.
 
 The core gains only generic bus work: creating and setting a dictionary parameter, splitting a
 text into bounded chunks, accumulating findings — forms any workflow can reuse. Reading and
-parsing the domain files — the profile, the report, the log lines, the deployment facts — ships
-as an external module (ADR 005) beside the scenario, the way a consumer's formats stay outside
-the core. Together with the provider adapter for the local server, itself the first real external
-module (ADR 014 §2), the scenario exercises the plugin path with real consumers, which nothing
-has done yet.
+parsing the domain files — the profile, the injector export, the host metrics, the log lines,
+the deployment facts — ships as an external module (ADR 005) beside the scenario, the way a
+consumer's formats stay outside the core. The scripts that derive a variant from a frozen
+capture — the excerpt-window selection — live beside that module; the capture rig and the system
+under test live outside the repository. Together with the provider adapter for the local server,
+itself the first real external module (ADR 014 §2), the scenario exercises the plugin path with
+real consumers, which nothing has done yet.
 
 ## The flow shape
 
 - **Fetch.** Start parameters (ADR 012) point the run at the dataset. Registered functions of the
   domain module read each file into typed parameters on the bus; the checks at the boundary are
   code — the files exist, the collections are non-empty — through the existing validators.
-- **Pre-check.** A pipeline of checks answers before a model is called. A deterministic
-  comparison of the profile against the report — achieved rate versus target rate per operation —
-  declares miscalibrated load without any model, and a run whose load never happened ends here.
+- **Pre-check.** A pipeline of checks answers one question before any model is called: can this
+  run be analyzed at all. The boundary is a principle: the pre-check decides only what one
+  unambiguous comparison decides — the deployed version is not the expected one, the metrics
+  export is missing or empty — and exits early with the reason. Wherever the question "why?" is
+  legitimate, the run passes the pre-check and the model judges. The deterministic comparison of
+  achieved rate against target rate stays, but its result is evidence on the bus for the
+  decision, not an early exit.
 - **Aggregate.** A small model turns the log excerpt into structured findings: errors grouped by
   subsystem, saturation signals, timing anomalies. The engine enforces the limit of the step: the
   prompt interpolates only the declared parameters (ADR 016), and the model sees nothing else.
+  Each step runs on the smallest model that can do it: a narrow judgment — one finding, one short
+  answer — may use a very small model with `format: text`, followed by a function node that
+  normalizes the reply and extracts what the guards check; the structure lives in the functions,
+  not in the small model's answer.
   When the excerpt exceeds the model's context, the provider refuses with `context_overflow`
   (ADR 014 §5) and a guard routes into the chunk loop: a splitter function fills a deque, the
   `llm` node visits once per chunk, an accumulating function collects the findings — the graph
@@ -74,14 +91,21 @@ has done yet.
   `need_more_evidence`, routing back through a deeper fetch — a narrower log window around the
   first anomaly — and into the decision again; the loop is bounded by `max_visits` (ADR 017).
 - **Branch.** Per-verdict deterministic confirmation: code verifies what the model claims before
-  the report states it. The queues verdict is confirmed against the queue configuration and the
-  error findings, the scaling verdict against instance counts and the throughput curve, the
-  indexing verdict against the operations whose latency degrades with volume. A claim the code
-  cannot confirm routes to the handover, not into the report.
-- **Hand over.** The report — the verdict, the confirmed evidence, the route as the journal
-  recorded it — is composed into a document and exported as the deliverable (ADR 011). The
-  unforeseen exit is the same node reached by failure transitions: the report then states why the
-  flow stopped and hands over the evidence collected so far. The engine never invents a step.
+  the report states it. The subsystems are the ones the system under test really has: the
+  database-pool verdict is confirmed against the configured pool limit and the timeout errors in
+  the log, the index verdict against the operations whose latency degrades with volume, the
+  resource verdict against the host metrics, the test-defect verdict against the profile and the
+  injector's own data. A claim the code cannot confirm routes to the handover, not into the
+  report.
+- **Hand over.** Every path that ends the workflow ends in a report an `llm` node writes as
+  prose — the verdict explained, the confirmed evidence, a recommendation where the verdict
+  implies one — over a deterministic appendix the output family renders (ADR 020): the route as
+  the record channel kept it, the check results, the tables; the document exports as the
+  deliverable (ADR 011). The report node receives declared parameters — the verdict, the
+  confirmed evidence, the route summary — never the raw files. The prose is the deliverable for
+  the human; the appendix is what the measurement reads. The unforeseen exit is the same node
+  reached by failure transitions: the report then states why the flow stopped and hands over the
+  evidence collected so far. The engine never invents a step.
 
 ## The journal explains the path
 
@@ -93,27 +117,72 @@ the same prepared variant takes the same path, and the journal shows it.
 
 ## Expected paths
 
-1. **Pre-check verdict.** The achieved load never reached the profile's target; the deterministic
-   comparison declares miscalibrated load; no model is called; the report exports.
-2. **Clean.** Aggregation finds no anomaly, the decision answers clean, the report says so.
-3. **Test defect.** The findings show the injector's own failures — connection errors on the
-   generator side, a scenario shape the service never sees in production; the decision names the
-   test, the confirmation holds, the report blames the test, not the system.
-4. **System defect.** The planted evidence names a subsystem — queue saturation, an index
-   degrading with volume, instances that never scaled; the decision names it, the per-subsystem
-   branch confirms it in code, the report carries the confirmed claim. One dataset variant per
-   subsystem.
-5. **Chunked aggregation.** The oversized log variant: the first aggregation call refuses with
-   `context_overflow`, the chunk loop splits, visits and accumulates, and the run continues as
-   paths 2–4.
-6. **Evidence loop.** The decision answers `need_more_evidence`; a deeper fetch narrows the
-   window; the re-entry counts against `max_visits`, and exhaustion routes to the handover with
-   what was collected.
-7. **Handover.** The undecidable variant: the evidence is contradictory or missing; the decision
-   declares it, or a confirmation refuses the claim, and the run ends with the handover report
-   stating why it stopped.
-8. **Failure.** A reply that never parses (`llm_answer_invalid`) or a `permanent` provider
-   refusal past `max_attempts` fails the run under its code.
+1. **Pre-check exit.** A precondition fails — the deployed version is not the expected one, or
+   the metrics export is missing or empty; nothing is worth analyzing, no judging model is
+   called, and the report states why the run was not analyzed. Produced by hand-editing a
+   precondition file of any capture; one variant per precondition.
+2. **Clean.** A normal capture: aggregation finds no anomaly, the decision answers clean, the
+   report says so.
+3. **Test defect: the load was applied wrong.** A thread group with a lost think time floods one
+   operation at the maximal rate and the other virtual users starve. The injector's own data
+   shows the flood, the service logs carry no error of the system's own; the decision blames the
+   test, the confirmation checks the claim against the profile and the injector data, and the
+   report recommends fixing the script. Induced for real in the load rig.
+4. **Test defect: the injector failed.** Two captures: an injector short of capacity — the
+   system is healthy but the achieved intensity sinks below the target; and an injector that
+   dies mid-run — its own metrics stop at a moment the service logs pass in silence. The
+   decision blames the test infrastructure, and the report recommends the remedy — more injector
+   capacity, a bigger injector heap or a leaner script. Induced for real: a starved injector, a
+   capped injector heap.
+5. **System defect.** One capture per subsystem the system under test really has: an index
+   degrading with volume (an SQL script against the database), a saturated database pool (a
+   limit on the database server), a starved host (fault injection: every operation slowed and
+   the memory loaded — the decision must connect the metrics to the latency). The decision names
+   the subsystem, the per-subsystem branch confirms it in code, the report carries the confirmed
+   claim.
+6. **Chunked aggregation.** No capture of its own: the full log of any capture exceeds the
+   model's context, the first aggregation call refuses with `context_overflow`, the chunk loop
+   splits, visits and accumulates, and the run continues as paths 2–5.
+7. **Evidence loop.** No capture of its own: the first excerpt window is chosen to graze the
+   planted evidence, the decision answers `need_more_evidence`, and a deeper fetch narrows the
+   window over the same frozen capture; the re-entry counts against `max_visits`, and exhaustion
+   routes to the handover with what was collected.
+8. **Handover.** No capture of its own: the excerpt window is chosen against the metrics — the
+   metrics show an anomaly while the log window covers a quiet stretch; the evidence is
+   contradictory, the decision declares it or a confirmation refuses the claim, and the run ends
+   with the handover report stating why it stopped.
+9. **Failure.** A reply that never parses (`llm_answer_invalid`) or a `permanent` provider
+   refusal past `max_attempts` fails the run under its code; scripted with the `fake` adapter,
+   no dataset needed.
+
+## The drift-B measurement
+
+The run of this scenario is the drift-B experiment of the two-drifts note
+(`2026-08-25-two-drifts-and-their-measurement`): one definition, several models, the distance
+measured from a known point. The protocol:
+
+- **The reference run is the `fake` adapter.** Scripted replies per variant give a deterministic
+  route and a deterministic verdict; a model run is then a distance from that point, not an
+  impression.
+- **The gate object is the declared node-to-model map, not one model.** The definition assigns
+  each `llm` node the smallest model that can do its step — a very small model on the narrow
+  judgments, a mid-size one on aggregation, the largest local one on the decision. The phase
+  gate is this one map matching the declared numbers on the gate variants with local models.
+- **Calibration is separated from measurement.** Calibration runs — choosing the map, the answer
+  forms, the prompts — happen first and freely; then the numbers are declared; then the measured
+  runs either match them or do not. A number declared after the runs is worthless.
+- **The declared numbers, per variant and map:** whether the route matched the reference (the
+  node sequence read from the ADR 021 record channel, never reconstructed); whether the verdict
+  word matched the planted truth; whether the planted cause is named in the confirmed evidence;
+  the counts of `llm_answer_invalid` and retries; whether the run reached a terminal path or
+  died under `max_attempts`. The prose of the report is the deliverable, not a metric.
+- **Extended measurement, outside the gate:** other local models substituted into the map, a
+  single-model map against the mixed one — the measured form of the claim that decomposition
+  makes small models useful — and cloud providers. A model that fails is a data point about the
+  required capability, not a gate failure.
+- **Where things live:** the protocol is this section; the concrete thresholds are added here by
+  the protocol half of roadmap step 14, before the measured runs; the results land in the notes
+  of the measurement sessions.
 
 ## Open decisions the scenario still lacks
 
@@ -123,10 +192,10 @@ half of gap G5 (`init_dict_param`, `set_dict_item`, `append_to_dict_key`) and th
 guard of gap G4 (`is_answer_keys_valid`) shipped at roadmap step 10; the output family of gap G6
 is ADR 020, delivered. What remains open:
 
-1. **Whether the delivered output family carries the handover.** ADR 020 renders tables, grouped
-   tables, verbatim text and authored templates; the hand-build (roadmap step 15) measures
-   whether the handover document — verdict, confirmed evidence, route — composes from them
-   without a new shape.
+1. **Whether the delivered output family carries the appendix.** The prose half of the report is
+   decided — an `llm` node writes it on every end-of-workflow path; what the hand-build (roadmap
+   step 15) still measures is whether the deterministic appendix — route, check results, tables —
+   composes from the ADR 020 functions without a new shape.
 2. **Every failure route is written per node.** The step 10 reading — a third of the
    `reorganize-folder` definition is failure plumbing (gap G7) — supports the suspicion; the
    trigger for a workflow-level default failure route stays this scenario's hand-build, as
@@ -137,7 +206,13 @@ is ADR 020, delivered. What remains open:
    asks) must return.
 4. **The authoring half is unmeasured.** The authoring claim has no authoring surface — no
    validation without a run, no description of a definition (gap G11); the hand-build gives the
-   lower bound, and `workflow-authoring` mechanizes the same claim as a workflow in phase 3.
-5. **The data does not exist.** The dataset variants, the generators that produce them and the
-   numbers declared before the runs are roadmap step 14, opened by the data-generation
-   discussion; until then no path of this scenario can be selected by data.
+   lower bound, and `workflow-authoring` mechanizes the same claim as a workflow in phase 3. The
+   hand-build also records, for every deliberate or accidental mistake, whether the error text
+   led the author to the fix — the error surfaces are part of the documentation the claim rests
+   on.
+5. **The data is decided but not captured.** The source, the variant map and the protocol were
+   decided by the data-generation discussion (`2026-08-26-architecture-1`); what remains of
+   roadmap step 14 is the rig and fault-injection work outside the repository, the captures, the
+   domain parsing module with the window-selection scripts, and the declared thresholds. Where
+   the frozen captures are stored is decided after the first capture shows their compressed
+   size: in the repository if it permits, as a release asset if not.

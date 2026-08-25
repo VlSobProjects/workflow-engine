@@ -53,15 +53,22 @@ against the ready-made alternatives.
 
 ## Open questions
 
-- What "acceptably close" is, numerically. Without a threshold declared beforehand, both experiments
-  degrade into impressions.
-- How many dataset variants are needed before a route match means anything.
-- Whether a capability profile per model — context window, reliability of a structured reply, cost —
-  belongs beside the results.
-- Where the results live. A scenario body is not a lab notebook, and `documentation-rules.md` admits
-  no report document; this may be what forces the question.
-- Generating the data is a task of its own and is the long pole of both experiments: metrics of the
-  test run, logs of a fictional service, resource metrics of its host, in a volume that makes triage
-  a real problem rather than a demonstration. Roadmap step 14 now carries it, opened by the
-  data-generation discussion (`2026-08-25-documentation-2`); what stays open here is the content
-  of that discussion, not its place.
+The data-generation discussion (`2026-08-26-architecture-1`) answered most of this list; the
+drift-B protocol now lives in the `load-test-triage` scenario body, and this note keeps only what
+is still open.
+
+- What "acceptably close" is, numerically. Still open: the concrete thresholds are declared by
+  the protocol half of roadmap step 14, into the scenario's protocol section, before the measured
+  runs.
+- Where the results of drift-A live, when its turn comes. Drift-B results land in the notes of
+  its measurement sessions — no new document class for one experiment — but drift-A brings whole
+  transcripts, which a session note cannot carry.
+
+Answered and moved out of this note: how many dataset variants — the variant map gives more than
+ten declared routes (seven captures plus the derived pre-check, window-selection and
+`fake`-scripted variants); the capability profile per model — the gate object is a node-to-model
+map and the extended measurement substitutes models into it, so the capability boundary is read
+from which substitutions hold; the content of the data generation — real captures of a real
+system under test under a real load rig, conditions induced for real, derived variants by
+excerpt-window selection. The map and the rationale are in the `load-test-triage` scenario and in
+the session note `2026-08-26-architecture-1`.

@@ -22,7 +22,9 @@ that starts it.
 The phase 2 hand-build claim carries its own evidence the way phase 3's blindness does: the session
 note of the hand-build records that the author worked from the operator documentation alone, names
 what was consulted, and records any step that needed more than it as a gap rather than patching it
-silently.
+silently — including, for every mistake made on the way, whether the error text led the author to
+the fix. The claim is documentation sufficiency, not author blindness: the author knows the engine,
+and blindness is what phase 3 buys with outside agents.
 
 Phase 3 gates the authoring half of the done condition in `purpose.md`; its exit is an experiment
 that must be runnable, so the enforcement of the answerer/operator split stays outside the phase —
@@ -59,5 +61,5 @@ a live-model rehearsal ahead of the data-generation work; the session notes reco
 | 11 | One `refactor/` session for the code debts of the 2026-08-23 audit, and nothing beyond that list | done in `2026-08-25-implementation-7` |
 | 12 | Notes maintenance: execute the triage decided by `2026-08-23-architecture-1` | done in `2026-08-25-documentation-3` |
 | 13 | Run the `reorganize-folder` plan variant against a live local model as the rehearsal of the drift-B stack — the adapter, the JSON binding, the keys guard, the paragraph prompt — recording the findings and any prompt fixes, adding no feature | done in `2026-08-25-implementation-8`, with the two-provider residency fix split into `2026-08-25-implementation-9` |
-| 14 | The data-generation discussion first, then the generators for the dataset variants and the drift-B experiment protocol: the numbers declared before the runs, the route read from the ADR 021 record channel, the `fake` adapter as the reference run, cloud providers as extended measurement outside the gate | pending |
+| 14 | The data-generation discussion, then the dataset variants — real captures of a system under test under a real load rig, conditions induced for real, derived variants by window selection — with the domain parsing module and the declared thresholds of the drift-B protocol now carried by the scenario body | discussion done in `2026-08-26-architecture-1`; the rig work, the captures, the parsing module and the thresholds pending |
 | 15 | Build the full exit scenario by hand on the generated variants and run the drift-B measurement that closes the phase | pending |
