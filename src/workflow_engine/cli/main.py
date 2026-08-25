@@ -126,7 +126,7 @@ def _export_dir_arg() -> CommandArgs:
     )
 
 
-def _get_commend(command_name: CommandName) -> Command:
+def _get_command(command_name: CommandName) -> Command:
     match command_name:
         case CommandName.INIT_NEW_SESSION:
             return Command(
@@ -361,7 +361,7 @@ def _get_parser() -> CustomArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True, help="Workflow engine commands")
     for command_name in CommandName:
-        _get_commend(command_name).add_to_parser(subparsers, shared_parser)
+        _get_command(command_name).add_to_parser(subparsers, shared_parser)
 
     return parser
 
@@ -409,7 +409,7 @@ def main(argv=None):
     except CommandLineError as error:
         _report_command_line_error(error, effective_argv)
         sys.exit(ExitCode.ERROR.value)
-    command = _get_commend(CommandName(args.command))
+    command = _get_command(CommandName(args.command))
     response = command.run_command(args)
     if args.json:
         print(render_json(response))

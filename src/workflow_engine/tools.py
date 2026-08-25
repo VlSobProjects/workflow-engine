@@ -8,16 +8,21 @@ from pathlib import Path, PurePath
 from workflow_engine.exceptions import WorkflowParameterError
 
 
+def check_param_type[T](param_name: str, expected_type: type[T], param_value: object) -> T:
+    """The type check every reader below shares: a value of the wrong type is a parameter error."""
+    if not isinstance(param_value, expected_type):
+        raise WorkflowParameterError(param_name, type(param_value), expected_type, "Parameter type mismatch")
+    return param_value
+
+
 def parameter_from_dict[T](
     data: dict[str, object] | Mapping[str, object], param_name: str, expected_type: type[T]
 ) -> T:
+    """A parameter that must be there. Absent and None are the same failure: nothing was supplied."""
     value = data.get(param_name)
     if value is None:
         raise WorkflowParameterError(param_name, type(value), expected_type, "Parameter not in data or None")
-
-    if not isinstance(value, expected_type):
-        raise WorkflowParameterError(param_name, type(value), expected_type, "Parameter type mismatch")
-    return value
+    return check_param_type(param_name, expected_type, value)
 
 
 def parameter_from_dict_with_checker[T](
@@ -27,64 +32,53 @@ def parameter_from_dict_with_checker[T](
     checker: Callable[[T], bool],
     fail_message: str,
 ) -> T:
-    value = data.get(param_name)
-    if value is None:
-        raise WorkflowParameterError(param_name, type(value), expected_type, "Parameter not in data or None")
-    if not isinstance(value, expected_type):
-        raise WorkflowParameterError(param_name, type(value), expected_type, "Parameter type mismatch")
+    """A required parameter that must also satisfy a predicate, which fails under its own message."""
+    value = parameter_from_dict(data, param_name, expected_type)
     if not checker(value):
         raise WorkflowParameterError(param_name, type(value), expected_type, fail_message)
     return value
 
 
-def check_param_type[T](param_name: str, expected_type: type[T], param_value: object) -> T:
-    if not isinstance(param_value, expected_type):
-        raise WorkflowParameterError(param_name, type(param_value), expected_type, "Parameter type mismatch")
-    return param_value
-
-
 def parameter_from_dict_default[T](
     data: dict[str, object] | Mapping[str, object], param_name: str, expected_type: type[T], default_value: T
 ) -> T:
+    """An optional parameter with a default. A supplied value is still type checked."""
     value = data.get(param_name)
     if value is None:
         return default_value
-    if not isinstance(value, expected_type):
-        raise WorkflowParameterError(param_name, type(value), expected_type, "Parameter type mismatch")
-    return value
+    return check_param_type(param_name, expected_type, value)
 
 
 def parameter_from_dict_optional[T](
     data: dict[str, object] | Mapping[str, object], param_name: str, expected_type: type[T]
 ) -> T | None:
+    """An optional parameter with no default. A supplied value is still type checked."""
     value = data.get(param_name)
     if value is None:
         return None
-    if not isinstance(value, expected_type):
-        raise WorkflowParameterError(param_name, type(value), expected_type, "Parameter type mismatch")
-    return value
+    return check_param_type(param_name, expected_type, value)
 
 
-def dict_to_text_lv1(title: str, data: dict[str, str], intend: int) -> str:
-    spaces = " " * intend
+def dict_to_text_lv1(title: str, data: dict[str, str], indent: int) -> str:
+    spaces = " " * indent
     lines = [f"{spaces}{title}"]
     lines.extend(f"{spaces}    - {k}: {v}" for k, v in data.items())
     return "\n".join(lines)
 
 
-def dict_to_text_lv2(title: str, data: dict[str, dict[str, str]], intend_start: int, intend: int) -> str:
-    start_spaces = " " * intend_start
+def dict_to_text_lv2(title: str, data: dict[str, dict[str, str]], indent_start: int, indent: int) -> str:
+    start_spaces = " " * indent_start
     lines = [f"{start_spaces}{title}"]
     for k, v in data.items():
-        lines.append(dict_to_text_lv1(k, v, intend_start + intend))
+        lines.append(dict_to_text_lv1(k, v, indent_start + indent))
     return "\n".join(lines)
 
 
-def dict_to_text_lv3(title: str, data: dict[str, dict[str, dict[str, str]]], intend_start: int, intend: int) -> str:
-    start_spaces = " " * intend_start
+def dict_to_text_lv3(title: str, data: dict[str, dict[str, dict[str, str]]], indent_start: int, indent: int) -> str:
+    start_spaces = " " * indent_start
     lines = [f"{start_spaces}{title}"]
     for k, v in data.items():
-        lines.append(dict_to_text_lv2(k, v, intend_start + intend, intend))
+        lines.append(dict_to_text_lv2(k, v, indent_start + indent, indent))
     return "\n".join(lines)
 
 

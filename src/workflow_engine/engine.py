@@ -17,7 +17,7 @@ from workflow_engine.artifacts_export import (
 from workflow_engine.bootstrap.config_loader import CONFIG_FILE_NAME
 from workflow_engine.bootstrap.session_factory import WorkflowSession, WorkflowSessionsFactory
 from workflow_engine.bootstrap.session_lock import SessionLock
-from workflow_engine.bootstrap.storage_fatcory import StorageFactory
+from workflow_engine.bootstrap.storage_factory import StorageFactory
 from workflow_engine.collection_param_handlers import WriteParamMode
 from workflow_engine.exceptions import (
     WorkflowAnswerError,
@@ -332,6 +332,175 @@ def _visit_cap_response(node: WorkflowNode, state: StateModel, storage: Storage)
     )
 
 
+def _budget_exceeded_response(node: WorkflowNode, state: StateModel, storage: Storage) -> PresentResponse:
+    """Pause at the node the run would have entered: the soft limit the session declares is spent."""
+    state.record_session_event(
+        SessionEvent.engine_event(
+            SessionEventCode.WORKFLOW_PAUSED_LIMIT,
+            {
+                "node_id": node.id,
+                "nodes_visited": state.nodes_visited,
+                "max_nodes_visited": state.max_nodes_visited,
+            },
+        )
+    )
+    storage.save_state(state)
+    return PresentResponse(
+        title="Workflow budget exceeded",
+        description=f"The workflow has exceeded the maximum number of nodes "
+        f"visited: {state.nodes_visited}/{state.max_nodes_visited}",
+        instruction="You can change max node exceeded Workflow engine call set_session_limits",
+        hints=_state_hints(state),
+        errors={node.id: "Workflow max node exceeded"},
+    )
+
+
+def _safety_cap_response(
+    node: WorkflowNode, state: StateModel, storage: Storage, hard_max_nodes_visited: int
+) -> PresentResponse:
+    """Pause at the global cap, which no session command can raise. See ADR 010."""
+    state.record_session_event(
+        SessionEvent.engine_event(
+            SessionEventCode.WORKFLOW_PAUSED_SAFETY_LIMIT,
+            {
+                "node_id": node.id,
+                "nodes_visited": state.nodes_visited,
+                "max_nodes_visited": state.max_nodes_visited,
+                "hard_max_nodes_visited": hard_max_nodes_visited,
+            },
+        )
+    )
+    storage.save_state(state)
+    return PresentResponse(
+        title="Workflow safety cap reached",
+        description=f"The workflow has reached the global hard safety cap: "
+        f"{state.nodes_visited}/{hard_max_nodes_visited} nodes visited. "
+        f"A session with no soft limit is still bounded by this cap.",
+        instruction=f"The cap cannot be raised by a session command. Check the visit counters "
+        f"in the state for a likely loop. To continue a legitimately long run, raise "
+        f"'hard_max_nodes_visited' in '{CONFIG_FILE_NAME}' and resume the session.",
+        hints=_state_hints(state),
+        errors={node.id: "Workflow hard safety cap reached"},
+    )
+
+
+def _node_failed_response(node: WorkflowNode, state: StateModel, storage: Storage, failure: str) -> PresentResponse:
+    """End the run at a node whose guards routed it to failure. Its visit is already recorded."""
+    state.record_session_event(
+        SessionEvent.engine_event(SessionEventCode.WORKFLOW_FAILED, {"node_id": node.id, "failure": failure})
+    )
+    storage.save_state(state)
+    return PresentResponse(
+        title="Node failed",
+        description="A node did not pass its guards and the workflow cannot continue.",
+        instruction="Check the guard results in the state and the errors below.",
+        hints=_state_hints(state),
+        errors={node.id: failure},
+    )
+
+
+def _paused_at_question_response(
+    node: WorkflowNode,
+    action: BaseInteractiveAction,
+    state: StateModel,
+    storage: Storage,
+    state_read_only: StateReadOnlyView,
+) -> PresentResponse:
+    """The run stops at the question.
+
+    The paused position needs no state field of its own: it is the current node, and the built node
+    says whether it is interactive. See ADR 013 §3.
+    """
+    response = action.present(state_read_only)
+    state.record_session_event(
+        SessionEvent.engine_event(
+            SessionEventCode.WORKFLOW_PAUSED_INTERACTIVE,
+            {
+                "node_id": node.id,
+                "answer": [declaration.name for declaration in action.answer_contract().declarations],
+            },
+        )
+    )
+    storage.save_state(state)
+    return response
+
+
+def _runtime_error_response(state: StateModel, storage: Storage, error: WorkflowRuntimeError) -> PresentResponse:
+    """End the run at the exception a node raised, naming it where the node stood."""
+    state.record_session_event(
+        SessionEvent.engine_event(
+            SessionEventCode.WORKFLOW_FAILED,
+            {"node_id": state.current_node_id, "exception": type(error).__name__, "message": str(error)},
+        )
+    )
+    storage.save_state(state)
+    return PresentResponse(
+        title="Error in workflow execution",
+        description="An exception occurred during workflow execution.",
+        instruction="Please check Exception in Errors and state,",
+        hints=_state_hints(state),
+        errors={f"Exception: {type(error).__name__}": str(error)},
+    )
+
+
+def _completed_response(state: StateModel, storage: Storage) -> PresentResponse:
+    """The one exit that is not a stop: a transition ended the workflow instead of naming a next node."""
+    state.record_session_event(
+        SessionEvent.engine_event(
+            SessionEventCode.WORKFLOW_COMPLETED,
+            {"node_id": state.current_node_id, "nodes_visited": state.nodes_visited},
+        )
+    )
+    storage.save_state(state)
+    return PresentResponse(
+        title="Loop finished",
+        description="All nodes have been processed, and the workflow has completed.",
+        instruction="Workflow execution completed successfully. Check state.",
+        hints=_state_hints(state),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _Routed:
+    """Where routing a concluded node's output left the run, as the loop needs to carry it on.
+
+    The output travels back because an interactive node may have computed on the answer (ADR 015 §3),
+    and it is that output, not the one the caller supplied, which the next action reads as its
+    previous one. The state view travels back because the write the output applied is what that
+    action must see.
+    """
+
+    output: ActionNodeOutput
+    next_node: WorkflowNode | None
+    state_read_only: StateReadOnlyView
+    failure: str | None
+
+
+def _route_output(
+    workflow_nodes: MappingProxyType[str, WorkflowNode],
+    storage: Storage,
+    state: StateModel,
+    cur_node: WorkflowNode,
+    output: ActionNodeOutput,
+    state_read_only: StateReadOnlyView,
+) -> _Routed:
+    """Conclude the visit of a node: take its transition, apply its output and leave its record."""
+    if isinstance(cur_node.action, BaseInteractiveAction):
+        # The output at an interactive node is an accepted answer, and this is the only place one
+        # arrives: the action may compute on it before its own guards see it. Here the function reads
+        # the state view the guards read and returns the output `state.update` applies, so there is no
+        # second ordering question. See ADR 015 §3.
+        output = cur_node.action.process_answer(state_read_only, output)
+    ordinals = state.visit_ordinals(cur_node.id)
+    step = _proceed_with_output(workflow_nodes, output, cur_node, state, state_read_only)
+    next_node = step.next_node
+    applied = state.update(cur_node.id, cur_node.config.save_as, output, next_node.id if next_node else None)
+    state_read_only = StateReadOnlyView.from_state(state)
+    storage.save_state(state)
+    _record_visit(storage, state, cur_node, output, step, ordinals, applied)
+    return _Routed(output=output, next_node=next_node, state_read_only=state_read_only, failure=step.failure)
+
+
 def _start_engine(
     workflow_nodes: MappingProxyType[str, WorkflowNode],
     storage: Storage,
@@ -339,90 +508,31 @@ def _start_engine(
     output: ActionNodeOutput | None,
     hard_max_nodes_visited: int,
 ) -> PresentResponse:
+    """Run nodes until the workflow ends, fails, pauses at a question, or runs out of budget.
+
+    Every way out of the loop is a response built by one of the functions above, and each of them
+    journals its event and saves the state before returning, so a resume finds the run exactly where
+    its caller was told it stands.
+    """
     cur_node = _get_workflow_node(workflow_nodes, state.current_node_id)
     try:
         while cur_node is not None:
             if state.is_max_node_exceeded():
-                state.record_session_event(
-                    SessionEvent.engine_event(
-                        SessionEventCode.WORKFLOW_PAUSED_LIMIT,
-                        {
-                            "node_id": cur_node.id,
-                            "nodes_visited": state.nodes_visited,
-                            "max_nodes_visited": state.max_nodes_visited,
-                        },
-                    )
-                )
-                storage.save_state(state)
-                return PresentResponse(
-                    title="Workflow budget exceeded",
-                    description=f"The workflow has exceeded the maximum number of nodes "
-                    f"visited: {state.nodes_visited}/{state.max_nodes_visited}",
-                    instruction="You can change max node exceeded Workflow engine call set_session_limits",
-                    hints=_state_hints(state),
-                    errors={cur_node.id: "Workflow max node exceeded"},
-                )
+                return _budget_exceeded_response(cur_node, state, storage)
             if state.nodes_visited >= hard_max_nodes_visited:
-                state.record_session_event(
-                    SessionEvent.engine_event(
-                        SessionEventCode.WORKFLOW_PAUSED_SAFETY_LIMIT,
-                        {
-                            "node_id": cur_node.id,
-                            "nodes_visited": state.nodes_visited,
-                            "max_nodes_visited": state.max_nodes_visited,
-                            "hard_max_nodes_visited": hard_max_nodes_visited,
-                        },
-                    )
-                )
-                storage.save_state(state)
-                return PresentResponse(
-                    title="Workflow safety cap reached",
-                    description=f"The workflow has reached the global hard safety cap: "
-                    f"{state.nodes_visited}/{hard_max_nodes_visited} nodes visited. "
-                    f"A session with no soft limit is still bounded by this cap.",
-                    instruction=f"The cap cannot be raised by a session command. Check the visit counters "
-                    f"in the state for a likely loop. To continue a legitimately long run, raise "
-                    f"'hard_max_nodes_visited' in '{CONFIG_FILE_NAME}' and resume the session.",
-                    hints=_state_hints(state),
-                    errors={cur_node.id: "Workflow hard safety cap reached"},
-                )
+                return _safety_cap_response(cur_node, state, storage, hard_max_nodes_visited)
+
             _set_parameters(state, cur_node.set_parameters, cur_node.override_parameters)
             state_read_only = StateReadOnlyView.from_state(state)
             # The action of the node the engine resumes at has not run yet. Running it is not an
             # attempt, so the state is not updated for it.
             if output is not None:
-                if isinstance(cur_node.action, BaseInteractiveAction):
-                    # The output at an interactive node is an accepted answer, and this is the only
-                    # place one arrives: the action may compute on it before its own guards see it.
-                    # Here the function reads the state view the guards read and returns the output
-                    # `state.update` applies, so there is no second ordering question. See ADR 015 §3.
-                    output = cur_node.action.process_answer(state_read_only, output)
-                ordinals = state.visit_ordinals(cur_node.id)
-                step = _proceed_with_output(workflow_nodes, output, cur_node, state, state_read_only)
-                next_node = step.next_node
-                applied = state.update(
-                    cur_node.id, cur_node.config.save_as, output, next_node.id if next_node else None
-                )
-                state_read_only = StateReadOnlyView.from_state(state)
-                storage.save_state(state)
-                _record_visit(storage, state, cur_node, output, step, ordinals, applied)
-
-                if step.failure is not None:
-                    state.record_session_event(
-                        SessionEvent.engine_event(
-                            SessionEventCode.WORKFLOW_FAILED, {"node_id": cur_node.id, "failure": step.failure}
-                        )
-                    )
-                    storage.save_state(state)
-                    return PresentResponse(
-                        title="Node failed",
-                        description="A node did not pass its guards and the workflow cannot continue.",
-                        instruction="Check the guard results in the state and the errors below.",
-                        hints=_state_hints(state),
-                        errors={cur_node.id: step.failure},
-                    )
-
-                cur_node = next_node
+                routed = _route_output(workflow_nodes, storage, state, cur_node, output, state_read_only)
+                if routed.failure is not None:
+                    return _node_failed_response(cur_node, state, storage, routed.failure)
+                output = routed.output
+                state_read_only = routed.state_read_only
+                cur_node = routed.next_node
 
             # The entry check of the per-node cap, and the reason it sits here rather than at the top
             # of the loop: the node about to run is only known once the transition has been taken, and
@@ -434,53 +544,12 @@ def _start_engine(
             if cur_node and isinstance(cur_node.action, BaseAutomaticAction):
                 output = cur_node.action.execute(state_read_only, output)
             elif cur_node and isinstance(cur_node.action, BaseInteractiveAction):
-                # The run stops at the question. The paused position needs no state field of its own:
-                # it is the current node, and the built node says whether it is interactive. See ADR 013 §3.
-                response = cur_node.action.present(state_read_only)
-                state.record_session_event(
-                    SessionEvent.engine_event(
-                        SessionEventCode.WORKFLOW_PAUSED_INTERACTIVE,
-                        {
-                            "node_id": cur_node.id,
-                            "answer": [
-                                declaration.name for declaration in cur_node.action.answer_contract().declarations
-                            ],
-                        },
-                    )
-                )
-                storage.save_state(state)
-                return response
+                return _paused_at_question_response(cur_node, cur_node.action, state, storage, state_read_only)
 
     except WorkflowRuntimeError as e:
-        state.record_session_event(
-            SessionEvent.engine_event(
-                SessionEventCode.WORKFLOW_FAILED,
-                {"node_id": state.current_node_id, "exception": type(e).__name__, "message": str(e)},
-            )
-        )
-        storage.save_state(state)
-        return PresentResponse(
-            title="Error in workflow execution",
-            description="An exception occurred during workflow execution.",
-            instruction="Please check Exception in Errors and state,",
-            hints=_state_hints(state),
-            errors={f"Exception: {type(e).__name__}": str(e)},
-        )
+        return _runtime_error_response(state, storage, e)
 
-    state.record_session_event(
-        SessionEvent.engine_event(
-            SessionEventCode.WORKFLOW_COMPLETED,
-            {"node_id": state.current_node_id, "nodes_visited": state.nodes_visited},
-        )
-    )
-    storage.save_state(state)
-
-    return PresentResponse(
-        title="Loop finished",
-        description="All nodes have been processed, and the workflow has completed.",
-        instruction="Workflow execution completed successfully. Check state.",
-        hints=_state_hints(state),
-    )
+    return _completed_response(state, storage)
 
 
 @dataclass(frozen=True, slots=True)

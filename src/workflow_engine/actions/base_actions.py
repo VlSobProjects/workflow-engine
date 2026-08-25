@@ -32,7 +32,7 @@ class ExecutionMode(Enum):
 # To pass in get_and_check_registered function as addition_params
 # To check action function in configuration stage
 # In case action function will have state:StateModel arg so will not accept None
-def _factory_sate_stub() -> StateModel:
+def _factory_state_stub() -> StateModel:
     return StateModel(
         timestamp=datetime.now(tz=UTC),
         work_dir=Path("/"),
@@ -67,7 +67,7 @@ class BaseAction(ABC):
     ) -> RegisteredFunctionExecutor[ActionNodeOutput]:
         try:
             a_params = addition_params if addition_params else {}
-            a_params.update({"output": "", "state": _factory_sate_stub()})
+            a_params.update({"output": "", "state": _factory_state_stub()})
             return get_registered_function(cls, ActionNodeOutput, data, a_params)
         except WorkflowConfigurationError as e:
             raise ActionConfigurationError(cls.ACTION_TYPE, "exception in get_registered_function") from e

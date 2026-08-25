@@ -8,10 +8,9 @@ from tests.fixtures.simple_workflow import write_simple_workflow
 from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import WorkflowEngineConfiguration
 from workflow_engine.bootstrap.session_factory import SESSION_DIRECTORY, SESSION_FILE
-from workflow_engine.bootstrap.storage_fatcory import JSON_STORAGE_FOLDER_KEY
+from workflow_engine.bootstrap.storage_factory import JSON_STORAGE_FOLDER_KEY
 from workflow_engine.engine import WorkflowEngine
 from workflow_engine.exceptions import StateLoadError, WorkflowEngineError
-from workflow_engine.renderers.simple_render import SimplePresentResponseRender
 
 COMPONENT_REPORT = False
 
@@ -57,8 +56,7 @@ def test_simple_workflow(load_engine, tmp_path):
     engine = load_engine
     workflow_path = write_simple_workflow(tmp_path)
     session_id = engine.init_new_session(workflow_path=workflow_path)
-    resp, state = engine.start_workflow(session_id=session_id)
-    print(SimplePresentResponseRender(resp).render())
+    _, state = engine.start_workflow(session_id=session_id)
 
     assert state
 

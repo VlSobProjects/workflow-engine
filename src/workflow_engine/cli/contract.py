@@ -57,8 +57,14 @@ class CommandResult:
 
     @classmethod
     def from_state(
-        cls, command: CommandName, command_status: CommandStatus, state: StateReadOnlyView, message: str | None = None
+        cls,
+        command: CommandName,
+        command_status: CommandStatus,
+        state: StateReadOnlyView,
+        message: str | None = None,
+        full: bool = False,
     ) -> "CommandResult":
+        """The envelope of a command that moves or reports the run. `full` is the ADR 018 `show-state` data."""
         return cls(
             command=command,
             command_status=command_status,
@@ -67,7 +73,7 @@ class CommandResult:
             session_id=state.session_id,
             message=message,
             errors=state.get_errors(),
-            data=cls.get_data_from_state(state, full=False),
+            data=cls.get_data_from_state(state, full=full),
         )
 
     @staticmethod
@@ -104,18 +110,3 @@ class CommandResult:
             # Terminal run/resume additively surface each artifact by absolute path plus description.
             data["artifacts"] = state.get_artifacts_detail()
         return data
-
-    @classmethod
-    def from_state_full(
-        cls, command: CommandName, command_status: CommandStatus, state: StateReadOnlyView, message: str | None = None
-    ) -> "CommandResult":
-        return cls(
-            command=command,
-            command_status=command_status,
-            workflow_status=state.get_workflow_status_code(),
-            event_code=state.get_last_event_code(),
-            session_id=state.session_id,
-            message=message,
-            errors=state.get_errors(),
-            data=cls.get_data_from_state(state, full=True),
-        )
