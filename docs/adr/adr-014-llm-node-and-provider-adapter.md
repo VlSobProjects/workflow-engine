@@ -386,7 +386,7 @@ engine-resolved reference — the choice stays declared, coded and journaled.
 
 - Depends on: ADR 005 (registration and external modules), ADR 006 (typed writes), ADR 008
   (configuration file), ADR 011 (artifacts), ADR 013 (answer declaration), ADR 016 (the template
-  text contract the prompt inherits).
+  text contract the prompt inherits), ADR 021 (the record channel the §4 call audit lands in).
 - Touches: ADR 002 (guards stay deterministic), ADR 004 (session record, if snapshotted), ADR 009
   (help contract gains a component type), ADR 012 (deferred question §1, narrowed by ADR 016),
   ADR 015 (the composition-inside-one-action pattern the cut chains would follow), ADR 019 (Draft;
@@ -511,3 +511,6 @@ ADR 013 answer binding lives, and the layout of the in-repository adapter packag
   asks for is written — `README.md` for the operator surface, `docs/architecture/overview.md` for the
   delivered architecture, and the walkthrough of `folder-inventory-to-csv` with the three variants as
   the class 4 evidence the `Consumer` section names. No decision changed; the text stands as built.
+- 2026-08-25: editorial links fix in session `2026-08-25-architecture-1`: ADR 021 added to Depends
+  on — the 2026-08-24 amendment that moved the §4 call audit into the record channel did not extend
+  the list. No decision changed.

@@ -9,8 +9,9 @@
 - **Status:** open
 - **Affected:** ADR 010 (budget checkpoint shape; the per-node visit cap left it and became ADR 017),
   ADR 012 (deferred §1, shallow reference resolution — the in-text half of it is now decided by
-  ADR 016), ADR 013 (Accepted and delivered), ADR 014 (Draft; its open point 1 is decided by ADR 016
-  for the in-text case), ADR 015 (Accepted and delivered — computation on an accepted answer),
+  ADR 016), ADR 013 (Accepted and delivered), ADR 014 (Accepted and delivered — the `llm`
+  node and the provider adapters; its open point 1 was decided by ADR 016 for the in-text case),
+  ADR 015 (Accepted and delivered — computation on an accepted answer),
   ADR 016 (Accepted and delivered — text interpolation, friction 1 below), ADR 017 (Accepted and
   delivered — the per-node visit cap), ADR 005 (the external module path the final specific step
   takes — friction 3), ADR 018 (Accepted and delivered — the read surfaces a returning answerer

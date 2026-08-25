@@ -12,7 +12,8 @@
   deferred with this note's reformatting as its trigger), ADR 005 (registered components — every
   gap below is a missing component or a missing decision about one), ADR 011 (artifact addressing
   and export — the output shapes), ADR 013
-  (interactive exchange — the flow is one interview), ADR 014 (Draft; the answerer that judges),
+  (interactive exchange — the flow is one interview), ADR 014 (Accepted; the `llm` node is the
+  answerer that judges),
   ADR 016 (interpolation scope — a composed artifact name is outside it),
   `2026-08-19-adr0083-scenarios-coverage.md` (the same genre of measurement, for an external
   repository's scenarios)

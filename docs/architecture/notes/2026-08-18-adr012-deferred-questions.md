@@ -4,8 +4,9 @@
 - **Trigger:** observations surfaced while implementing ADR 012 (workflow input parameters).
 - **Status:** open
 - **Affected:** ADR 006 (data flow, codec contract), ADR 009 (help contract), ADR 011 (deliverables),
-  ADR 012 (inputs), ADR 014 (Draft, decides §1 for prompt templates; §3 waits for its own ADR after
-  ADR 013 — session `2026-08-19-architecture-1`), ADR 013 (Accepted; §3 was not a prerequisite for it —
+  ADR 012 (inputs), ADR 014 (Accepted; decided §1 for prompt templates through ADR 016 template
+  text; §3 still waits for its own ADR — sessions `2026-08-19-architecture-1`,
+  `2026-08-25-architecture-1`), ADR 013 (Accepted; §3 was not a prerequisite for it —
   session `2026-08-19-architecture-2`; §4 was found while fixing its text rendering — session
   `2026-08-19-implementation-14`),
   ADR 018 (session read surfaces — removes the `inputs` field of `show-state`, sharpening the missing

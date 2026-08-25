@@ -7,10 +7,11 @@
 - **Status:** open
 - **Affected:** ADR 006 (bus/journal invariants), ADR 007 (§4 interactive input deferred to phase 2),
   ADR 012 (pre-start binding; deliberately closed off mid-run external writes), ADR 013
-  (Accepted, carries (a) — session `2026-08-19-architecture-2`; (b) stays the next ADR after
-  ADR 014, (c) is a small fix without an ADR — session `2026-08-19-architecture-1`), ADR 014
-  (fixes the error classes (b) will consume — session `2026-08-21-architecture-1`), ADR 021
-  (Draft; the append-only node-record trail (d) assumes to stay audit-complete across a rollback,
+  (Accepted, carries (a) — session `2026-08-19-architecture-2`; (b) is unblocked now that ADR 014
+  is delivered, (c) is a small fix without an ADR — session `2026-08-19-architecture-1`), ADR 014
+  (Accepted; delivered the error classes (b) will consume — sessions `2026-08-21-architecture-1`,
+  `2026-08-25-architecture-1`), ADR 021
+  (Accepted; the append-only node-record trail (d) assumes to stay audit-complete across a rollback,
   with the rollback marker left open there — session `2026-08-24-architecture-3`)
 
 ## The gap
