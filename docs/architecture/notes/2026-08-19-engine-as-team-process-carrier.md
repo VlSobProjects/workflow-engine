@@ -14,6 +14,11 @@ This note exists because the scenario is the natural end point of the project, a
 needs is already scattered across six other notes. It is a collection point, not a decision. Where the
 project owner has taken a position, it is recorded as a position, not as a settled question.
 
+**Correction (`2026-08-23-architecture-1` §1, recorded at triage):** this note is a later application
+of the engine, not the purpose `docs/architecture/purpose.md` states and measures the architecture
+against. Kept open as the direction this scenario is a step towards; nothing here is phase-2 scheduled
+work.
+
 ## What it replaces
 
 The project owner's formulation, kept verbatim because it states the goal better than any description
@@ -25,7 +30,7 @@ of the mechanism does:
 
 This is the sentence to judge the direction by. It also sets the priority between the two scenarios
 this project is chasing: the questionnaire coverage
-(`2026-08-19-adr0083-scenarios-coverage.md`) is the near goal, the one that has to be *run* and
+(`2026-08-19-adr0083-coverage.md`) is the near goal, the one that has to be *run* and
 checked; this note is the direction that goal is a step towards, and nothing here is scheduled work.
 
 ## Why the scenario fits this engine at all
@@ -182,4 +187,4 @@ This note collects; the detail stays where it is.
 - `2026-08-19-installation-and-distribution.md` — how an operator obtains the command at all
 - `2026-08-19-entry-point-discovery.md` — how components register when they come from outside
 - `2026-08-18-adr012-deferred-questions.md` — reference resolution and the input transport
-- `2026-08-19-adr0083-scenarios-coverage.md` — the questionnaire scenarios this engine can already carry
+- `2026-08-19-adr0083-coverage.md` — the questionnaire scenarios this engine can already carry

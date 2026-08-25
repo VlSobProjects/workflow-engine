@@ -15,7 +15,7 @@
   (interactive exchange — the flow is one interview), ADR 014 (Accepted; the `llm` node is the
   answerer that judges),
   ADR 016 (interpolation scope — a composed artifact name is outside it),
-  `2026-08-19-adr0083-scenarios-coverage.md` (the same genre of measurement, for an external
+  `2026-08-19-adr0083-coverage.md` (the same genre of measurement, for an external
   repository's scenarios)
 
 ## Why this scenario and not another
@@ -136,7 +136,7 @@ own: **no document in this repository holds the phase plan.** "Phase 2" appears 
 inside ADR 007 §4, ADR 012, ADR 013, ADR 014 and ADR 015, and in two notes here. The closest thing to
 a statement of its goal is one line in `adr-014` ("The first phase 2 goal is a workflow with a clearly
 defined process in which language models do the work"), and the closest thing to a plan is the ordered
-list at the end of `2026-08-19-adr0083-scenarios-coverage.md`, which is scoped to that note's
+list at the end of `2026-08-19-adr0083-coverage.md`, which is scoped to that note's
 scenarios. Three of the documents that mention the phase are Accepted and therefore frozen.
 
 So an exit condition has nowhere to be written that is neither a frozen ADR nor a note that by its own

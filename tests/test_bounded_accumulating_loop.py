@@ -4,7 +4,7 @@ This is the shape the external ADR-0083 `FQ` node needs — up to N agent-genera
 answer kept — and the reason `append_to_param` and `is_collection_size_at_least` exist. The engine can
 bound the *retries* of a node with `attempts`, but a loop that passes through a second node resets that
 counter, so the bound has to come from what the loop has collected. See
-`docs/architecture/notes/2026-08-19-adr0083-scenarios-coverage.md`.
+`docs/architecture/notes/2026-08-19-adr0083-coverage.md`.
 """
 
 import json

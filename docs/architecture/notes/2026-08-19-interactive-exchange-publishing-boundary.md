@@ -7,7 +7,8 @@
   convention rather than by the code
 - **Status:** open
 - **Affected:** ADR 007 (command contract), ADR 009 (operator help), ADR 013 (delivered), ADR 014
-  (Accepted, publishes the same answer declaration); the question-rendering note
+  (Accepted, publishes the same answer declaration), ADR 019 (Draft — its §2 typed question document
+  answers §1 and §3 below); the question-rendering note
   (`2026-08-20-question-rendering-for-an-audience.md`) picks up §1's split-the-class option and §3's
   version question with their first real consumer
 
@@ -16,6 +17,13 @@ ADR 013 §3 decided that the caller-facing document is a reduced `question` bloc
 review points out is that the *decision* is enforced by one function, while the *shapes* around it
 still invite the opposite. None of this is a defect in what was built; all of it is what a second
 implementation, a second caller, or a second transport would trip over.
+
+**Triaged 2026-08-25 (`2026-08-23-architecture-1` §4, roadmap step 12):** promoted in part. §1 and §3
+are answered by ADR 019 §2, the typed question document — a dedicated publishing shape retires
+`PresentResponse` as a publishing candidate and gives the block its own version. §2 (`actor` identity)
+is not touched by ADR 019 and stays open, alongside the later-phase note
+`2026-08-25-role-separation-answerer-and-operator.md`, which is the identity question's first real
+consumer. §4 is untouched by any of this.
 
 ## 1. `PresentResponse` still looks publishable
 
