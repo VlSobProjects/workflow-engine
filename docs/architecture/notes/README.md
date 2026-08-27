@@ -95,6 +95,7 @@ session assigns it a phase.
 | 2026-08-19 | Whether the engine can carry a team's development process, and the four tensions under it — a later application, not the purpose | open | ADR 002, ADR 003, ADR 004, ADR 005, ADR 006, ADR 010, ADR 013 | [2026-08-19-engine-as-team-process-carrier.md](2026-08-19-engine-as-team-process-carrier.md) |
 | 2026-08-21 | The support-intake use case measured against the component inventory: four gaps in dictionary parameters, template text, output shape and answer checking — reformatted as a class 2 scenario in phase 3, ADR 019's second consumer | open | ADR 005, ADR 011, ADR 013, ADR 014, ADR 016, ADR 020 | [2026-08-21-support-intake-use-case.md](2026-08-21-support-intake-use-case.md) |
 | 2026-08-21 | One instruction that lets an agent drive any workflow, which measures whether the published block and the command result are self-sufficient; acts after ADR 019 reaches Implementing, Skill deferred to the publication gate | open | ADR 019, ADR 007, ADR 009, ADR 013, ADR 016, ADR 018 | [2026-08-21-agent-instruction-and-skill.md](2026-08-21-agent-instruction-and-skill.md) |
+| 2026-08-28 | Rendered dashboard panels as input for image-capable models — an image channel for the `llm` node would be an ADR across the action, the adapter contract and the record channel, and sits in extended measurement outside the phase gate | open | ADR 014, ADR 016, ADR 021 | [2026-08-28-rendered-panels-as-model-input.md](2026-08-28-rendered-panels-as-model-input.md) |
 
 ### Not triaged
 
