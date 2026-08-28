@@ -101,6 +101,8 @@ session assigns it a phase.
 
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
+| 2026-08-28 | Phase 3 assisted authoring extended to component authoring — functions, guards and codecs as a testable authored artifact, the model cost paid once at authoring time | open | ADR 005, ADR 009 | [2026-08-28-authoring-extends-to-components.md](2026-08-28-authoring-extends-to-components.md) |
+| 2026-08-28 | Determinism required of the boundary, not the step — a model step normalized by a post-function and routed by deterministic guards, the journal as the specification of a future replacement function | open | ADR 002, ADR 014, ADR 021 | [2026-08-28-boundary-determinism-function-vs-model.md](2026-08-28-boundary-determinism-function-vs-model.md) |
 
 ### Closed
 
