@@ -6,6 +6,9 @@ A workflow is a graph of nodes. Each node runs one action, and an ordered list o
 transitions decides where the workflow goes next. The state of a run is persisted, so a workflow can
 be resumed.
 
+Why the engine exists — the challenges it answers and where it applies — is argued in
+[`docs/motivation.md`](docs/motivation.md).
+
 ## Layout
 
 | Path | Contents |
