@@ -13,6 +13,7 @@ Only the documents listed below may exist:
 | `.github/copilot-instructions.md` | Copilot entrypoint, routing only |
 | `CLAUDE.md` | Claude Code entrypoint; routes like `AGENTS.md`, plus a condensed non-negotiable-rules/commands summary for Claude Code's own use (stated exception to §4, kept in sync with the documents it summarizes) |
 | `docs/README.md` | Documentation index |
+| `docs/motivation.md` | Why the project exists: the challenges it answers and where it applies, argued for a reader outside the project |
 | `docs/rules/` | General and task specific rules |
 | `docs/architecture/purpose.md` | What the engine is for, its boundaries and what counts as done; read at the start of every architecture session |
 | `docs/architecture/roadmap.md` | The steps of the current phase and the exit scenario of each phase; read after the purpose |
