@@ -10,6 +10,7 @@ Read only the documents relevant to the current task:
 - Architecture ideas not yet decided: `docs/architecture/notes/README.md`
 - Documentation work: `docs/rules/documentation-rules.md`
 - Git and branches: `docs/processes/git-workflow.md`
+- Correspondence with other projects: `docs/processes/exchange-desk.md`
 - Current architecture: `docs/architecture/overview.md`
 - Session notes: `docs/sessions/README.md`
   - For every new session, follow the lifecycle protocol in this document from start to closure/interruption.

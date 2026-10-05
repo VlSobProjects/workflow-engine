@@ -15,6 +15,7 @@ current task needs:
   reviewed during architecture work)
 - Documentation work: `docs/rules/documentation-rules.md`
 - Git and branches: `docs/processes/git-workflow.md`
+- Correspondence with other projects: `docs/processes/exchange-desk.md`
 - Current architecture: `docs/architecture/overview.md`
 - Session notes: `docs/sessions/README.md` — every new session follows the lifecycle protocol there;
   every session note copies the structure of `docs/sessions/template.md`
@@ -48,6 +49,8 @@ Do not read unrelated docs, and create documents only inside the map defined in
 - Verification means command-line runs of pytest and ruff; report what was actually run. Never claim
   unverified success.
 - New dependencies require justification and explicit approval; prefer the standard library.
+- On the exchange desk a session writes a letter only as `draft`; only the user releases it. The
+  desk's address is never written into a committed file.
 
 ## Commands
 
