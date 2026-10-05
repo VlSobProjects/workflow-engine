@@ -10,7 +10,7 @@ This directory contains the repository's structured documentation.
 - `architecture/notes/` — durable architectural ideas not yet decided, and their registry
 - `adr/` — architecture decision records and ADR governance
 - `sessions/` — session notes and session registry
-- `processes/` — workflows such as git and documentation processes
+- `processes/` — workflows such as git and documentation processes, and the exchange desk with other projects
 
 ## Governance principles
 - Keep entrypoint files short and link-driven.
