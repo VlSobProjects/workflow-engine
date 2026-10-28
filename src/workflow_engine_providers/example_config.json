@@ -14,7 +14,11 @@
     "unread, so a setting the server gains later needs no new adapter. It governs a load the",
     "adapter performs: two blocks on one server share what the run holds there, so a block asking",
     "for a model the run already loaded with other settings gets it loaded again under its own,",
-    "while a model the server already held is used as it stands."
+    "while a model the server already held is used as it stands.",
+    "'ollama_systemone' asks a decision model on an Ollama server the typed questions a node puts",
+    "under 'questions' in its options, and replies with a JSON object of question name to answer.",
+    "'keep_alive' is how long the server keeps the model after a call; the adapter releases what",
+    "the run brought onto the server when the run ends, unless it paused."
   ],
   "external_modules": [
     "workflow_engine_providers"
@@ -40,6 +44,15 @@
           "context_length": 16384,
           "flash_attention": true
         }
+      }
+    },
+    "local-decision": {
+      "adapter": "ollama_systemone",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "model": "a-decision-model",
+      "options": {
+        "timeout": 120,
+        "keep_alive": "5m"
       }
     },
     "hosted": {

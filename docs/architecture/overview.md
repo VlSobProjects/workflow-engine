@@ -219,7 +219,11 @@ the response and changes neither the outcome of the run nor its exit code.
 The core ships one adapter, `fake` — the null implementation of the contract, scripted replies and no
 network. The real adapters live in `src/workflow_engine_providers/`, an add-on package beside the
 engine loaded through `external_modules` like any plugin: `openai_compatible`, which speaks that
-protocol and nothing else, and `lmstudio`, which subclasses it and adds model residency.
+protocol and nothing else, `lmstudio`, which subclasses it and adds model residency, and
+`ollama_systemone`, a sibling over Ollama's decision endpoint: the prompt is the state, the typed
+questions travel in the call options, and the reply text is a JSON object of question name to
+probability or answer object, which the `llm` node binds like any `json` reply — the contract is
+unchanged.
 
 **Configuration.** The engine configuration file carries a `providers` section: per provider name,
 `adapter`, `base_url`, `model`, `api_key_env` — the *name* of the environment variable holding the
