@@ -28,6 +28,7 @@ from workflow_engine.providers.base_provider import ProviderCall, ProviderErrorC
 from workflow_engine.registry import provider_registry
 from workflow_engine.registry.provider_registry import get_registered_provider
 from workflow_engine_providers.lmstudio import ADAPTER_NAME as LMSTUDIO_ADAPTER_NAME
+from workflow_engine_providers.ollama_systemone import ADAPTER_NAME as OLLAMA_SYSTEMONE_ADAPTER_NAME
 from workflow_engine_providers.openai_compatible import (
     ADAPTER_NAME,
     DEFAULT_TIMEOUT_SECONDS,
@@ -35,7 +36,7 @@ from workflow_engine_providers.openai_compatible import (
 )
 
 PACKAGE_NAME = "workflow_engine_providers"
-PACKAGE_ADAPTERS = (ADAPTER_NAME, LMSTUDIO_ADAPTER_NAME)
+PACKAGE_ADAPTERS = (ADAPTER_NAME, LMSTUDIO_ADAPTER_NAME, OLLAMA_SYSTEMONE_ADAPTER_NAME)
 EXAMPLE_CONFIG = Path(__file__).resolve().parents[1] / "src" / PACKAGE_NAME / "example_config.json"
 
 

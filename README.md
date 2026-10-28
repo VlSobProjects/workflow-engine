@@ -256,13 +256,19 @@ found at load and not at the first model call. A node naming a provider the inst
 configure, and a block naming an adapter no loaded module registered, are configuration errors too:
 wrong before the run, not during it, and therefore not routable.
 
-Three adapters exist. `fake` ships in the core: it answers scripted replies without leaving the
-process, which is what the test suite and the shipped examples run on. The other two are in
+Four adapters exist. `fake` ships in the core: it answers scripted replies without leaving the
+process, which is what the test suite and the shipped examples run on. The other three are in
 `workflow_engine_providers`, an add-on package beside the engine that is loaded the way any plugin
 is loaded, by naming it in `external_modules` — `openai_compatible` speaks the OpenAI-compatible
 chat protocol and reaches a local server and a hosted vendor alike, and `lmstudio` speaks the same
 protocol and additionally loads and unloads models on an LM Studio server, releasing only what the
-run loaded itself. `src/workflow_engine_providers/example_config.json` carries a filled-in example
+run loaded itself. `ollama_systemone` asks a decision model on an Ollama server typed questions about
+the prompt — yes or no, one of several options, a level on a scale — and returns their probabilities:
+the questions go in the node's `options` under `questions`, in the server's own form, and the reply is
+a JSON object of question name to answer, so `format: json` binds the probability of a yes-or-no
+question as a `float` and the answer to the other two as a `dict`. It releases the models the run
+brought onto the server when the run ends, unless it paused, and never one the server already held.
+`src/workflow_engine_providers/example_config.json` carries a filled-in example
 of all of it, and `help-component --component-type providers` lists what the installation has.
 
 An adapter that holds a resource is told when the run ends and decides for itself what to release.
