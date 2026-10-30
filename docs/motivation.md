@@ -13,9 +13,10 @@ into an existing answer or replaces one; it is not appended.
 
 The current default for automating a complex task is to hand it whole to an agent: a large model, a
 prompt, a set of tools. It works impressively in a demo and poorly as automation, because somebody
-sits and watches what the agent does — and given the whole task in one context, the model takes a
-different path every time. The origin of this project was exactly such a task, load-test triage,
-where the attempt to automate it with an agent turned out to be supervision, not automation.
+sits and watches what the agent does — given the whole task in one context, the model will probably
+take the same path as last time, but nothing guarantees it, and a wrong turn is taken confidently and
+paid for in full. The origin of this project was exactly such a task, load-test triage, where the
+attempt to automate it with an agent turned out to be supervision, not automation.
 
 The claim of the project, in one sentence:
 

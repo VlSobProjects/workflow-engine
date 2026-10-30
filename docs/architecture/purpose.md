@@ -26,8 +26,9 @@ invents a step.
 
 A prompt handed to an agent is not automation: somebody sits and watches what the agent does.
 Given the whole task in one context, a model loses the instructions under the data: it decides
-about what it has not seen, and the same task takes a different path every time. Splitting the
-task into narrow steps by hand is the same method done without a tool.
+about what it has not seen, and nothing guarantees that the same task takes the same path twice; a
+wrong turn is taken confidently and paid for in full. Splitting the task into narrow steps by hand
+is the same method done without a tool.
 
 Many steps need no model at all. A pipeline of checks — the key endpoints answer, every service
 runs the expected version, the logs carry no deployment failure — gives the answer before a model
