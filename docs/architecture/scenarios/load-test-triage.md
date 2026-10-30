@@ -14,7 +14,12 @@
   variant), the injector's report and metrics as the load tool exports them, the resource metrics
   of the host as the metrics store exports them, an excerpt of the service logs covering the run
   window, and the deployment facts (service version, instance count, database and pool
-  configuration — JSON, hand-written per variant). The formats are the real export formats of the
+  configuration — JSON, hand-written per variant). The load profile also carries the service
+  levels the run is judged by — a 95th percentile per band of operations and a hard ceiling over
+  all — and the rig's published rule that maps a sample's label to its band, so the domain module
+  attributes every sample to its band itself; what the rig computed from the samples, its
+  percentiles and its verdict, is never taken as input, because the two readings of a run are
+  evidence only while they are independent. The formats are the real export formats of the
   rig's tools, parsed by the domain module that ships beside the scenario; the publication gate
   reuses the same rig against the live system instead of the frozen files. Most variants are
   separate captures whose planted condition is induced for real — fault injection in the system
