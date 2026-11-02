@@ -282,6 +282,7 @@ class TestTheFailuresItClassifies:
             (404, {"error": "model 'nope:1b' not found"}, ProviderErrorClass.INVALID_REQUEST),
             (429, {"error": "too many requests"}, ProviderErrorClass.RATE_LIMITED),
             (500, {"error": "the model failed"}, ProviderErrorClass.TRANSIENT),
+            (500, {"error": "Context size has been exceeded."}, ProviderErrorClass.CONTEXT_OVERFLOW),
             (200, "not json at all", ProviderErrorClass.PERMANENT),
             (200, {"model": MODEL, "choices": []}, ProviderErrorClass.PERMANENT),
             (200, {"model": MODEL, "answers": {"is_trip": 0.5}}, ProviderErrorClass.PERMANENT),

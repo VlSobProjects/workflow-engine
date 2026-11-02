@@ -60,12 +60,14 @@ _CONTEXT_OVERFLOW_MARKERS = (
 
 There is no status code for it and no cross-vendor error code, so the body is the only signal. A
 marker that is missed costs the run a routable overflow, not a wrong answer: the call still fails,
-as ``invalid_request``, and the branch that would have split the data is simply not taken.
+as ``invalid_request`` or ``transient`` by its status, and the branch that would have split the data
+is simply not taken.
 
 The list grows by measurement and never by imagination. The ``size`` wordings were added in session
 ``2026-08-25-implementation-2``, when a local server first refused an oversized prompt on demand -
 ``exceeds the available context size``, under an error type of the same word - and every marker
-written before it missed the one refusal the class exists for.
+written before it missed the one refusal the class exists for. The same wording later arrived under a
+500 from an Ollama decision endpoint, which is why the markers are read in the 5xx range too.
 """
 
 
@@ -84,9 +86,12 @@ def classify_status(status: int, body: str) -> ProviderErrorClass:
     Public inside this package: an adapter that adds endpoints of its own classifies their failures
     by the same rule, so one server never reports two different classes for the same status.
 
-    The split that matters is inside the 4xx range: a refusal of an oversized prompt is the one
-    honest overflow signal the engine can get - it carries no tokenizer - and a guard that sees the
-    class routes the run into a branch that splits the data.
+    The split that matters is the refusal of an oversized prompt: it is the one honest overflow signal
+    the engine can get - it carries no tokenizer - and a guard that sees the class routes the run into
+    a branch that splits the data. The body is read for it in the 4xx and the 5xx range alike, because
+    servers differ in the status they give it: an Ollama decision endpoint refuses with a 500 and
+    ``Context size has been exceeded.``, and classing that by its status alone would retry a call that
+    can only fail the same way.
     """
     if status == 429:
         return ProviderErrorClass.RATE_LIMITED
@@ -98,14 +103,18 @@ def classify_status(status: int, body: str) -> ProviderErrorClass:
         # A credential the server rejects is not fixed by calling again, and the run must not spend
         # its attempts finding that out.
         return ProviderErrorClass.PERMANENT
+    if status >= 400 and _names_an_overflow(body):
+        return ProviderErrorClass.CONTEXT_OVERFLOW
     if status >= 500:
         return ProviderErrorClass.TRANSIENT
     if status >= 400:
-        lowered = body.lower()
-        if any(marker in lowered for marker in _CONTEXT_OVERFLOW_MARKERS):
-            return ProviderErrorClass.CONTEXT_OVERFLOW
         return ProviderErrorClass.INVALID_REQUEST
     return ProviderErrorClass.TRANSIENT
+
+
+def _names_an_overflow(body: str) -> bool:
+    lowered = body.lower()
+    return any(marker in lowered for marker in _CONTEXT_OVERFLOW_MARKERS)
 
 
 @register_provider(
@@ -129,8 +138,8 @@ def classify_status(status: int, body: str) -> ProviderErrorClass:
             "token counts it reports. Every transport failure comes back as one of the six error "
             "classes rather than as an exception: 429 is 'rate_limited', a timeout is 'timeout', a "
             "refusal of an oversized prompt is 'context_overflow', a rejected credential is "
-            "'permanent', another 4xx is 'invalid_request', and a 5xx or an unreachable server is "
-            "'transient'."
+            "'permanent', another 4xx is 'invalid_request', and another 5xx or an unreachable server "
+            "is 'transient'."
         ),
         call_options={
             SYSTEM_OPTION: ProviderOptionDoc(

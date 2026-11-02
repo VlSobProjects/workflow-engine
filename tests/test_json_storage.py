@@ -1,5 +1,8 @@
 import datetime
 import json
+import sys
+import threading
+from pathlib import Path
 
 import pytest
 
@@ -8,6 +11,7 @@ from workflow_engine.bootstrap.bootstrap import Bootstrap
 from workflow_engine.bootstrap.config_loader import WorkflowEngineConfiguration
 from workflow_engine.exceptions import StateLoadError, WorkflowConfigurationError
 from workflow_engine.models.state import ActionParameter, StateModel
+from workflow_engine.storage import json_storage as json_storage_module
 from workflow_engine.storage.json_storage import JsonStorage
 
 SESSION_ID = "test_session_id"
@@ -254,3 +258,71 @@ def test_a_completed_state_write_leaves_only_the_state_file(json_storage):
     json_storage.save_state(state)
 
     assert [entry.name for entry in (json_storage.storage_dir / SESSION_ID).iterdir()] == ["state.json"]
+
+
+def test_a_failed_state_write_names_its_cause_beside_the_path(json_storage):
+    state = json_storage.load_state(SESSION_ID)
+    state.outputs["test_node_id"] = object()
+
+    with pytest.raises(StateLoadError, match=r"state\.json: TypeError: .*not JSON serializable"):
+        json_storage.save_state(state)
+
+
+@pytest.fixture
+def no_replace_delays(monkeypatch):
+    monkeypatch.setattr(json_storage_module, "REPLACE_RETRY_DELAYS", (0.0, 0.0, 0.0))
+
+
+def refusing_replace(monkeypatch, refusals: int | None) -> list[Path]:
+    """Make the rename onto the state file refuse `refusals` times, or always when None."""
+    real_replace = Path.replace
+    attempts: list[Path] = []
+
+    def replace(self: Path, target: Path) -> Path:
+        attempts.append(Path(target))
+        if refusals is None or len(attempts) <= refusals:
+            raise PermissionError(13, "The process cannot access the file", str(target))
+        return real_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace)
+    return attempts
+
+
+def test_a_refused_replace_is_attempted_again_until_it_goes_through(json_storage, monkeypatch, no_replace_delays):
+    state = json_storage.load_state(SESSION_ID)
+    state.outputs["test_node_id"] = "written after two refusals"
+    attempts = refusing_replace(monkeypatch, refusals=2)
+
+    json_storage.save_state(state)
+
+    assert len(attempts) == 3
+    assert json_storage.load_state(SESSION_ID).outputs["test_node_id"] == "written after two refusals"
+    assert [entry.name for entry in (json_storage.storage_dir / SESSION_ID).iterdir()] == ["state.json"]
+
+
+def test_a_refusal_that_does_not_pass_fails_the_save_with_its_cause(json_storage, monkeypatch, no_replace_delays):
+    state = json_storage.load_state(SESSION_ID)
+    state.outputs["test_node_id"] = "never written"
+    attempts = refusing_replace(monkeypatch, refusals=None)
+
+    with pytest.raises(StateLoadError, match=r"state\.json: PermissionError: "):
+        json_storage.save_state(state)
+
+    assert len(attempts) == len(json_storage_module.REPLACE_RETRY_DELAYS) + 1
+    assert json_storage.load_state(SESSION_ID).outputs.get("test_node_id") != "never written"
+    assert [entry.name for entry in (json_storage.storage_dir / SESSION_ID).iterdir()] == ["state.json"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the rename is refused over an open file on Windows only")
+def test_a_state_file_held_open_for_an_instant_does_not_fail_the_save(json_storage):
+    """The case of a reader holding the state file at the moment of the rename, with a real Windows lock."""
+    state_file = json_storage.storage_dir / SESSION_ID / "state.json"
+    state = json_storage.load_state(SESSION_ID)
+    state.outputs["test_node_id"] = "written after the reader let go"
+    reader = state_file.open(encoding="utf-8")
+    threading.Timer(0.2, reader.close).start()
+
+    json_storage.save_state(state)
+
+    assert reader.closed
+    assert json_storage.load_state(SESSION_ID).outputs["test_node_id"] == "written after the reader let go"

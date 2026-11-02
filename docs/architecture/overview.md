@@ -367,7 +367,10 @@ Storage is built per session, not once per process, because a session decides wh
 The state file is replaced, never rewritten in place: the new content is written to a temporary file
 in the same directory, flushed to disk and then renamed onto `state.json`. A run interrupted while
 writing therefore leaves the previous state readable and the session resumable, which is what makes
-the per-turn write safe to rely on. The workflow definition and the session record are written once
+the per-turn write safe to rely on. A rename refused with a permission error — on Windows, another
+program holding `state.json` open for an instant — is attempted again a few times over about a
+second and a half before the save fails, and a save that fails names the class and the message of
+its cause beside the path. The workflow definition and the session record are written once
 when the session is created, and the record stream is only ever appended to one line at a time, so
 neither needs the same treatment.
 
