@@ -146,7 +146,7 @@ class OllamaResidencyError(WorkflowRuntimeError):
             "to answer, together with the token counts the server reports. Every transport failure "
             "comes back as one of the six error classes rather than as an exception: a refused request "
             "is 'invalid_request', an input too large for the server is 'context_overflow', a timeout "
-            "is 'timeout', a 5xx or an unreachable server is 'transient', and a body that is not a "
+            "is 'timeout', another 5xx or an unreachable server is 'transient', and a body that is not a "
             "System One answer is 'permanent'."
         ),
         call_options={

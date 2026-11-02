@@ -2,6 +2,7 @@ import dataclasses
 import json
 import os
 import tempfile
+import time
 from collections import deque
 from pathlib import Path
 
@@ -52,6 +53,28 @@ def state_encoder(obj):
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
+REPLACE_RETRY_DELAYS = (0.05, 0.1, 0.2, 0.4, 0.8)
+"""Seconds to wait before each further attempt to replace the target, after a refused first one."""
+
+
+def _replace_retrying(source: Path, target: Path) -> None:
+    """Rename the source onto the target, waiting out a refusal that passes.
+
+    On Windows a rename onto a file another program holds open for an instant - an indexer or a
+    virus scanner reading the state just written - is refused with a ``PermissionError``, and the
+    same rename a moment later goes through. A run rewrites its state on every turn, so a run of many
+    nodes meets such an instant now and then, and failing the run on it would lose the run to someone
+    else's read. A refusal that outlasts the delays is raised as it is.
+    """
+    for delay in REPLACE_RETRY_DELAYS:
+        try:
+            source.replace(target)
+            return
+        except PermissionError:
+            time.sleep(delay)
+    source.replace(target)
+
+
 def write_json_atomically(target: Path, payload: object, encoder) -> None:
     """Write the payload beside the target and replace the target with it in one step.
 
@@ -67,7 +90,7 @@ def write_json_atomically(target: Path, payload: object, encoder) -> None:
             json.dump(payload, f, indent=4, sort_keys=True, default=encoder)
             f.flush()
             os.fsync(f.fileno())
-        temp_file.replace(target)
+        _replace_retrying(temp_file, target)
     except BaseException:
         temp_file.unlink(missing_ok=True)
         raise
@@ -193,6 +216,9 @@ class JsonStorage(Storage):
         except WorkflowConfigurationError:
             raise
         except Exception as ex:
+            # The cause is named beside the path: a chained exception does not reach the output of the
+            # command, and a passing lock must be told apart from a real fault of the storage.
             raise StateLoadError(
-                "state_file", f"Failed to save state at path: {state_file.resolve(strict=False)}"
+                "state_file",
+                f"Failed to save state at path: {state_file.resolve(strict=False)}: {type(ex).__name__}: {ex}",
             ) from ex

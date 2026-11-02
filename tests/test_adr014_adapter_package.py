@@ -280,6 +280,7 @@ class TestTheFailuresItClassifies:
             (400, {"error": {"code": "unknown_field"}}, ProviderErrorClass.INVALID_REQUEST),
             (500, {"error": "internal"}, ProviderErrorClass.TRANSIENT),
             (503, {"error": "loading"}, ProviderErrorClass.TRANSIENT),
+            (500, {"error": "the context size was exceeded"}, ProviderErrorClass.CONTEXT_OVERFLOW),
         ],
     )
     def test_a_status_becomes_the_class_the_graph_routes_on(
