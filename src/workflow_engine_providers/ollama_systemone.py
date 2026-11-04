@@ -138,6 +138,11 @@ class OllamaResidencyError(WorkflowRuntimeError):
         "type. Bind it with 'format: json', a 'float' for a 'noul' answer and a 'dict' for the others.",
         "A model the server did not hold before the call is the run's own and is released when the run "
         "ends, unless the run only paused. A model the server already held is never released.",
+        "The model's context is the one its model file sets: the server ignores a context option on a "
+        "decision call, and the adapter performs no load that could set one. A larger context is a model "
+        "variant whose model file raises 'num_ctx' and 'num_batch' together, named as 'model'. The input of "
+        "one call is bounded by the smaller of the two, so the 'context_length' the server reports overstates "
+        "the bound when 'num_batch' is smaller; an input above it comes back as 'context_overflow'.",
     ],
     metadata=ProviderOperatorMetadata(
         description=(
