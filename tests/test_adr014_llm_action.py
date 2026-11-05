@@ -28,6 +28,7 @@ from workflow_engine.exceptions import (
     ActionConfigurationError,
     WorkflowAnswerError,
     WorkflowConfigurationError,
+    WorkflowParameterError,
     WorkflowRuntimeError,
 )
 from workflow_engine.models.state import StateModel, StateReadOnlyView
@@ -84,7 +85,7 @@ class TestRegistration:
 
         assert metadata is not None
         assert {"provider", "prompt", "answer"} == set(metadata.required_parameters)
-        assert {"model", "format", "options", "record"} == set(metadata.optional_parameters)
+        assert {"model", "format", "options", "record", "save_call_as"} == set(metadata.optional_parameters)
         assert metadata.examples
 
 
@@ -410,7 +411,137 @@ class TestTheCallAudit:
         details = action.execute(_state(tmp_path), None).details
 
         assert "invoice" not in str(details)
-        assert set(details) == {"provider", "model", "status"}
+        assert set(details) == {"provider", "model", "model_requested", "status"}
+
+    def test_the_model_requested_is_kept_apart_from_the_model_reported(self, tmp_path, provider_seat_guard):
+        _register_renaming_adapter()
+        _seat(adapter="renaming")
+
+        details = _llm().execute(_state(tmp_path), None).details
+
+        assert details["model_requested"] == "small-1"
+        assert details["model"] == "small-1-q4"
+
+
+FACTS = "call_facts"
+
+
+class TestTheCallFacts:
+    """The facts of the call written to a parameter the node names, on every way out of the node."""
+
+    def test_the_option_is_offered_on_the_help_surface(self):
+        metadata = get_metadata_for_action("llm")
+
+        assert metadata is not None
+        assert "save_call_as" in metadata.optional_parameters
+
+    def test_nothing_is_written_when_the_node_names_no_parameter(self, tmp_path, provider_seat_guard):
+        _seat(replies=["a short summary"])
+
+        assert _names(_llm().execute(_state(tmp_path), None)) == []
+
+    def test_an_answered_call_writes_every_fact_beside_the_declared_values(self, tmp_path, provider_seat_guard):
+        _register_counting_adapter()
+        _seat(adapter="counting")
+        action = _llm(answer=[{"name": "summary"}], save_call_as=FACTS)
+
+        output = action.execute(_state(tmp_path), None)
+
+        assert _names(output) == ["summary", FACTS]
+        assert output.get_param(FACTS) == {
+            "provider": "local",
+            "model_requested": "small-1",
+            "model_answered": "small-1",
+            "status": "answered",
+            "error_class": None,
+            "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+        }
+
+    def test_the_facts_overwrite_what_an_earlier_call_wrote(self, tmp_path, provider_seat_guard):
+        _seat(replies=["a short summary"])
+
+        write = _llm(save_call_as=FACTS).execute(_state(tmp_path), None).param_writes[FACTS]
+
+        assert write.allow_overwrite is True
+
+    def test_the_model_requested_and_the_model_answered_are_kept_apart(self, tmp_path, provider_seat_guard):
+        _register_renaming_adapter()
+        _seat(adapter="renaming")
+
+        facts = _llm(save_call_as=FACTS).execute(_state(tmp_path), None).get_param(FACTS)
+
+        assert facts["model_requested"] == "small-1"
+        assert facts["model_answered"] == "small-1-q4"
+
+    def test_the_model_of_the_node_is_the_model_requested(self, tmp_path, provider_seat_guard):
+        _seat(replies=["a short summary"])
+
+        facts = _llm(model="large-2", save_call_as=FACTS).execute(_state(tmp_path), None).get_param(FACTS)
+
+        assert facts["model_requested"] == "large-2"
+
+    def test_unknown_token_counts_are_null_rather_than_missing(self, tmp_path, provider_seat_guard):
+        _seat(replies=["a short summary"])
+
+        facts = _llm(save_call_as=FACTS).execute(_state(tmp_path), None).get_param(FACTS)
+
+        assert facts["usage"] == {"prompt_tokens": None, "completion_tokens": None}
+
+    def test_a_failed_call_writes_its_class_and_the_model_it_requested(self, tmp_path, provider_seat_guard):
+        _seat(replies=[{"error": "timeout", "message": "no answer"}])
+
+        output = _llm(save_call_as=FACTS).execute(_state(tmp_path), None)
+
+        assert output.error_code == "timeout"
+        assert output.get_param(FACTS) == {
+            "provider": "local",
+            "model_requested": "small-1",
+            "model_answered": None,
+            "status": "failed",
+            "error_class": "timeout",
+            "usage": {"prompt_tokens": None, "completion_tokens": None},
+        }
+
+    def test_an_adapter_that_raises_still_leaves_the_facts(self, tmp_path, provider_seat_guard):
+        _register_raising_adapter()
+        _seat(adapter="raising")
+
+        facts = _llm(save_call_as=FACTS).execute(_state(tmp_path), None).get_param(FACTS)
+
+        assert facts["status"] == "failed"
+        assert facts["error_class"] == PROVIDER_FAILED
+        assert facts["model_requested"] == "small-1"
+
+    def test_a_reply_the_declaration_refuses_is_an_answered_call(self, tmp_path, provider_seat_guard):
+        _seat(replies=["not json at all"])
+        action = _llm(format="json", answer=[{"name": "category"}], save_call_as=FACTS)
+
+        output = action.execute(_state(tmp_path), None)
+
+        assert output.error_code == LLM_ANSWER_INVALID
+        assert output.get_param(FACTS)["status"] == "answered"
+        assert output.get_param(FACTS)["error_class"] is None
+
+    def test_an_audit_that_cannot_be_written_still_leaves_the_facts(self, tmp_path, provider_seat_guard, monkeypatch):
+        _seat(replies=["a short summary"])
+        monkeypatch.setattr(Path, "open", _refuse_to_open)
+
+        output = _llm(record=True, save_call_as=FACTS).execute(_state(tmp_path), None)
+
+        assert output.error_code == LLM_RECORD_FAILED
+        assert output.get_param(FACTS)["status"] == "answered"
+
+    def test_an_empty_name_is_a_configuration_error_of_the_node(self):
+        with pytest.raises(ActionConfigurationError, match="save_call_as"):
+            _llm(save_call_as=" ")
+
+    def test_a_name_that_is_not_text_is_a_configuration_error(self):
+        with pytest.raises(WorkflowParameterError, match="save_call_as"):
+            _llm(save_call_as=["facts"])
+
+    def test_a_name_the_answer_declaration_binds_is_refused(self):
+        with pytest.raises(ActionConfigurationError, match="also binds"):
+            _llm(answer=[{"name": "summary"}], save_call_as="summary")
 
 
 class TestTheAuditArtifacts:
@@ -506,6 +637,13 @@ def _register_raising_adapter() -> None:
     class RaisingProvider(BaseProvider):
         def complete(self, call: ProviderCall) -> ProviderReply:
             raise RuntimeError("the socket is gone")
+
+
+def _register_renaming_adapter() -> None:
+    @register_provider("An adapter whose server names the model it answered with.", provider_type="renaming")
+    class RenamingProvider(BaseProvider):
+        def complete(self, call: ProviderCall) -> ProviderReply:
+            return ProviderReply.answer("renamed", model=f"{self.resolve_model(call.model)}-q4")
 
 
 def _register_counting_adapter() -> None:
