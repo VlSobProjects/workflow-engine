@@ -305,15 +305,17 @@ the whole of it.
 ### What a call leaves behind
 
 Every `llm` visit is accounted for in the node record of that visit, in its `details`: the provider,
-the model that actually answered, the status of the call, the error class where it failed, and the
-token counts the adapter reported.
+the model the adapter reported (the one requested where it reported none), the model requested under
+`model_requested` — the model of the node, else the one of the provider block, as it went into the
+request — the status of the call, the error class where it failed, and the token counts the adapter
+reported.
 
 ```
 workflow-engine show-records --session-id <SESSION_ID> --node DESCRIBE
 ```
 
 ```
-... DESCRIBE visit 2 attempt 1  llm  completed  -> node COLLECT  guards: no_error=pass  writes: file_description (builtins.str, SET)  artifacts: DESCRIBE.prompt.2.1, DESCRIBE.reply.2.1  details: {"model":"a-publisher/a-small-model","provider":"local","status":"answered","usage":{"prompt_tokens":181,"completion_tokens":17}}
+... DESCRIBE visit 2 attempt 1  llm  completed  -> node COLLECT  guards: no_error=pass  writes: file_description (builtins.str, SET)  artifacts: DESCRIBE.prompt.2.1, DESCRIBE.reply.2.1  details: {"model":"a-publisher/a-small-model","model_requested":"a-publisher/a-small-model","provider":"local","status":"answered","usage":{"prompt_tokens":181,"completion_tokens":17}}
 ```
 
 The record stream is where this has to live: the state keeps one slot per node and the next visit
@@ -329,6 +331,37 @@ declared deliverables like any other artifact. A failed call leaves its prompt a
 The provider block is deliberately not part of the session record: it is the environment a run
 executes in rather than the identity of the run, so a session moved to another machine resolves the
 providers of the machine it runs on. What actually answered is in the records instead, per call.
+
+The records are read after the run. A node of the same run that needs the facts of a call — to keep
+the model and the token counts beside its own data — reads them from a parameter the `llm` node names
+with `save_call_as`:
+
+```json
+{
+  "id": "READ_TRIP",
+  "action_type": "llm",
+  "action_parameters": {"provider": "local", "prompt": "...", "answer": [...], "save_call_as": "read_call"},
+  "transitions": [...]
+}
+```
+
+The parameter is a dictionary written on every way out of the node, a failed call included, so the
+node a failure transition leads to reads it too:
+
+| Key | Value |
+| --- | --- |
+| `provider` | The provider name the node called |
+| `model_requested` | The model that went into the request: the node's `model`, else the provider block's |
+| `model_answered` | The model the adapter reported for the answer; `null` on a failed call |
+| `status` | `answered` or `failed` |
+| `error_class` | The error class of a failed call, `provider_failed` for an adapter that raised; `null` on an answered call |
+| `usage` | `prompt_tokens` and `completion_tokens`, each `null` where the adapter reported none |
+
+A function takes it by a reference, `param.read_call`, like any other input. A reply the answer
+declaration refused is an answered call — its node error is `llm_answer_invalid`, the call itself has
+no error class. The node's next call, a retry or a later visit, overwrites the parameter, so it holds
+the last attempt; the records keep every call. The name must not be one the `answer` declaration
+binds.
 
 ## Retrieving the result
 

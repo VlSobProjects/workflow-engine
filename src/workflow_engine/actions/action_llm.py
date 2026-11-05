@@ -54,6 +54,7 @@ ANSWER_KEY = "answer"
 FORMAT_KEY = "format"
 OPTIONS_KEY = "options"
 RECORD_KEY = "record"
+SAVE_CALL_AS_KEY = "save_call_as"
 
 CALL_STATUS_ANSWERED = "answered"
 CALL_STATUS_FAILED = "failed"
@@ -81,6 +82,11 @@ _NOTES = (
     "'show-records'.",
     "'save_as' stores the output text of the node, which is the raw reply exactly as the model "
     "produced it, before any parsing.",
+    f"'{SAVE_CALL_AS_KEY}' writes the facts of the call into a dictionary parameter of that name on every "
+    "way out of the node, a failed call included, so the next node - the one a failure transition leads "
+    "to as well - reads them by a 'param.' reference: 'provider', 'model_requested', 'model_answered', "
+    "'status', 'error_class' and 'usage' with 'prompt_tokens' and 'completion_tokens', an unknown fact as "
+    "null. The next call of the node overwrites them; the records keep every call.",
     f"Under '{FORMAT_KEY}: {FORMAT_JSON}' the reply is read as JSON as it stands; where it is not, "
     "the first JSON object it carries is taken, ignoring '//' and '/* */' notes between its "
     "members, so a model that fences its object, writes a sentence around it or annotates a value "
@@ -235,6 +241,15 @@ def _json_object_in(reply_text: str) -> dict[str, object] | None:
                 "numbered by the visit and the attempt, so a call can be read back or declared a "
                 "deliverable. Default false.",
             ),
+            SAVE_CALL_AS_KEY: ActionParameterDoc(
+                "str",
+                "Name of a parameter the facts of the call are written to as a dictionary, whether the "
+                "call answered or failed: 'provider', 'model_requested' (the model that went into the "
+                "request), 'model_answered' (the model the adapter reported for the answer, null on a "
+                "failed call), 'status' ('answered' or 'failed'), 'error_class' (null on an answered "
+                "call) and 'usage' with 'prompt_tokens' and 'completion_tokens' (null where the adapter "
+                "reported none). Must not name a parameter of the 'answer' declaration.",
+            ),
         },
         node_template={
             "id": "<node-id>",
@@ -314,6 +329,9 @@ class LlmAction(BaseAutomaticAction):
         self.format = parameter_from_dict_default(data, FORMAT_KEY, str, FORMAT_TEXT)
         self.options = dict(parameter_from_dict_optional(data, OPTIONS_KEY, dict) or {})
         self.record = parameter_from_dict_default(data, RECORD_KEY, bool, False)
+        self.save_call_as = parameter_from_dict_optional(data, SAVE_CALL_AS_KEY, str)
+        if self.save_call_as is not None:
+            self._validate_save_call_as(self.save_call_as)
         if self.format not in FORMATS:
             raise ActionConfigurationError(
                 self.ACTION_TYPE, f"'{FORMAT_KEY}' must be one of {list(FORMATS)}, got '{self.format}'"
@@ -328,6 +346,18 @@ class LlmAction(BaseAutomaticAction):
                 f"Use '{FORMAT_KEY}: {FORMAT_JSON}' for a reply carrying several names.",
             )
         validate_template_text(self.ACTION_TYPE, "prompt", self.prompt)
+
+    def _validate_save_call_as(self, name: str) -> None:
+        if not name.strip():
+            raise ActionConfigurationError(self.ACTION_TYPE, f"'{SAVE_CALL_AS_KEY}' must name a parameter")
+        if name in {item.name for item in self.declarations}:
+            # The answer and the facts would race for one name, and the codec of the first write
+            # would stay with a value of another type.
+            raise ActionConfigurationError(
+                self.ACTION_TYPE,
+                f"'{SAVE_CALL_AS_KEY}' names '{name}', which the '{ANSWER_KEY}' declaration also binds; "
+                f"the facts of the call need a parameter of their own",
+            )
 
     def _raw_values(self, reply_text: str) -> dict[str, object]:
         """Read the raw values out of the reply, by the declared format. See ADR 014 §1.
@@ -354,6 +384,7 @@ class LlmAction(BaseAutomaticAction):
         details: dict[str, object] = {
             "provider": self.provider,
             "model": (reply.model if reply is not None and reply.model else model),
+            "model_requested": model,
             "status": CALL_STATUS_FAILED if error_class is not None else CALL_STATUS_ANSWERED,
         }
         if error_class is not None:
@@ -361,6 +392,39 @@ class LlmAction(BaseAutomaticAction):
         if reply is not None and reply.usage is not None:
             details["usage"] = reply.usage.to_dict()
         return details
+
+    def _call_facts(self, model: str, reply: ProviderReply | None, error_class: str | None) -> dict[str, object]:
+        """The facts of one call, for the node that follows it in the run.
+
+        The same facts as the details of the record, in a fixed shape a function can read without
+        testing for keys: every fact is present, an unknown one as None. A failed call has no model
+        that answered, whatever the adapter reported beside its failure.
+        """
+        usage = reply.usage if reply is not None else None
+        answered = reply.model if reply is not None and reply.model and error_class is None else None
+        return {
+            "provider": self.provider,
+            "model_requested": model,
+            "model_answered": answered,
+            "status": CALL_STATUS_FAILED if error_class is not None else CALL_STATUS_ANSWERED,
+            "error_class": error_class,
+            "usage": {
+                "prompt_tokens": usage.prompt_tokens if usage is not None else None,
+                "completion_tokens": usage.completion_tokens if usage is not None else None,
+            },
+        }
+
+    def _with_call_facts(
+        self, output: ActionNodeOutput, model: str, reply: ProviderReply | None, error_class: str | None
+    ) -> ActionNodeOutput:
+        """Add the facts of the call to the writes of the node, where the node names a parameter for them.
+
+        The writes of a node are applied whether it failed or not, so the facts of a failed call reach
+        the node a failure transition leads to as well.
+        """
+        if self.save_call_as is not None:
+            output.set_param(self.save_call_as, self._call_facts(model, reply, error_class))
+        return output
 
     def _audit_artifacts(
         self, state: StateReadOnlyView, prompt: str, reply_text: str | None
@@ -421,47 +485,52 @@ class LlmAction(BaseAutomaticAction):
         try:
             reply = provider.complete(call)
         except Exception as e:  # noqa: BLE001 - an adapter that raises broke the contract, and the node routes it
-            return ActionNodeOutput(
+            output = ActionNodeOutput(
                 output_text="",
                 error_code=PROVIDER_FAILED,
                 error_msg=f"Provider '{self.provider}' raised instead of returning a reply: {type(e).__name__}: {e}",
                 details=self._details(model, None, PROVIDER_FAILED),
             )
+            return self._with_call_facts(output, model, None, PROVIDER_FAILED)
 
         if reply.failed:
             error_class = reply.error_class.value if reply.error_class is not None else PROVIDER_FAILED
-            return ActionNodeOutput(
+            output = ActionNodeOutput(
                 output_text="",
                 error_code=error_class,
                 error_msg=reply.message,
                 details=self._details(model, reply, error_class),
                 artifacts=self._failed_call_artifacts(state, prompt),
             )
+            return self._with_call_facts(output, model, reply, error_class)
 
         reply_text = reply.text or ""
         details = self._details(model, reply, None)
         try:
             artifacts = self._audit_artifacts(state, prompt, reply_text) if self.record else {}
         except OSError as e:
-            return ActionNodeOutput(
+            output = ActionNodeOutput(
                 output_text=reply_text,
                 error_code=LLM_RECORD_FAILED,
                 error_msg=f"The call was answered but its audit artifacts could not be written: {e}",
                 details=details,
             )
+            return self._with_call_facts(output, model, reply, None)
 
         try:
             bound = bind_declared_values(self._raw_values(reply_text), self.declarations, subject="reply")
         except WorkflowInputError as e:
             # The reply stays the output text: what the model actually said is the evidence an author
             # needs to see, and a guard may route on it. See ADR 014 §1.
-            return ActionNodeOutput(
+            output = ActionNodeOutput(
                 output_text=reply_text,
                 error_code=LLM_ANSWER_INVALID,
                 error_msg=str(e),
                 details=details,
                 artifacts=artifacts,
             )
-        return ActionNodeOutput(
-            output_text=reply_text, param_writes=bound.param_writes, details=details, artifacts=artifacts
+            return self._with_call_facts(output, model, reply, None)
+        output = ActionNodeOutput(
+            output_text=reply_text, param_writes=dict(bound.param_writes), details=details, artifacts=artifacts
         )
+        return self._with_call_facts(output, model, reply, None)

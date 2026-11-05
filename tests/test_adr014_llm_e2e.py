@@ -93,6 +93,38 @@ OVERFLOW_FLOW = {
 }
 
 
+FACTS_FLOW = {
+    "schema_version": "1",
+    "flow_id": "llm-call-facts",
+    "start_node_id": "CLASSIFY",
+    "nodes": [
+        {
+            "id": "CLASSIFY",
+            "action_type": "llm",
+            "action_parameters": {
+                "provider": "local",
+                "prompt": "Classify the document.",
+                "answer": [{"name": "category"}],
+                "format": "json",
+                "save_call_as": "call",
+            },
+            "max_attempts": 3,
+            "transitions": [
+                {"next": "KEEP_FACTS", "guard": {"no_error": True}},
+                {"errors": ["transient"], "next": "CLASSIFY", "attempts": True},
+                {"errors": ["context_overflow"], "next": "KEEP_FACTS"},
+            ],
+        },
+        {
+            "id": "KEEP_FACTS",
+            "action_type": "stop",
+            "action_parameters": {"function_name": "echo_value", "function_parameters": {"value": "param.call"}},
+            "save_as": "kept",
+        },
+    ],
+}
+
+
 def build_workspace(tmp_path: Path, workflow: dict[str, object], replies: list[object]) -> dict[str, str]:
     """A workspace whose engine configuration scripts the `fake` adapter for the whole run."""
     config = tmp_path / "workflow_engine_config.json"
@@ -166,7 +198,12 @@ class TestAModelStepInARun:
         _, response = run(workspace, capsys, "subject=the archive")
 
         record = llm_records(workspace, session_id_of(response))[0]
-        assert record["details"] == {"provider": "local", "model": "small-1", "status": "answered"}
+        assert record["details"] == {
+            "provider": "local",
+            "model": "small-1",
+            "model_requested": "small-1",
+            "status": "answered",
+        }
         assert record["status"] == "completed"
         assert [write["name"] for write in cast(list, record["writes"])] == ["raw_reply", "summary"]
 
@@ -292,3 +329,50 @@ class TestTheTrailIsReadableAfterTheRun:
 
         state = (session_dir(workspace, session_id_of(response)) / "state.json").read_text(encoding="utf-8")
         assert "small-1" not in state
+
+
+class TestTheFactsOfACallReachTheNextNode:
+    """A function in the node after the call reads the facts by a 'param.' reference, in the same run."""
+
+    def test_the_next_node_reads_the_facts_of_an_answered_call(self, tmp_path, capsys, provider_seat_guard):
+        workspace = build_workspace(tmp_path, FACTS_FLOW, ['{"category": "invoice"}'])
+
+        code, response = run(workspace, capsys)
+
+        assert code == 0, response
+        assert json.loads(cast(str, parameters_of(workspace, response)["kept"])) == {
+            "provider": "local",
+            "model_requested": "small-1",
+            "model_answered": "small-1",
+            "status": "answered",
+            "error_class": None,
+            "usage": {"prompt_tokens": None, "completion_tokens": None},
+        }
+
+    def test_the_node_behind_a_failure_transition_reads_the_model_requested(
+        self, tmp_path, capsys, provider_seat_guard
+    ):
+        workspace = build_workspace(tmp_path, FACTS_FLOW, [{"error": "context_overflow", "message": "too long"}])
+
+        code, response = run(workspace, capsys)
+
+        assert code == 0, response
+        kept = json.loads(cast(str, parameters_of(workspace, response)["kept"]))
+        assert kept["status"] == "failed"
+        assert kept["error_class"] == "context_overflow"
+        assert kept["model_requested"] == "small-1"
+        assert kept["model_answered"] is None
+
+    def test_a_retry_leaves_the_facts_of_its_last_attempt(self, tmp_path, capsys, provider_seat_guard):
+        workspace = build_workspace(
+            tmp_path, FACTS_FLOW, [{"error": "transient", "message": "hiccup"}, '{"category": "invoice"}']
+        )
+
+        code, response = run(workspace, capsys)
+
+        assert code == 0, response
+        parameters = parameters_of(workspace, response)
+        assert cast(dict, parameters["call"])["status"] == "answered"
+        assert cast(dict, parameters["call"])["error_class"] is None
+        records = llm_records(workspace, session_id_of(response))
+        assert [cast(dict, record["details"])["status"] for record in records] == ["failed", "answered"]
