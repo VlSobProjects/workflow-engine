@@ -9,10 +9,11 @@
   **`target_dir` must already exist.**
 - **Expected paths:** the answer text selects the route: `approved` copies the file, `rejected`
   ends the run with nothing copied (not verified), a declared failure answer routes on its error
-  code, and any other text asks the same question again until the attempts run out.
+  code, and any other text asks the same question again until the two repeats after the first
+  question run out.
 - **Ends with:** end of workflow after the copy on `approved`, or with nothing copied on `rejected`
   (not verified); failure under `approval_failed` on a failure answer, under
-  `max_attempts_exceeded` when the two attempts are spent, or under `copy_failed` when the copy
+  `max_attempts_exceeded` when the two repeats are spent, after the third question, or under `copy_failed` when the copy
   itself fails (not verified); until someone answers, the run is paused with the published question.
 - **ADRs exercised:** ADR 002, ADR 006, ADR 012, ADR 013, ADR 016
 
@@ -49,7 +50,8 @@ workflow-engine resume --session-id <SESSION_ID> --json \
 
 `approved` copies the file; `rejected` ends the run as a completed workflow (exit code `0`) with
 nothing copied. An answer text that is neither sends the run back to the same node: this template
-allows `max_attempts` of `2`, and then fails under `max_attempts_exceeded`.
+sets `max_attempts` to `2`, which counts the repeats after the first question — three questions in
+all — and then fails under `max_attempts_exceeded`.
 
 What the answer document may contain, what is refused, and what a `resume` without an answer does are
 defined in "Answering an interactive workflow" in the root [`README.md`](../README.md).

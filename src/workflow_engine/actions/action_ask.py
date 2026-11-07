@@ -158,7 +158,8 @@ def _string_map(data: dict[str, object], key: str) -> dict[str, str]:
             "Route a failure answer with an 'errors' transition on the codes declared in 'errors', "
             "plus the generic 'answer_failed'.",
             "Value guards compare the optional answer 'text', which is the output text of the node.",
-            "A transition back to the node itself asks again and is bounded by 'max_attempts'.",
+            "A transition back to the node itself asks again; 'max_attempts' counts these repeats after "
+            "the first question, not the questions, so the default 3 asks at most four times in one visit.",
             "A correction routed through another node re-enters the question as a fresh visit, which "
             "resets 'max_attempts'; the node key that bounds that loop is 'max_visits'.",
             "With 'function_name' the guards route on what the function returned, not on what was "
