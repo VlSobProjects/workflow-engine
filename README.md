@@ -135,9 +135,11 @@ consuming neither an attempt nor a visit — that is how a caller who cannot ans
 on.
 
 An answer the node's transitions do not accept can be routed back to the same question, and the
-node's `max_attempts` bounds that: when the attempts run out the node fails under
-`max_attempts_exceeded`. The bound covers one visit only — leaving the node resets it, so a
-correction routed through another node comes back as a fresh visit and starts the attempts over. A
+node's `max_attempts` bounds that. It counts the repeats after the first run of the node, not the
+runs: `max_attempts` N runs the node at most N + 1 times in one visit, so the default `3` asks at
+most four times. When the repeats run out the node fails under `max_attempts_exceeded`. The bound
+covers one visit only — leaving the node resets it, so a correction routed through another node
+comes back as a fresh visit and starts the repeats over. A
 node that a loop can re-enter that way is bounded by the optional `max_visits` — see "Bounding a
 loop through one node".
 

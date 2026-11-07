@@ -266,10 +266,11 @@ def _json_object_in(reply_text: str) -> dict[str, object] | None:
             "A successful call produces no error code, so a 'no_error' guard routes the normal path.",
             "Route the failures with an 'errors' transition on the classes the branch handles: "
             "'transient' and 'rate_limited' back to the node itself with 'attempts', bounded by the "
-            "node's 'max_attempts'; 'context_overflow' into a branch that splits the data and calls "
-            "the model per chunk.",
+            "node's 'max_attempts', which counts the retries after the first call, not the calls: the "
+            "default 3 allows four calls in one visit; 'context_overflow' into a branch that splits the "
+            "data and calls the model per chunk.",
             f"'{LLM_ANSWER_INVALID}' is the reply the declaration refused; a transition back to the "
-            "node asks the model again, bounded by 'max_attempts'.",
+            "node asks the model again, bounded by the same 'max_attempts' retries.",
             "Value guards compare the raw reply, which is the output text of the node.",
         ),
         examples=(

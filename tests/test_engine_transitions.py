@@ -168,6 +168,21 @@ def test_the_retry_budget_does_not_depend_on_how_the_node_was_entered(load_engin
     assert started == entered == 3
 
 
+def test_an_attempts_transition_to_another_node_retries_first(load_engine, tmp_path):
+    first = counting_node("FIRST")
+    first["transitions"] = [{"next": "AFTER", "attempts": True}]
+    first["max_attempts"] = 2
+    after = counting_node("AFTER")
+    EXECUTIONS.clear()
+    response, _ = engine_for(load_engine, tmp_path, [first, after])
+
+    # max_attempts counts the retries after the first run, so 2 runs the node three times before the
+    # transition finally takes its route.
+    assert response.title == "Loop finished"
+    assert EXECUTIONS.count("FIRST") == 3
+    assert EXECUTIONS.count("AFTER") == 1
+
+
 def test_attempts_needs_a_node_target(load_engine, tmp_path):
     node = counting_node("NODE_1")
     node["transitions"] = [{"stop": True, "attempts": True}]

@@ -60,8 +60,9 @@ A target is one of:
 
 If a node declares no routing target, the workflow ends after it. If it declares one and no guard
 holds, the node fails. A transition whose target is the node itself, or one carrying `attempts`,
-retries the node while the node's `max_attempts` (default `3`) still allows it. Once the allowance is
-spent, a self-targeting transition fails the node under `max_attempts_exceeded`, and a transition that
+retries the node while the node's `max_attempts` (default `3`) still allows it. `max_attempts`
+counts the retries after the first run, not the runs: N allows N + 1 runs of the node in one visit,
+and `0` allows none. Once the allowance is spent, a self-targeting transition fails the node under `max_attempts_exceeded`, and a transition that
 carries `attempts` towards another node finally takes that route. A failure target's code is optional:
 when the transition configuration omits `fail`, the node fails under the error code the action already
 produced instead of a new one.
