@@ -309,15 +309,16 @@ the whole of it.
 Every `llm` visit is accounted for in the node record of that visit, in its `details`: the provider,
 the model the adapter reported (the one requested where it reported none), the model requested under
 `model_requested` — the model of the node, else the one of the provider block, as it went into the
-request — the status of the call, the error class where it failed, and the token counts the adapter
-reported.
+request — the model the adapter reported under `model_answered`, `null` where it reported none or the
+call failed, so a reader tells a model the server confirmed from one it never named — the status of
+the call, the error class where it failed, and the token counts the adapter reported.
 
 ```
 workflow-engine show-records --session-id <SESSION_ID> --node DESCRIBE
 ```
 
 ```
-... DESCRIBE visit 2 attempt 1  llm  completed  -> node COLLECT  guards: no_error=pass  writes: file_description (builtins.str, SET)  artifacts: DESCRIBE.prompt.2.1, DESCRIBE.reply.2.1  details: {"model":"a-publisher/a-small-model","model_requested":"a-publisher/a-small-model","provider":"local","status":"answered","usage":{"prompt_tokens":181,"completion_tokens":17}}
+... DESCRIBE visit 2 attempt 1  llm  completed  -> node COLLECT  guards: no_error=pass  writes: file_description (builtins.str, SET)  artifacts: DESCRIBE.prompt.2.1, DESCRIBE.reply.2.1  details: {"model":"a-publisher/a-small-model","model_answered":"a-publisher/a-small-model","model_requested":"a-publisher/a-small-model","provider":"local","status":"answered","usage":{"prompt_tokens":181,"completion_tokens":17}}
 ```
 
 The record stream is where this has to live: the state keeps one slot per node and the next visit

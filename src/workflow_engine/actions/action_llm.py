@@ -386,6 +386,7 @@ class LlmAction(BaseAutomaticAction):
             "provider": self.provider,
             "model": (reply.model if reply is not None and reply.model else model),
             "model_requested": model,
+            "model_answered": self._model_answered(reply, error_class),
             "status": CALL_STATUS_FAILED if error_class is not None else CALL_STATUS_ANSWERED,
         }
         if error_class is not None:
@@ -393,6 +394,18 @@ class LlmAction(BaseAutomaticAction):
         if reply is not None and reply.usage is not None:
             details["usage"] = reply.usage.to_dict()
         return details
+
+    @staticmethod
+    def _model_answered(reply: ProviderReply | None, error_class: str | None) -> str | None:
+        """The model the adapter reported as the one that answered, never the one requested in its place.
+
+        Unknown where the adapter reported none, and on a failed call, which has no model that answered
+        whatever the adapter reported beside its failure. The record's ``model`` keeps its fallback to
+        the model requested; this fact is what tells the two apart.
+        """
+        if error_class is not None or reply is None or not reply.model:
+            return None
+        return reply.model
 
     def _call_facts(self, model: str, reply: ProviderReply | None, error_class: str | None) -> dict[str, object]:
         """The facts of one call, for the node that follows it in the run.
@@ -402,11 +415,10 @@ class LlmAction(BaseAutomaticAction):
         that answered, whatever the adapter reported beside its failure.
         """
         usage = reply.usage if reply is not None else None
-        answered = reply.model if reply is not None and reply.model and error_class is None else None
         return {
             "provider": self.provider,
             "model_requested": model,
-            "model_answered": answered,
+            "model_answered": self._model_answered(reply, error_class),
             "status": CALL_STATUS_FAILED if error_class is not None else CALL_STATUS_ANSWERED,
             "error_class": error_class,
             "usage": {

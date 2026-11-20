@@ -244,8 +244,10 @@ a branch that splits the data. Chunking is that graph pattern and never a hidden
 action. There is no retry policy: the `max_attempts` self-loop allowance is the whole of it.
 
 **Audit.** The account of a call rides on the `details` of the action output into the record of the
-visit (see "Node records"): the provider, the model the adapter reported, the model requested, the
-status, the error class where it failed, and the token counts the adapter reported. Records are never
+visit (see "Node records"): the provider, the model the adapter reported (the one requested where it
+reported none), the model requested, the model answered — the one the adapter reported, null where it
+reported none or the call failed — the status, the error class where it failed, and the token counts
+the adapter reported. Records are never
 read back during a run, so a node of the same run reaches the facts of a call only through the bus:
 where the `llm` node names a parameter in `save_call_as`, the action writes the same facts there as a
 dictionary of fixed keys, an unknown fact as null, on every way out of the node — the writes of a node
