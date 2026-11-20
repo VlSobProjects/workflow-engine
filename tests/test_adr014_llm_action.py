@@ -411,7 +411,7 @@ class TestTheCallAudit:
         details = action.execute(_state(tmp_path), None).details
 
         assert "invoice" not in str(details)
-        assert set(details) == {"provider", "model", "model_requested", "status"}
+        assert set(details) == {"provider", "model", "model_requested", "model_answered", "status"}
 
     def test_the_model_requested_is_kept_apart_from_the_model_reported(self, tmp_path, provider_seat_guard):
         _register_renaming_adapter()
@@ -421,6 +421,25 @@ class TestTheCallAudit:
 
         assert details["model_requested"] == "small-1"
         assert details["model"] == "small-1-q4"
+        assert details["model_answered"] == "small-1-q4"
+
+    def test_a_model_the_adapter_did_not_report_is_unknown_and_not_the_one_requested(
+        self, tmp_path, provider_seat_guard
+    ):
+        _register_silent_adapter()
+        _seat(adapter="silent")
+
+        details = _llm().execute(_state(tmp_path), None).details
+
+        assert details["model_answered"] is None
+        assert details["model"] == "small-1"
+
+    def test_a_failed_call_has_no_model_that_answered(self, tmp_path, provider_seat_guard):
+        _seat(replies=[{"error": "rate_limited", "message": "slow down"}])
+
+        details = _llm().execute(_state(tmp_path), None).details
+
+        assert details["model_answered"] is None
 
 
 FACTS = "call_facts"
@@ -644,6 +663,13 @@ def _register_renaming_adapter() -> None:
     class RenamingProvider(BaseProvider):
         def complete(self, call: ProviderCall) -> ProviderReply:
             return ProviderReply.answer("renamed", model=f"{self.resolve_model(call.model)}-q4")
+
+
+def _register_silent_adapter() -> None:
+    @register_provider("An adapter whose server does not name the model it answered with.", provider_type="silent")
+    class SilentProvider(BaseProvider):
+        def complete(self, call: ProviderCall) -> ProviderReply:
+            return ProviderReply.answer("unnamed")
 
 
 def _register_counting_adapter() -> None:

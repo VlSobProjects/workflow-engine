@@ -202,6 +202,7 @@ class TestAModelStepInARun:
             "provider": "local",
             "model": "small-1",
             "model_requested": "small-1",
+            "model_answered": "small-1",
             "status": "answered",
         }
         assert record["status"] == "completed"
