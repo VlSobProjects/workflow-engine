@@ -49,14 +49,24 @@ environment a model call ran in) needs; the existing `model` key keeps its meani
 ## Open questions
 - Whether the per-call wall time is measured by the engine in the same ADR as the open member.
 
+## Letters written
+After the merge the answers to EX-37, EX-38 and EX-39 were written on the desk as drafts, and
+`What it changed` of EX-38 was filled with this change and its merge.
+- To EX-37: the engine keeps the bench's use as a class 2 scenario, written in a session of its own;
+  the date of publication is not decided, the history may be rewritten before it, so the bench is
+  asked to pin a tag rather than a commit of `development`.
+- To EX-38: `model_answered` done; the options sent and the metrics a provider reports deferred to an
+  ADR on an open member of the reply; the normalization across providers left to the bench; the
+  model's digest, quantization and context length reached by functions of an adapter package.
+- To EX-39: deferred to an ADR, with the correction that a visit tested alone needs what it read, not
+  what it wrote; the bench is asked whether the state at the entry of a visit is the input it needs.
+
 ## Next steps
-1. Merge the branch into `development` and register this session.
-2. Write the answers to EX-37, EX-38 and EX-39 on the desk as drafts, the one to EX-38 naming the
-   merge commit; fill `What it changed` of EX-38 once its answer is released.
-3. Open the ADR on the facts a provider reports about a call (the open member of the reply), after
+1. The user releases the three drafts on the desk.
+2. Open the ADR on the facts a provider reports about a call (the open member of the reply), after
    checking the ADR registry against general rule 11.
-4. Write the `llm-test-bench` scenario in a documentation session, as the answer to EX-37 promises.
-5. Open the ADR on the inputs of every visit (EX-39) when the registry allows it.
+3. Write the `llm-test-bench` scenario in a documentation session, as the answer to EX-37 promises.
+4. Open the ADR on the inputs of every visit (EX-39) when the registry allows it.
 
 ## References
 - Branch: `feature/llm-record-model-answered`
