@@ -79,6 +79,7 @@ session assigns it a phase.
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
 | 2026-08-25 | Two different measurements under one claim — drift B, one definition across providers, is the phase 2 protocol (roadmap steps 13–15); drift A, one brief across authoring agents, is encoded in the phase 3 exit | open | ADR 011, ADR 013, ADR 014, ADR 017, ADR 021 | [2026-08-25-two-drifts-and-their-measurement.md](2026-08-25-two-drifts-and-their-measurement.md) |
+| 2026-11-21 | The engine has no human-readable account of a run: a `report` command writing one self-contained HTML document from the read surfaces, its first consumer a CI demonstration published on Pages, authoring by an agent skill weighed as the floor | open | ADR 007, ADR 009, ADR 018, ADR 020, ADR 021 | [2026-11-21-run-report-and-public-showcase.md](2026-11-21-run-report-and-public-showcase.md) |
 
 ### Later phases
 
