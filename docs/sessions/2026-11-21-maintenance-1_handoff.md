@@ -40,7 +40,7 @@ Add a GitHub Actions pipeline that runs ruff, pytest and gitleaks on every push 
   | Linux | locally, a clean clone in a `python:3.13` container, `uv sync --locked`, the same commands | clean, 882 passed, 1 skipped (Windows-only test) |
   | gitleaks | locally, a clean clone in the gitleaks 8.30.1 container, full history | 376 commits, no leaks |
   | Workflow file | `actionlint` 1.7.7 in a container | no findings |
-  | ubuntu, windows, macos on GitHub | the first run of the workflow on this branch | not confirmed yet |
+  | ubuntu, windows, macos on GitHub | the first run of the workflow on this branch, a push of commit `9819f9a` | all four jobs green: ubuntu and macos 882 passed, 1 skipped; windows 883 passed; gitleaks 366 commits, no leaks |
 
   The Linux check found two tests failing on POSIX; they were fixed first in the session
   `2026-11-21-implementation-2`.
@@ -61,11 +61,9 @@ Add a GitHub Actions pipeline that runs ruff, pytest and gitleaks on every push 
 - None.
 
 ## Next steps
-1. The owner pushes `chore/ci-pipeline` and reports the result of the first run on each platform; the
-   last row of the table above is updated with it.
-2. If a platform is red: a separate `test/` or `fix/` branch for its cause, or the platform leaves the
-   matrix with a recorded reason, as the owner decides.
-3. Merge into `development` once the run is green.
+1. Merge `chore/ci-pipeline` into `development`.
+2. The platforms the project claims to support, open question 2 of the installation and distribution
+   note, can now be answered with CI evidence for ubuntu, windows and macos.
 
 ## References
 - Branch: `chore/ci-pipeline`
