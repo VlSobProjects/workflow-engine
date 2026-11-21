@@ -36,7 +36,11 @@ answer is economic. An agent that does everything is paid for on every run, fore
 plus non-determinism cost, because nobody can promise the next run takes the same path. An authored
 workflow inverts that: the expensive model is paid once, at authoring time, and what it produces is
 an artifact — a workflow file, functions, guards — that can be reviewed and tested once and then runs
-cheap and reproducible for as long as it is needed. The roadmap makes this concrete: in its assisted
+cheap and reproducible for as long as it is needed. This is already how the engine is worked with:
+in the projects built on it, an agent assembles a workflow node by node, runs it, reads the journal
+and the node records to check what happened, and proposes the next change — possible because every
+surface is documented and the command-line help states each component's configuration. That is
+practice, not yet proof. The roadmap makes it concrete: in its assisted
 authoring phase an agent writes the workflow through the published surfaces, and the divergence
 between authoring agents is measured, not assumed. AI helps write the workflow; the workflow does not
 need AI to be trusted at run time.

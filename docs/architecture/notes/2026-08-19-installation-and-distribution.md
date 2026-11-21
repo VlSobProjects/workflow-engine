@@ -63,6 +63,8 @@ project would have to describe per platform.
 7. **No licence.** The repository has no `LICENSE` file, so every artifact discussed here is delivered
    with no stated terms of use. This blocks any channel that hands the engine to a third party,
    independently of which channel is chosen.
+   Settled 2026-11-21: the repository carries the MIT licence in `LICENSE`, declared in
+   `pyproject.toml` (session `2026-11-21-documentation-1`).
 
 ## Options, and what each costs
 
@@ -113,7 +115,8 @@ project would have to describe per platform.
    exists, so the two are coupled by hand and can already disagree. Whether the tag derives the
    metadata, the metadata governs the tag, or a release simply refuses to build when they diverge, is
    part of the release procedure, and the answer decides whether a `--version` flag can be trusted.
-7. What the licence is, which cannot be deferred past the first artifact handed to anyone.
+7. What the licence is, which cannot be deferred past the first artifact handed to anyone. Settled 2026-11-21:
+   MIT.
 
 A decision here is the natural moment to also settle what "supported platform" obliges the project to
 run, which is why the CI question is inside this note rather than treated as tooling housekeeping.

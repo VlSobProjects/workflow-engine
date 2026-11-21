@@ -3,6 +3,8 @@ name = "workflow-engine"
 version = "0.1.0"
 description = "An engine that executes workflows described in JSON"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "platformdirs>=4.11.1",
