@@ -1,8 +1,25 @@
 name: CI
 
+# Tests run where they pay off: after a merge into an integration line, on a pull request, or on
+# demand for a branch (`gh workflow run ci.yml --ref <branch>`). A change to documentation only
+# runs nothing here; the secrets scan in secrets.yml runs on every push regardless.
 on:
   push:
+    branches: [development, main]
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "LICENSE"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "LICENSE"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -33,24 +50,3 @@ jobs:
         run: uv run ruff format --check .
       - name: Tests
         run: uv run pytest
-
-  secrets:
-    name: gitleaks
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      GITLEAKS_VERSION: 8.30.1
-      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Install gitleaks
-        run: |
-          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          curl -sSfL -o "$archive" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
-          echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check
-          tar -xzf "$archive" gitleaks
-      - name: Scan the full history
-        run: ./gitleaks git --redact --verbose .
