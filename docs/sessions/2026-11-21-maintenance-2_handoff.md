@@ -22,7 +22,7 @@ Run the tests in CI only where they pay off, while the secrets scan keeps runnin
 - No answer to which platforms the project claims to support.
 
 ## Status
-`in progress`
+`completed`
 
 ## Result
 - `.github/workflows/secrets.yml` added: the gitleaks job moved out of `ci.yml` unchanged, run on
@@ -36,6 +36,10 @@ Run the tests in CI only where they pay off, while the secrets scan keeps runnin
   | Check | How | Result |
   | --- | --- | --- |
   | Workflow files | `actionlint` 1.7.7 in a container, run by the owner, `-verbose` | both files linted, 0 errors |
+  | Branch push on GitHub | a push of commit `7cc7975` to this branch | `Secrets` ran and passed; `CI` did not start |
+
+  The run after the merge and the manual run were not checked in this session: the first needs the
+  merge, the second needs the workflow on the default branch.
 
 ## Decisions
 1. **Tests run after the merge, on a pull request, or on demand; not on every push of a branch.** A
@@ -60,8 +64,8 @@ Run the tests in CI only where they pay off, while the secrets scan keeps runnin
   not now.
 
 ## Next steps
-1. Push the branch: only the `Secrets` workflow is expected to run.
-2. Merge into `development` and push: `CI` is expected to run on all three systems.
+1. Merge `chore/ci-trigger-policy` into `development`.
+2. After the merge, a push to `development` is expected to run `CI` on all three systems.
 3. Run `gh workflow run ci.yml --ref <branch>` on the next task branch to confirm the manual run.
 
 ## References
