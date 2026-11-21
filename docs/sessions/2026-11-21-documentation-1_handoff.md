@@ -66,16 +66,18 @@ from a clean clone.
 ## Open questions
 - None.
 
+## Letters written
+After the smoke fix was merged and the owner made the repository public with secret scanning and
+push protection on, `What it changed` of EX-44 was filled with the documents and commits of the three
+sessions of the day, and one `notice` to JobSearch was written on the desk as a draft, in answer to
+EX-44: the public URL; the description confirmed with one sentence added, that the documented
+surfaces and the command-line help let an agent build, run and debug a workflow on its own; the scan
+clean; and three things left out on purpose — history not rewritten, `main` not updated, no CI yet.
+
 ## Next steps
-1. `fix/install-smoke-without-project-pip`: build the wheel with the smoke environment's `pip`, then
-   repeat the clean-clone `uv run pytest`.
-2. The owner pushes, switches the repository to public, sets its description and topics, and turns
-   on secret scanning and push protection.
-3. A `notice` to JobSearch as a draft on the desk, answering EX-44; `What it changed` of EX-44 filled
-   after the merge.
-4. A maintenance session on `chore/ci-pipeline`: the GitHub Actions workflow with ruff, pytest and
+1. The owner releases the draft on the desk.
+2. A maintenance session on `chore/ci-pipeline`: the GitHub Actions workflow with ruff, pytest and
    gitleaks on every push and pull request.
-5. On merge: add this session's registry row on `development`.
 
 ## References
 - Branch: `docs/public-release`
