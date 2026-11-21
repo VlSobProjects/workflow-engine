@@ -44,7 +44,8 @@ project would have to describe per platform.
    `copilot-instructions.md`. Every test run so far happened on Windows 11. Nothing suggests the other
    two platforms break; nothing proves they do not.
    Partly settled 2026-11-21: a CI pipeline in `.github/workflows/ci.yml` runs ruff and pytest on
-   ubuntu, windows and macos for every push and pull request (session `2026-11-21-maintenance-1`).
+   ubuntu, windows and macos (session `2026-11-21-maintenance-1`), on a push to `development` or
+   `main`, on a pull request and on demand for a branch (session `2026-11-21-maintenance-2`).
    Which platforms the project claims to support remains open question 2.
 3. **The README describes one route only** — a clone with `uv sync` — because that is the only route
    that has ever been exercised.
