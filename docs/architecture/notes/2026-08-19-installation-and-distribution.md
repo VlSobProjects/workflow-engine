@@ -43,6 +43,9 @@ project would have to describe per platform.
 2. **No evidence for macOS and Linux.** There is no CI: `.github/` holds only
    `copilot-instructions.md`. Every test run so far happened on Windows 11. Nothing suggests the other
    two platforms break; nothing proves they do not.
+   Partly settled 2026-11-21: a CI pipeline in `.github/workflows/ci.yml` runs ruff and pytest on
+   ubuntu, windows and macos for every push and pull request (session `2026-11-21-maintenance-1`).
+   Which platforms the project claims to support remains open question 2.
 3. **The README describes one route only** — a clone with `uv sync` — because that is the only route
    that has ever been exercised.
 4. **The wheel carries no workflows.** `[tool.hatch.build.targets.wheel]` packages `src/workflow_engine`
