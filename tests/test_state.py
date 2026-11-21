@@ -87,7 +87,7 @@ def test_get_artifact_absolute_path(state_read_only, tmp_path):
         == (tmp_path / "artifacts" / "test_artifact.txt").absolute()
     )
     with pytest.raises(ArtifactPathError):
-        state_read_only.get_artifact_absolute_path("C:/non_existent_artifact.txt")
+        state_read_only.get_artifact_absolute_path((tmp_path / "outside_artifact.txt").as_posix())
     assert (
         state_read_only.get_artifact_absolute_path(
             tmp_path.absolute().as_posix() + "/artifacts/test_3/test_artifact.txt"
@@ -98,7 +98,7 @@ def test_get_artifact_absolute_path(state_read_only, tmp_path):
 
 def test_get_artifact_relative_path(state_read_only, tmp_path):
     with pytest.raises(ArtifactPathError):
-        state_read_only.get_artifact_absolute_path("C:/non_existent_artifact.txt")
+        state_read_only.get_artifact_absolute_path((tmp_path / "outside_artifact.txt").as_posix())
 
     relative_path = state_read_only.get_artifact_relative_path("test_artifact.txt")
     assert state_read_only.get_artifact_absolute_path(relative_path) == tmp_path / "artifacts" / "test_artifact.txt"
