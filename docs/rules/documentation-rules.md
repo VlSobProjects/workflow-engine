@@ -8,6 +8,7 @@ Only the documents listed below may exist:
 | Location | Purpose |
 | --- | --- |
 | `README.md` | What the project is, what it is for, how to run it |
+| `LICENSE` | The licence the repository is published under, verbatim |
 | `examples/` | The shipped workflow templates: a registry of them and one walkthrough per template, beside the definitions themselves |
 | `AGENTS.md` | Agent entrypoint, routing only |
 | `.github/copilot-instructions.md` | Copilot entrypoint, routing only |

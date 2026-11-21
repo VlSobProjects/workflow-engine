@@ -1,13 +1,46 @@
 # workflow-engine
 
-A small engine that executes workflows described in JSON.
+A small engine that runs workflows described in JSON as a graph of nodes: each node runs one action,
+an ordered list of guarded transitions decides where the run goes next, and the state is persisted
+so a run can pause for an answer and resume.
 
-A workflow is a graph of nodes. Each node runs one action, and an ordered list of guarded
-transitions decides where the workflow goes next. The state of a run is persisted, so a workflow can
-be resumed.
+> Deterministic code does the work, guards check every boundary, and a model is called only where
+> judgment is needed — the smallest model that can do it.
 
-Why the engine exists — the challenges it answers and where it applies — is argued in
-[`docs/motivation.md`](docs/motivation.md).
+Why — the challenges this answers and where it applies: [`docs/motivation.md`](docs/motivation.md).
+
+**Quick start** (Python 3.13+ and [uv](https://docs.astral.sh/uv/)):
+
+```
+git clone https://github.com/VlSobProjects/workflow-engine.git && cd workflow-engine
+uv sync
+uv run workflow-engine run --workflow-file examples/folder-inventory-to-csv.json --input "scan_root:Path=examples" --export-dir out --json
+```
+
+The run walks `examples/` and exports two deliverables into `out/reports/`: a flat CSV inventory
+and a report with one table per folder. Its walkthrough is
+[`examples/folder-inventory-to-csv.md`](examples/folder-inventory-to-csv.md).
+
+**Status: in progress, not released.**
+
+- Works now: the graph runner with guards, validators and visit caps; persisted, resumable sessions;
+  interactive `ask` nodes that pause for an answer; `llm` nodes calling a model through provider
+  adapters (OpenAI-compatible, LM Studio, Ollama), with every call audited; per-visit node records
+  and read commands (`show-state`, `show-journal`, `show-records`); a self-describing component
+  help (`help-components`); four shipped example workflows.
+- Not done: the exit scenario of the current phase — load-test triage hand-built and run on captures
+  of a real system under test; agent-assisted authoring measured across vendors (next phase); a
+  release — no package on an index and no delivery channel, so the engine runs from a clone.
+
+**Where to read next:** the architecture as it is in
+[`docs/architecture/overview.md`](docs/architecture/overview.md), the phases in
+[`docs/architecture/roadmap.md`](docs/architecture/roadmap.md), the decisions in
+[`docs/adr/`](docs/adr/README.md), and how it was built, session by session, in
+[`docs/sessions/`](docs/sessions/README.md). The project is developed with coding agents working
+under the rules in [`docs/rules/`](docs/rules/general-rules.md); [`AGENTS.md`](AGENTS.md) is their
+entry point.
+
+Licensed under the MIT License — see [`LICENSE`](LICENSE).
 
 ## Layout
 
