@@ -79,7 +79,7 @@ session assigns it a phase.
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
 | 2026-08-25 | Two different measurements under one claim — drift B, one definition across providers, is the phase 2 protocol (roadmap steps 13–15); drift A, one brief across authoring agents, is encoded in the phase 3 exit | open | ADR 011, ADR 013, ADR 014, ADR 017, ADR 021 | [2026-08-25-two-drifts-and-their-measurement.md](2026-08-25-two-drifts-and-their-measurement.md) |
-| 2026-11-21 | The engine has no human-readable account of a run: a `report` command writing one self-contained HTML document from the read surfaces, its first consumer a CI demonstration published on Pages, authoring by an agent skill weighed as the floor | open | ADR 007, ADR 009, ADR 018, ADR 020, ADR 021 | [2026-11-21-run-report-and-public-showcase.md](2026-11-21-run-report-and-public-showcase.md) |
+| 2026-11-21 | The engine has no human-readable account of a run: a `report` command writing one self-contained HTML document from the read surfaces, its first consumer a CI demonstration published on Pages, authoring by an agent skill weighed as the floor | open | ADR 022, ADR 007, ADR 009, ADR 018, ADR 020, ADR 021 | [2026-11-21-run-report-and-public-showcase.md](2026-11-21-run-report-and-public-showcase.md) |
 
 ### Later phases
 
@@ -105,7 +105,7 @@ session assigns it a phase.
 | 2026-08-28 | Phase 3 assisted authoring extended to component authoring — functions, guards and codecs as a testable authored artifact, the model cost paid once at authoring time | open | ADR 005, ADR 009 | [2026-08-28-authoring-extends-to-components.md](2026-08-28-authoring-extends-to-components.md) |
 | 2026-08-28 | Determinism required of the boundary, not the step — a model step normalized by a post-function and routed by deterministic guards, the journal as the specification of a future replacement function | open | ADR 002, ADR 014, ADR 021 | [2026-08-28-boundary-determinism-function-vs-model.md](2026-08-28-boundary-determinism-function-vs-model.md) |
 | 2026-11-21 | The engine writes its published contract — command line, definition format, component API — and a consumer asks for a change by a request letter; checked by tests that also accept a second storage backend, the pin becoming a version range | open | ADR 005, ADR 007, ADR 009, ADR 011, ADR 012, ADR 014, ADR 018, ADR 021 | [2026-11-21-published-contract-and-consumer-requests.md](2026-11-21-published-contract-and-consumer-requests.md) |
-| 2026-11-21 | The facts about a session every storage backend gives a read-only reader, whatever it stores them in — the definition and the session record without a surface today, the writes kept with the engine | open | ADR 003, ADR 004, ADR 007, ADR 008, ADR 018, ADR 021 | [2026-11-21-storage-read-contract.md](2026-11-21-storage-read-contract.md) |
+| 2026-11-21 | The facts about a session every storage backend gives a read-only reader, whatever it stores them in — the definition and the session record without a surface today, the writes kept with the engine | open | ADR 003, ADR 004, ADR 007, ADR 008, ADR 018, ADR 021, ADR 022 | [2026-11-21-storage-read-contract.md](2026-11-21-storage-read-contract.md) |
 
 ### Closed
 

@@ -7,7 +7,7 @@
   hand in CI that runs a workflow and publishes an HTML page describing the run: its nodes, results,
   parameters, the configuration of the nodes and the codecs.
 - **Status:** `open`
-- **Affected:** ADR 007 (CLI contract — a new command), ADR 018 (session read surfaces), ADR 021 (the
+- **Affected:** ADR 022 (the run report, opened from this note as Draft), ADR 007 (CLI contract — a new command), ADR 018 (session read surfaces), ADR 021 (the
   node-record channel), ADR 020 (template rendering — why it is not the vehicle), ADR 009 (help
   surfaces — the component catalogue left out), the notes `2026-11-21-storage-read-contract`,
   `2026-11-21-published-contract-and-consumer-requests`, `2026-08-21-agent-instruction-and-skill`,

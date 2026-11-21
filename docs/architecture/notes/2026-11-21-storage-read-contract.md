@@ -6,7 +6,8 @@
   planned before publication, and a backend with a front end that monitors and manages workflows is
   planned after it.
 - **Status:** `open`
-- **Affected:** ADR 003, ADR 004, ADR 007, ADR 008, ADR 018, ADR 021, the notes
+- **Affected:** ADR 003, ADR 004, ADR 007, ADR 008, ADR 018, ADR 021, ADR 022 (the run report reads the
+  definition through the `Storage` contract, the first in-core reader of it), the notes
   `2026-11-21-published-contract-and-consumer-requests`, `2026-08-18-adr012-deferred-questions`,
   `2026-08-25-role-separation-answerer-and-operator`
 

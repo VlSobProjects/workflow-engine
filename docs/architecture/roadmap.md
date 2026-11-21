@@ -49,7 +49,9 @@ moved the output-family ADR ahead of ADR 014, by `2026-08-25-architecture-2`, wh
 phase to the engine for hand-written workflows and moved the authoring work into phase 3, by
 `2026-08-25-implementation-6`, which replaced the triage slice of step 10 with the class 4
 measurement build, and by `2026-08-25-documentation-2`, which moved the debts, the notes triage and
-a live-model rehearsal ahead of the data-generation work; the session notes record why.
+a live-model rehearsal ahead of the data-generation work, and by `2026-11-21-architecture-2`, which put
+the public showcase — steps 16 to 18 — ahead of step 14 once the repository was opened for reading;
+the session notes record why. Steps keep their numbers when the order changes.
 
 | # | Step | State |
 | --- | --- | --- |
@@ -66,5 +68,8 @@ a live-model rehearsal ahead of the data-generation work; the session notes reco
 | 11 | One `refactor/` session for the code debts of the 2026-08-23 audit, and nothing beyond that list | done in `2026-08-25-implementation-7` |
 | 12 | Notes maintenance: execute the triage decided by `2026-08-23-architecture-1` | done in `2026-08-25-documentation-3` |
 | 13 | Run the `reorganize-folder` plan variant against a live local model as the rehearsal of the drift-B stack — the adapter, the JSON binding, the keys guard, the paragraph prompt — recording the findings and any prompt fixes, adding no feature | done in `2026-08-25-implementation-8`, with the two-provider residency fix split into `2026-08-25-implementation-9` |
+| 16 | ADR 022, the human-readable report of one session: its open questions settled, then its implementation with `folder-inventory-to-csv` as the class 4 evidence | Draft opened in `2026-11-21-architecture-2` |
+| 17 | The public demonstration: a CI workflow started on demand runs shipped examples that need no model server and publishes their ADR 022 reports, one maintenance session after step 16 | pending |
+| 18 | Authoring by an agent skill as the floor of the phase 3 authoring claim, not its exit: an architecture session first decides the place of a Skill in the documentation map and whether the step stays in phase 2; if built before step 15, step 15 does not use it | pending, conditional |
 | 14 | The data-generation discussion, then the dataset variants — real captures of a system under test under a real load rig, conditions induced for real, derived variants by window selection — with the domain parsing module and the declared thresholds of the drift-B protocol now carried by the scenario body | discussion done in `2026-08-26-architecture-1`; the rig work, the captures, the parsing module and the thresholds pending |
 | 15 | Build the full exit scenario by hand on the generated variants and run the drift-B measurement that closes the phase | pending |

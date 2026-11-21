@@ -24,7 +24,7 @@
   (not verified); failure under the `grouped_tables_*` codes when the report cannot be written
   (not verified). The variants end the same way, each with the deliverables and the added failure
   codes named in its own section below.
-- **ADRs exercised:** ADR 002, ADR 006, ADR 011, ADR 012, ADR 014, ADR 020, ADR 021
+- **ADRs exercised:** ADR 002, ADR 006, ADR 011, ADR 012, ADR 014, ADR 020, ADR 021, ADR 022
 
 Walks a folder tree and writes two deliverables over the same collected rows (folder, file name,
 size, MIME type, modified time, MD5): `file_scan_table`, one flat CSV for whatever reads it as
