@@ -60,11 +60,17 @@ the contract questions the discussion of it raised.
 - Whether the contract comes as one ADR or one per level, and whether it precedes the database backend
   as its acceptance criterion; both are in the contract note.
 
+## Letters written
+After the merge `What it changed` of EX-37 was filled with the scenario, the notes and their commits,
+and one letter to `llm-test-bench` was written on the desk as a draft, in answer to EX-37: the
+scenario is written; `workflow.json` is not a surface but the engine's serialization of the parsed
+definition, absent from a database backend, so the bench's own definition file is its evidence; and
+whether the bench's template relies on ADR 002 and ADR 016.
+
 ## Next steps
-1. After the merge, a `draft` letter to `llm-test-bench` in answer to EX-40's promise: the scenario is
-   written; `workflow.json` is not a surface, and the bench's own definition file is its evidence;
-   whether it relies on ADR 002 and ADR 016.
-2. Fill `What it changed` of EX-37 with the scenario and the merge commit.
+1. The user releases the draft on the desk.
+2. When the bench answers, ADR 002 and ADR 016 are added to `ADRs exercised` of the scenario or the
+   open decision is closed.
 3. The owner connects the reconciliation POC to the desk from that project.
 4. An architecture session triages the two notes and decides whether the contract ADR opens before the
    provider-facts ADR of EX-38, checking the registry against general rule 11.
