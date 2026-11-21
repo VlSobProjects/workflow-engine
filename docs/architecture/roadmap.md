@@ -17,7 +17,7 @@ that starts it.
 | 1 | The installed `workflow-engine` command runs a shipped template end to end and exports its deliverable (ADR 001–012, `v0.1.0`) | closed at the merge of `development` into `main` after the `v0.1.0` tag (2026-08-19) |
 | 2 | The `load-test-triage` scenario, written by hand by an author deliberately working from the operator documentation alone, runs end to end on generated prepared data with a local model, its path chosen by the data, explained by the journal, and matching the numbers declared before the runs against the `fake`-adapter reference | current |
 | 3 | Assisted authoring: blind authoring agents of different vendors, handed the same brief composed outside this repository, author a triage-class workflow through the published surfaces alone, at least one produced definition validating and running its expected path, with the divergence between agents measured by criteria declared beforehand | not started |
-| publication | The phase 2 scenario runs live against a real system under test; licence, version flag and delivery channel exist | not started |
+| publication | The phase 2 scenario runs live against a real system under test; a version flag and a delivery channel exist | not started |
 
 The phase 2 hand-build claim carries its own evidence the way phase 3's blindness does: the session
 note of the hand-build records that the author worked from the operator documentation alone, names
@@ -36,6 +36,11 @@ this exit. Its step list is opened when the phase starts; the work known to belo
 into Implementing, the authoring surfaces (G11), the answerer/operator capability decision, the
 `workflow-authoring` scenario, the `support-intake` note as a class 2 scenario, and the drift-A
 experiment protocol.
+
+The publication row gates a release — a version an operator can obtain and rely on — not the
+visibility of the repository. The repository is readable in public from phase 2 on, as an engine in
+progress with its status stated; a reader lands on the default branch `development`, and `main` stays
+the line of marked stable states, merged at a phase close or a release.
 
 ## Phase 2 steps
 

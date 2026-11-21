@@ -70,4 +70,4 @@ alone is the floor of that authoring claim; its proof is assisted authoring, whe
 engine runs asks, validates and assembles and the author brings only the intent. The two halves gate two
 phases of the roadmap: the run closes the earlier, the authoring the later.
 
-A run against a live system under test is the gate for publication, not for this condition.
+A run against a live system under test is the gate for a release, not for this condition.
