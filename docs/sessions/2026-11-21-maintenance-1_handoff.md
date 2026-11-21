@@ -64,6 +64,15 @@ Add a GitHub Actions pipeline that runs ruff, pytest and gitleaks on every push 
 1. Merge `chore/ci-pipeline` into `development`.
 2. The platforms the project claims to support, open question 2 of the installation and distribution
    note, can now be answered with CI evidence for ubuntu, windows and macos.
+3. A maintenance session on when the pipeline runs, raised by the owner after the merge: gitleaks on
+   every push, but tests not on every push of an unfinished branch and not on changes to documentation
+   only. Alternatives to weigh: tests on every branch as now; tests only on push to `development`, which
+   moves the check after the merge; a manual `workflow_dispatch` run on a branch before its merge; a
+   commit-message marker that skips tests. For documentation-only changes, `examples/` is read by the
+   tests and cannot count as documentation, gitleaks then needs its own workflow file because a path
+   filter applies to the whole workflow, and a path-filtered workflow leaves a required status check
+   pending if branch protection is turned on later. The macOS runner is the slowest and GitHub already
+   warns of queue times on it.
 
 ## References
 - Branch: `chore/ci-pipeline`
