@@ -1,7 +1,6 @@
 import json
 import os
 import subprocess
-import sys
 import venv
 from pathlib import Path
 
@@ -23,8 +22,17 @@ def test_installed_cli_smoke(tmp_path: Path) -> None:
     wheelhouse = tmp_path / "wheelhouse"
     wheelhouse.mkdir()
 
+    # The smoke environment is created first and builds the wheel with its own pip: the project
+    # environment that runs pytest is made by uv, which does not install pip into it.
+    smoke_venv = tmp_path / "smoke-venv"
+    venv.EnvBuilder(with_pip=True).create(smoke_venv)
+
+    python_exe = _venv_python(smoke_venv)
+    launcher = _cli_launcher(smoke_venv)
+    assert python_exe.exists()
+
     subprocess.run(
-        [sys.executable, "-m", "pip", "wheel", "--wheel-dir", str(wheelhouse), str(repo_root)],
+        [str(python_exe), "-m", "pip", "wheel", "--wheel-dir", str(wheelhouse), str(repo_root)],
         cwd=repo_root,
         check=True,
     )
@@ -32,13 +40,6 @@ def test_installed_cli_smoke(tmp_path: Path) -> None:
     wheels = sorted(wheelhouse.glob("workflow_engine-*.whl"))
     assert wheels, "Expected a built workflow_engine wheel"
     wheel_path = wheels[-1]
-
-    smoke_venv = tmp_path / "smoke-venv"
-    venv.EnvBuilder(with_pip=True).create(smoke_venv)
-
-    python_exe = _venv_python(smoke_venv)
-    launcher = _cli_launcher(smoke_venv)
-    assert python_exe.exists()
 
     subprocess.run(
         [
