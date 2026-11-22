@@ -3,6 +3,7 @@
 import pytest
 
 from tests.test_adr006_e2e_scan import create_engine
+from workflow_engine.codecs.base_codecs import PathCodec
 from workflow_engine.exceptions import WorkflowConfigurationError
 from workflow_engine.models.workflow import InputDeclaration, WorkflowModel
 
@@ -50,6 +51,12 @@ def test_type_resolves_to_full_codec_name():
 def test_full_type_name_is_accepted():
     (declaration,) = _inputs([{"name": "depth", "type": "builtins.int"}])
     assert declaration.type == "builtins.int"
+
+
+@pytest.mark.parametrize("stored_name", ["pathlib.Path", "pathlib._local.Path"])
+def test_full_path_name_of_any_python_version_is_accepted(stored_name):
+    (declaration,) = _inputs([{"name": "scan_root", "type": stored_name}])
+    assert declaration.type == PathCodec.type_name()
 
 
 @pytest.mark.parametrize("name", ["1abc", "a-b", "a:b", "a=b", "", "  "])

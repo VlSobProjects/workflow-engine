@@ -87,3 +87,31 @@ def test_exception_raised():
         ActionParameter("source_node_id", "name", None, NoCodec)
     with pytest.raises(StateLoadParameterError, match="does not match codec"):
         ActionParameter("source_node_id", "name", "string", IntCodec)
+
+
+@pytest.mark.parametrize("stored_name", ["pathlib.Path", "pathlib._local.Path"])
+def test_path_decodes_whichever_python_wrote_its_name(stored_name):
+    data = {"source_node_id": "n", "name": "p", "value": {"object": "/a/b.txt", "object_type": stored_name}}
+    param = ActionParameter.from_dict(data)
+    assert param.codec is PathCodec
+    assert param.value == Path("/a/b.txt")
+
+
+@pytest.mark.parametrize("stored_name", ["pathlib.Path", "pathlib._local.Path"])
+def test_path_item_decodes_whichever_python_wrote_its_name(stored_name):
+    item = {"object": "/a/b.txt", "object_type": stored_name}
+    data = {
+        "source_node_id": "n",
+        "name": "q",
+        "value": {"object": [item], "object_type": DequeCodec.type_name()},
+    }
+    param = ActionParameter.from_dict(data)
+    assert param.codec is DequeCodec
+    assert param.value == deque([Path("/a/b.txt")])
+
+
+def test_unknown_codec_name_is_left_undecoded():
+    stored = {"object": "x", "object_type": "no_such_module.NoSuchType"}
+    param = ActionParameter.from_dict({"source_node_id": "n", "name": "u", "value": stored})
+    assert param.codec is NoCodec
+    assert param.value == stored

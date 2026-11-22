@@ -76,12 +76,18 @@ class NoCodec(Codec):
 
 
 def convert_from_dict(value_dict: object) -> tuple[object, type[Codec]]:
+    """Decode a persisted ``{object, object_type}`` envelope, or return the value as it is.
+
+    The stored name is resolved by the shared rule, so a full name another Python version wrote
+    (``pathlib.Path`` on 3.14, ``pathlib._local.Path`` on 3.13) still finds its codec by the bare name.
+    """
     if isinstance(value_dict, dict) and CODEC_OBJ in value_dict and CODEC_OBJ_TYPE in value_dict:
         value = value_dict[CODEC_OBJ]
         value_type = value_dict[CODEC_OBJ_TYPE]
-        if isinstance(value_type, str) and value_type in CODEC_REGISTRY:
-            codec = CODEC_REGISTRY[value_type]
-            return codec.value_from_dict_obj(value), codec
+        if isinstance(value_type, str):
+            codec = find_codec_by_type_name(value_type)
+            if codec is not None:
+                return codec.value_from_dict_obj(value), codec
     return value_dict, NoCodec
 
 
@@ -102,7 +108,10 @@ def find_codec_by_type_name(type_name: str) -> type[Codec] | None:
 
     An exact full name (``pathlib.Path``, ``builtins.int``) wins. Otherwise the bare class name
     (``Path``, ``int``) is matched against the live registry: exactly one match resolves and none
-    means unknown. The bare index is built per call because plugins may register codecs after import.
+    means unknown. A full name that is not registered is reduced to its bare class name, since the
+    module part changes with the interpreter (``pathlib.Path`` on 3.14, ``pathlib._local.Path`` on
+    3.13) and a name another version wrote must still resolve. The bare index is built per call
+    because plugins may register codecs after import.
 
     This is the one rule every surface that takes a codec name uses. An ambiguous bare name is raised
     rather than returned as a miss: several codecs answer to it, so calling it unknown would be wrong
@@ -111,7 +120,8 @@ def find_codec_by_type_name(type_name: str) -> type[Codec] | None:
     codec = CODEC_REGISTRY.get(type_name)
     if codec is not None:
         return codec
-    matches = {key: cls for key, cls in CODEC_REGISTRY.items() if key.rsplit(".", 1)[-1] == type_name}
+    bare_name = type_name.rsplit(".", 1)[-1]
+    matches = {key: cls for key, cls in CODEC_REGISTRY.items() if key.rsplit(".", 1)[-1] == bare_name}
     if len(matches) == 1:
         return next(iter(matches.values()))
     if len(matches) == 0:

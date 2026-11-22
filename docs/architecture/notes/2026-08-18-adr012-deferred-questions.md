@@ -36,7 +36,9 @@ remains open on its own merits.
 ## 2. Codec full names are Python-version dependent
 
 The stored full codec name is version-specific (`pathlib._local.Path` on 3.13); reload survives only via
-the bare-name fallback (see the ADR 012 change log).
+the bare-name fallback (see the ADR 012 change log). That fallback first reached the decoding of a
+persisted value in session `2026-11-22-implementation-3`; until then a state written on 3.14
+(`pathlib.Path`) did not load on 3.13.
 
 Question: should the codec registry own stable public aliases (always `pathlib.Path`, `builtins.int`)
 decoupled from `__module__`, so persisted definitions and the help contract are portable across
