@@ -7,7 +7,9 @@
   planned after it.
 - **Status:** `open`
 - **Affected:** ADR 003, ADR 004, ADR 007, ADR 008, ADR 018, ADR 021, ADR 022 (the run report reads the
-  definition through the `Storage` contract, the first in-core reader of it), the notes
+  definition through the `Storage` contract, the first in-core reader of it, and its viewer is the
+  candidate first screen of the web interface below), `docs/architecture/purpose.md` (the boundary on
+  user interfaces), the notes
   `2026-11-21-published-contract-and-consumer-requests`, `2026-08-18-adr012-deferred-questions`,
   `2026-08-25-role-separation-answerer-and-operator`
 
@@ -57,6 +59,16 @@ another rendering of the same contract.
   contract, two renderings; a Python API to freeze (level T3 cost).
 - **C. A read model the engine writes beside the store** — an index of sessions with their status,
   for queries across sessions. Fast to query; a second copy of facts to keep consistent.
+
+## The web interface the owner plans
+
+Session `2026-11-21-architecture-3` recorded the owner's plan of a web interface to the engine, built
+later on the ADR 022 report: the report's viewer renders a fact model the engine builds, embedded in
+the document today and served by an API tomorrow. That plan crosses the boundary of `purpose.md`,
+which excludes a user interface, and is decided only in an architecture session of its own that
+revisits the boundary. A browser cannot read a database backend, so such an interface reads through a
+server over the read contract this note proposes, never through the store's files; it is the reader
+alternative A cannot serve.
 
 ## Open questions
 
