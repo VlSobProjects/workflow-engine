@@ -904,6 +904,19 @@ class WorkflowEngine:
         runtime = self._acquire(session_id)
         return runtime.storage.load_records(session_id, node_id=node_id, tail=tail)
 
+    def get_definition(self, session_id: str) -> WorkflowModel:
+        """The definition the session runs, read afresh through the storage contract. See ADR 022 §2.
+
+        The cached runtime holds the definition its nodes were built from, and a build writes into the
+        configuration it is handed, so a reader of the definition as written loads its own copy.
+        """
+        runtime = self._acquire(session_id)
+        return runtime.storage.load_workflow(session_id)
+
+    def get_session_dir(self, session_id: str) -> Path:
+        """The directory the session owns, where an account of the session itself is written."""
+        return self.session_factory.require_session_dir(session_id)
+
     def get_deliverables(self, session_id: str) -> list[str]:
         runtime = self._acquire(session_id)
         return list(runtime.workflow.deliverables)

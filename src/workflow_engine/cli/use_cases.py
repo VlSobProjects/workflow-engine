@@ -23,6 +23,8 @@ from workflow_engine.help_contract.renderers import (
 )
 from workflow_engine.inputs import parse_input_assignment
 from workflow_engine.models.state import SessionEventCode, StateModel, StateReadOnlyView
+from workflow_engine.report.document import REPORT_FILE_NAME, render_document
+from workflow_engine.report.model import VALUE_CUT, build_report_model
 from workflow_engine.tools import render_value_as_text
 
 
@@ -326,6 +328,34 @@ def show_records(command_name: CommandName, args: Namespace) -> CommandResult:
             command_name, state, session_id, {"records": records, "count": len(records), "total": page.total}
         )
     return _read_result(command_name, state, session_id, None, render_records_text(session_id, records, page.total))
+
+
+def report_session(command_name: CommandName, args: Namespace) -> CommandResult:
+    """Write the human-readable report of one session as a single HTML document. See ADR 022.
+
+    The report is assembled from the read surfaces and the definition through the storage contract,
+    and writing it changes nothing of the session: it is not an artifact (ADR 011), and a second
+    report of the same session replaces the first.
+    """
+    engine = _get_engine(args)
+    session_id = args.session_id
+    state = engine.get_status(session_id=session_id)
+    records = engine.get_records(session_id).records
+    values = not args.no_values
+    model = build_report_model(
+        state, engine.get_definition(session_id), records, values=values, home=Path.home() if values else None
+    )
+    output = Path(args.output) if args.output else engine.get_session_dir(session_id) / REPORT_FILE_NAME
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(render_document(model), encoding="utf-8")
+    path = output.resolve().as_posix()
+    return _read_result(
+        command_name,
+        state,
+        session_id,
+        {"path": path, "values": values, "value_cut": VALUE_CUT, "visits": len(records)},
+        f"Report of session {session_id} written to {path}",
+    )
 
 
 def list_of_sessions(command_name: CommandName, args: Namespace) -> CommandResult:

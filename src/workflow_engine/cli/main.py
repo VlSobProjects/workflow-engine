@@ -14,6 +14,7 @@ from workflow_engine.cli.use_cases import (
     init_session,
     list_of_sessions,
     list_parameters,
+    report_session,
     resume_workflow,
     run_workflow,
     set_input,
@@ -25,6 +26,7 @@ from workflow_engine.cli.use_cases import (
 )
 from workflow_engine.exceptions import WorkflowEngineError
 from workflow_engine.help_contract.models import COMPONENT_TYPE_BY_KEY
+from workflow_engine.report.model import VALUE_CUT
 
 
 class CommandLineError(Exception):
@@ -276,6 +278,29 @@ def _get_command(command_name: CommandName) -> Command:
                     ),
                 ],
                 runner=show_records,
+            )
+        case CommandName.REPORT:
+            return Command(
+                command=CommandName.REPORT,
+                help=(
+                    "Write a human-readable HTML report of a session: graph, path, parameters, artifacts, "
+                    f"journal. Values are cut at {VALUE_CUT} characters and the home directory shows as ~"
+                ),
+                args=[
+                    _session_id_arg(),
+                    CommandArgs(
+                        key="--output",
+                        help="File the report is written to (default: report.html in the session directory)",
+                        required=False,
+                    ),
+                    CommandArgs(
+                        key="--no-values",
+                        help="Leave the parameter values out of the report",
+                        required=False,
+                        action="store_true",
+                    ),
+                ],
+                runner=report_session,
             )
         case CommandName.EXPORT_ARTIFACT:
             return Command(

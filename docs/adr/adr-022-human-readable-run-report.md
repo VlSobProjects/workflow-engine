@@ -102,10 +102,15 @@ contract.
   the document carries no path of the machine that ran the session beyond what the session itself
   names.
 - A paused session: the pending node, its answer declaration and error catalogue, its presentation
-  fields as the template text the definition holds — not resolved, the values being in the report
-  beside them — and the form of the `resume <session_id> --answer ...` command that continues it. The
-  question is not re-rendered: a read command runs no presentation code, and the published question
-  shape is the subject of Draft ADR 019.
+  fields twice — as the template text the definition holds, and as they were presented, resolved by
+  the template rule of ADR 016 against the state — and the form of the
+  `resume <session_id> --answer ...` command that continues it. The paused node has not run since it
+  presented its question, so the resolved text is the text the answerer was shown; the viewer shows
+  it first and the template text on a switch. The resolved text is a rendering of values: the home
+  directory is replaced by `~` in it as in the values, `--no-values` leaves it out, and a reference
+  that no longer resolves leaves the question as written with the reason stated. The question is not
+  re-rendered as a published block: the fields are resolved one by one into the model, and the
+  published question shape stays the subject of Draft ADR 019.
 
 ### 4. One self-contained file: a fact model the engine builds, a viewer embedded beside it
 The engine builds a model of the facts of the session — everything §3 shows, with the effective
@@ -260,3 +265,9 @@ if a consumer asks for it.
   in the rendered values replaced by `~`, stated in the document; a workflow input shown as such;
   the agreed design and the model's findings recorded in the implementation notes; the viewer tested
   in a browser by an opt-in Playwright suite in its own dependency group and CI job.
+- 2026-11-22: amended in session `2026-11-22-implementation-2` at the owner's request after reading
+  the report of a paused question: the presentation fields are carried as presented as well as
+  written, resolved in Python by the ADR 016 rule and shown first, the template text on a switch.
+  Alternatives: the template text alone, as decided before (the reader matches references to values
+  by hand), and the references resolved by the viewer (a second implementation of the template rule
+  in JavaScript, and `output.` and `artifact.` references the model does not carry).
