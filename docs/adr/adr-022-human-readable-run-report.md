@@ -75,20 +75,29 @@ contract.
   under a code, or paused with the pending question.
 - The path: the visited nodes in order, from the records, with visit and attempt ordinals, status,
   error code, the guards evaluated and the transition taken.
-- The nodes, in two views side by side. The configuration as the session's definition holds it, which
+- The nodes, each opened from the graph and from the path, in two views side by side. The configuration as the session's definition holds it, which
   is what the author recognises; and the effective transitions as the node is built, `validators`
   expanded into leading failure transitions (ADR 002), each marked with its origin
   (`validators[i]` or `transitions[i]`). The second view is needed because a node record names a guard
   but not the transition it belongs to. The visited nodes link to their visits and back. When the
   nodes cannot be built — a component module that no longer loads — the report is still written: the
   transitions are shown as written and the build error is stated in the document.
-- The graph as a list: every node with its transitions, each target a link to its node. The graph is
-  not drawn.
-- The parameters: names, codecs, the node that wrote each, and the values, shown by default. A value
+- The graph, drawn and listed. The drawing shows every node with its action, its visit count and
+  whether it failed or is where the run stands, and every effective transition as an arrow labelled
+  with its guard and the number of visits that took it; a transition back into a loop and a node
+  that returns to itself are drawn as such, and an end or a failure target is a terminal of its own.
+  The list states the same graph as text, every target a link to its node. The layout is
+  presentation: the viewer computes it from the effective transitions in the model, and the model
+  carries no coordinate.
+- The parameters: names, codecs, the node that wrote each or that it is a workflow input, and the values, shown by default. A value
   is rendered by the single rendering rule of ADR 016 and cut at a fixed length; a cut value says that
   it was cut, its full length, and that `show-parameter` reads it whole. `--no-values` writes the
   report without values. The state holds no secret — a provider block names its credential, never
-  holds it (ADR 014) — so the switch serves size and publication, not secrecy.
+  holds it (ADR 014) — so the switch serves size and publication, not secrecy. A value does carry the
+  paths the session was given, and a path under a home directory names the person who ran it: in the
+  rendered values the home directory of the machine writing the report is replaced by `~`, and the
+  document states that it was. A path outside it stays as the session names it; `--no-values` is the
+  answer for those.
 - The artifacts: logical names and paths relative to the session directory, never their content, so
   the document carries no path of the machine that ran the session beyond what the session itself
   names.
@@ -102,8 +111,8 @@ contract.
 The engine builds a model of the facts of the session — everything §3 shows, with the effective
 transitions already built and the values already rendered — through the `Storage` contract, and
 embeds it in the document as a JSON data block. An inline script, the viewer, renders the interactive
-report from that block: the path with collapsible loops, the visits of one node highlighted, filters,
-links between visits, nodes and parameters. All the semantics of the engine — the build of a node,
+report from that block: the drawn graph, the path with collapsible loops, the visits of one node
+highlighted, filters, links between visits, nodes and parameters. All the semantics of the engine — the build of a node,
 the rendering of a value through its codec — stays in Python, in one place; the viewer only presents
 what the model states and never computes an engine fact.
 
@@ -115,7 +124,8 @@ the document says that the report needs JavaScript; no second, static rendering 
 The model is internal: it is the interface between the engine's Python and the engine's own viewer,
 both shipped in one package, and it carries a `schema_version` so a document states which model it
 holds. It is not a published contract (see below on the template). The document is produced with the
-standard library, and the viewer and the styles ship as package data of the engine. No new dependency.
+standard library, and the viewer and the styles ship as package data of the engine. The engine takes
+no new dependency; the viewer's tests take one, in a group of their own (see Consequences).
 
 The template — the shell, the styles and the viewer — is the engine's and is not replaceable: no
 configuration key and no flag names another. A replaceable template would publish the model handed to
@@ -125,7 +135,7 @@ read commands and their `--json` answers already serve a terminal and a program.
 
 ### 5. Out of scope
 No catalogue of components, no view across sessions, no live refresh, no action on the session from
-the document, no drawn graph, no replaceable template, no second format. Each is a separate decision
+the document, no replaceable template, no second format. Each is a separate decision
 if a consumer asks for it.
 
 ## Alternatives considered
@@ -159,6 +169,14 @@ if a consumer asks for it.
 - **Markdown instead of HTML.** Text, diffable, rendered by code hosts. Not chosen: its rendering
   depends on the viewer, nested node configuration and long loops read poorly without collapsible
   sections, a drawn graph needs an embedded image, and it carries no viewer at all.
+- **The graph laid out by the engine, its coordinates in the model.** The layout would be in Python and
+  under `pytest`. Not chosen: a layout is presentation, the model keeps facts apart from it, and every
+  change of the drawing would become a change of the model's shape.
+- **The graph laid out by an embedded library** (a layered-layout library, or a diagram language
+  rendered in the page). A layout of better quality for large graphs at no code of the engine's own.
+  Not chosen: a new dependency carried inside every document, at up to a megabyte for a diagram
+  language; the viewer's own layered layout serves the graphs of the shipped examples, and a graph
+  large enough to need more is a reason to revisit this.
 - **Do nothing; the text renderings of the read commands suffice.** Rejected: they serve a terminal
   user who already knows which command answers which question, not a reader of the run.
 
@@ -170,9 +188,16 @@ if a consumer asks for it.
   that build the model of the evidence example, and a change of the model's shape raises its
   `schema_version`.
 - The viewer is JavaScript, which neither `pytest` nor `ruff` checks. The tests cover the model in
-  full and check that the document carries a well-formed data block and the viewer; the viewer itself
-  is checked by hand against the agreed design. Automated tests of the viewer would need a JavaScript
-  toolchain, a dependency not taken here.
+  full and check that the document carries a well-formed data block and the viewer. The viewer itself
+  is checked in a real browser by an opt-in suite of Playwright tests written in Python, run against
+  the reports of several shipped workflows: completed with a loop, failed, paused on the budget,
+  paused at a question. The suite stays outside the default `uv run pytest`, behind a marker of its
+  own and a dependency group of its own — `pytest-playwright` and the browser it downloads, approved
+  by the owner for this purpose and never a dependency of the engine at run time — and runs in a CI
+  job of its own, so a fresh clone and the test matrix on three systems need no browser. Rejected
+  alternatives: the browser tests in the default run (every clone and every system would need a
+  browser), a JavaScript test runner without a browser (a toolchain of its own that sees neither
+  layout nor behaviour), and checking by hand only (no regression of the showcase would be caught).
 - A reader with scripts disabled sees no report, only the statement that it needs JavaScript.
 - A later web interface can reuse the viewer with the model served by an API instead of the embedded
   block; nothing in this ADR promises it.
@@ -206,6 +231,18 @@ if a consumer asks for it.
   the overview and the walkthrough.
 - The design covers a light and a dark theme, a narrow screen, printing, keyboard use, and a stable
   anchor for every node and every visit, so a link to one point of a run can be shared.
+- The design agreed in session `2026-11-22-implementation-1`: the session header with its ending in
+  one sentence and the pending block above five tabs — Graph (first, the drawing with the list as a
+  second view), Path, Parameters, Artifacts, Journal — each tab and each visit, node and parameter an
+  anchor; a node opens in a dialog from the graph, the path and the list; printing lays every tab
+  and every node out in turn.
+- What the mockup found the model needs beyond the read commands: the origin of the effective
+  transition each visit took, decided in Python, because a record names a guard and not its
+  transition; and a mark on a parameter that is a workflow input, which `list-parameters` attributes
+  to the first node of the run. Building a node writes into the configuration it is handed, so the
+  written view is copied before the build.
+- The Playwright suite is written once the viewer is in the package, in implementation session 2 or
+  a session of its own right after it; its CI job runs on one system.
 
 ## Change log
 - 2026-11-21: opened as Draft in session `2026-11-21-architecture-2`.
@@ -217,3 +254,9 @@ if a consumer asks for it.
   model and an inline viewer renders it, replacing the document without a script; the owner's plan of
   a web interface recorded in the Context as a separate decision; moved to Implementing on
   `feature/adr_022-human-readable-run-report`.
+- 2026-11-22: amended in session `2026-11-22-implementation-1` from the design mockup: the graph is
+  drawn as well as listed, laid out by the viewer with no coordinate in the model, and the drawn graph
+  leaves the out-of-scope list; two alternatives on where the layout lives added; the home directory
+  in the rendered values replaced by `~`, stated in the document; a workflow input shown as such;
+  the agreed design and the model's findings recorded in the implementation notes; the viewer tested
+  in a browser by an opt-in Playwright suite in its own dependency group and CI job.
