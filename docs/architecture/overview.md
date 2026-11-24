@@ -453,7 +453,7 @@ so a refusal can name who holds the session. A second writer is refused as an en
 the caller as a setup error; it never waits and never overwrites.
 
 Reading a session takes nothing: `show-state`, `list-parameters`, `show-parameter`, `show-journal`,
-`show-records` and `export-artifact` answer while a run holds the session.
+`show-records`, `report` and `export-artifact` answer while a run holds the session.
 
 A lock is not expired by age. A node waiting on a slow model call holds its session legitimately for
 minutes, and a hold taken away from a live run protects nothing. A lock left behind by a process that
@@ -523,6 +523,8 @@ written in, rather than as the Python repr `str()` would produce (ADR 016).
   `--node`;
 - `show-records` to read the node records of a session, one per concluded node visit, bounded and
   filtered the same way;
+- `report` to write one self-contained HTML document of a session, into its directory or to
+  `--output`, with `--no-values` leaving the values out (see "Session report");
 - `list-sessions` to list sessions discoverable under the configured `work_dir`;
 - `help-components` to list registered components;
 - `help-component` to show one component by type and name;
@@ -579,6 +581,35 @@ session, the records say what the run did — and the two are never bookkept twi
 All five are info commands: they report `workflow_status` and `event_code` informationally, exit `0`
 on command success wherever the workflow stands, and `4` on a session or a name that does not
 resolve.
+
+## Session report (see ADR 022)
+
+`report` composes what the read surfaces serve into one HTML document of a session, for a person and
+not a program. It is an info command like the five above, and it changes nothing in the session: the
+document is not an artifact (ADR 011), and by default it is written into the session directory as
+`report.html`, replaced by the next report of the same session.
+
+The `report` package splits the document into a fact model and its presentation:
+
+- `model.py` builds the fact model from the state view, the journal, the record stream and the
+  definition the session runs, read through the `Storage` contract (`load_workflow`) and never from a
+  backend's files. Every engine fact is settled there: the ending of the run and, for a paused
+  session, its pending block; each node's configuration as written and its effective transitions as
+  built, each marked with its origin (`validators[i]` or `transitions[i]`); for each visit, the
+  transition it took; the parameters with their codec, their writer or their mark as a workflow
+  input, and the value rendered by `render_value_as_text`, cut at a fixed length and with the home
+  directory of the writing machine replaced by `~`. Building a node only reads its transitions and
+  never runs it; a node that cannot be built keeps its transitions as written and states the build
+  error.
+- `document.py` embeds the model as a JSON data block, escaped so it cannot close its element,
+  beside the shell, the styles and the viewer, which ship as package data under `report/viewer/`.
+
+The viewer renders the model and computes no engine fact: it lays out the drawn graph itself, folds
+the loops of the path, and links nodes, visits and parameters through stable anchors. The document
+loads nothing from outside and reaches neither the network nor the session. The model is internal to
+the engine and its viewer, not a published contract, and carries a `schema_version`; the template is
+not replaceable, and a program that wants a report of its own design composes the read commands with
+`--json`.
 
 ## Operator help contract
 

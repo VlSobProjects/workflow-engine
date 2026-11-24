@@ -35,11 +35,16 @@ def _post_condition(validator_data: dict[str, object], index: int) -> Transition
     )
 
 
-def workflow_node_factory(node_model: WorkflowNodeModel) -> WorkflowNode:
-    action = create_action(node_model.action_type, node_model.action_parameters)
+def build_transitions(node_model: WorkflowNodeModel) -> list[Transition]:
+    """The effective transitions of a node in order: its validators expanded first, then its own."""
     transitions = [_post_condition(validator, index) for index, validator in enumerate(node_model.validators or [])]
     transitions += [
         transition_factory(transition, f"transitions[{index}]")
         for index, transition in enumerate(node_model.transitions or [])
     ]
-    return WorkflowNode(id=node_model.id, config=node_model, action=action, transitions=transitions)
+    return transitions
+
+
+def workflow_node_factory(node_model: WorkflowNodeModel) -> WorkflowNode:
+    action = create_action(node_model.action_type, node_model.action_parameters)
+    return WorkflowNode(id=node_model.id, config=node_model, action=action, transitions=build_transitions(node_model))

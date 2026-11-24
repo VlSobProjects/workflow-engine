@@ -15,6 +15,7 @@ class CommandName(Enum):
     SHOW_PARAMETER = "show-parameter"
     SHOW_JOURNAL = "show-journal"
     SHOW_RECORDS = "show-records"
+    REPORT = "report"
     LIST_SESSIONS = "list-sessions"
     HELP_COMPONENTS = "help-components"
     HELP_COMPONENT = "help-component"
@@ -35,6 +36,7 @@ INFO_COMMANDS = (
     CommandName.SHOW_PARAMETER,
     CommandName.SHOW_JOURNAL,
     CommandName.SHOW_RECORDS,
+    CommandName.REPORT,
     CommandName.SET_INPUT,
     CommandName.SET_LIMIT,
     CommandName.EXPORT_ARTIFACT,

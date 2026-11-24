@@ -88,3 +88,18 @@ def test_installed_cli_smoke(tmp_path: Path) -> None:
     assert response["command"] == "help-components"
     assert response["command_status"] == "completed"
     assert isinstance(response["data"]["components"], dict)
+
+    # The report viewer ships as package data: a wheel without it writes no report. See ADR 022 §4.
+    viewer = subprocess.run(
+        [
+            str(python_exe),
+            "-c",
+            "from importlib.resources import files; viewer = files('workflow_engine.report') / 'viewer'; "
+            "print(all((viewer / name).is_file() for name in ('shell.html', 'report.css', 'report.js')))",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert viewer.stdout.strip() == "True"

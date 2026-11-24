@@ -26,8 +26,9 @@ and a report with one table per folder. Its walkthrough is
 - Works now: the graph runner with guards, validators and visit caps; persisted, resumable sessions;
   interactive `ask` nodes that pause for an answer; `llm` nodes calling a model through provider
   adapters (OpenAI-compatible, LM Studio, Ollama), with every call audited; per-visit node records
-  and read commands (`show-state`, `show-journal`, `show-records`); a self-describing component
-  help (`help-components`); four shipped example workflows.
+  and read commands (`show-state`, `show-journal`, `show-records`); a `report` command writing one
+  self-contained HTML account of a session — graph, path, parameters, artifacts; a self-describing
+  component help (`help-components`); four shipped example workflows.
 - Not done: the exit scenario of the current phase — load-test triage hand-built and run on captures
   of a real system under test; agent-assisted authoring measured across vendors (next phase); a
   release — no package on an index and no delivery channel, so the engine runs from a clone.
@@ -472,6 +473,38 @@ command success and `4` on an unresolvable session or name.
   the same way. This is where the history of a loop survives: the state keeps one slot per node and
   the next visit overwrites it. Like the journal, a record names a value and never carries it.
 
+### Writing a report of a session
+
+The read commands each answer one question. `report` writes one HTML document that answers them
+together, for a person reading the run in a browser:
+
+```
+workflow-engine report --session-id <SESSION_ID>
+```
+
+The document lands in the session directory as `report.html`, and a second report of the session
+replaces the first; `--output <file>` writes it elsewhere instead. The result names the written file
+in `data.path`, beside `visits`, the number of node records it covers. Like the read commands,
+`report` is an info command: it reads the session, changes nothing in it and answers `0` wherever the
+workflow stands.
+
+The document shows how the run ended — completed, failed under a code, or paused, with the command
+that continues it — and, on five tabs, the graph drawn and listed, the path of visited nodes with
+their guards and transitions and the loops folded, the parameters with their codecs and values, the
+artifacts by path relative to the session directory, and the journal. A node opens with its
+configuration as written and with its transitions as built, `validators` expanded. Every tab, node
+and visit has an anchor of its own, so a link can point at one visit of a run.
+
+- Values are shown by default, rendered as `show-parameter` renders them and cut at 160 characters; a
+  cut value says so and gives its full length. `--no-values` leaves the values out, and with them the
+  resolved text of a pending question.
+- The home directory of the machine writing the report is replaced by `~` in the values, and the
+  document says so. A path outside it stays as the session names it.
+- The file carries its styles, its script and its data and loads nothing: it opens from a disk or a
+  static host with no network, and it never reaches the session. It needs JavaScript and says so
+  without it.
+- The report is not an artifact of the session and is not exported with the deliverables.
+
 Exit codes: `0` success, `2` workflow paused, `3` workflow failed, `4` command-level setup or
 resolution error. A malformed command line is a `4` too: the message and the usage go to stderr, and
 with `--json` stdout still carries one command result with `"command_status": "error"`, so a caller
@@ -601,6 +634,14 @@ Run tests from the repository root:
 
 ```
 uv run pytest
+```
+
+The report viewer is checked in a real browser by a separate suite that the default run leaves out.
+It needs the `browser` dependency group and Chromium, which Playwright downloads once:
+
+```
+uv run --group browser playwright install chromium
+uv run --group browser pytest -m browser
 ```
 
 ## Working on this project
