@@ -70,14 +70,14 @@ nav.sections a[aria-selected="true"] { color: var(--fg); border-bottom-color: va
 nav.sections a:hover { color: var(--fg); text-decoration: none; }
 nav.sections .n { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 400; margin-left: 4px; font-size: 12px; }
 
-main .wrap { display: grid; gap: 36px; padding-block: 24px 64px; }
-section { display: grid; gap: 12px; scroll-margin-top: 56px; }
+main .wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; padding-block: 24px 64px; }
+section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; scroll-margin-top: 56px; }
 .sec-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
 .sec-head p { margin: 0; color: var(--muted); }
 section[role="tabpanel"] .sec-head h2 { display: none; }
 
 /* pending */
-.pending { border: 1px solid var(--wait); background: var(--wait-soft); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; }
+.pending { border: 1px solid var(--wait); background: var(--wait-soft); border-radius: var(--r); padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .pending h2 { color: var(--wait); }
 .pending .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
 .pending .grid > div { min-width: 0; }
