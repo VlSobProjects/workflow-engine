@@ -98,6 +98,43 @@ The stream is a file of its own, `records.jsonl` beside `state.json` in the sess
 JSON object per line, appended and never rewritten. Nothing moved out of the state to make room for
 it - the state holds what a resume needs, the trail holds what an explanation needs.
 
+## Reading the run as a report
+
+The commands above answer one question each. `report` writes the whole run into one HTML document
+for a reader with a browser (ADR 022; see "Writing a report of a session" in the root
+[`README.md`](../README.md)):
+
+```
+workflow-engine report --session-id <SESSION_ID>
+```
+
+The result names the file it wrote, `report.html` in the session directory, and the number of visits
+it covers: 27 for the walk shown above, every record of the stream. Opened, it reads as follows for this
+workflow.
+
+- The header says the run completed. The Graph tab draws the walk: `POP_NEXT` → `EMIT_CUR_PATH` →
+  `COLLECT` or `ENQUEUE` and back to `POP_NEXT`, each arrow labelled with its guard and with how many
+  visits took it, and `WRITE_TABLE` → `WRITE_REPORT` → the end after it.
+- The Path tab lists the visits in order and folds the repeated passes through the loop into one
+  group, which unfolds to every pass. A pass shows the guard that chose its branch,
+  `is_output_exist_file=pass` into `COLLECT` or `=fail` into `ENQUEUE`. The last visit of `POP_NEXT`
+  shows the guard that ended the loop, `equals:empty=pass`, and the transition it took to
+  `WRITE_TABLE`.
+- Opening a node shows its configuration as the definition holds it beside its transitions as built,
+  each marked with its origin, with links to its visits. This definition writes its failure
+  transitions out rather than through `validators`, so the two views list the same transitions: on
+  `WRITE_TABLE`, `transitions[0]` fails the run under the table's error codes and `transitions[1]`
+  goes on to `WRITE_REPORT`, and the visit marks the one it took.
+- The Parameters tab marks `scan_root` as the workflow input and lists `scan_queue`, `cur_path` and
+  `table_rows` with their codecs, the node `list-parameters` names for each and their last values. `table_rows` grows
+  with the tree, so its value is cut and says how long it is; `show-parameter` reads it whole.
+- The Artifacts tab lists the two deliverables, `reports/file_scan_table.csv` and
+  `reports/file_scan_report.txt`, by path relative to the session directory.
+
+A failed run reads the same way. Over a tree with no file, the header states the failure under
+`pretty_table_no_data`, and the path ends at `WRITE_TABLE` with the failure transition its validator
+took.
+
 ## Variants: a model in the walk
 
 Three definitions ship beside the base one, each a run of its own rather than a mode of one file:

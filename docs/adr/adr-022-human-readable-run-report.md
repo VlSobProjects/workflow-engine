@@ -50,10 +50,12 @@ whose human receives the verdict or the handover and must be able to read why th
 ## Decision
 
 ### 1. One command writes one document for one session
-A new command, `workflow-engine report <session_id>`, writes one HTML document describing that
-session. It reads the session and never changes it, under the same session lock discipline as the
-other read commands. It answers in the ADR 007 `CommandResult`, with `--json` as everywhere, naming
-the path of the written document.
+A new command, `workflow-engine report --session-id <session_id>`, writes one HTML document
+describing that session; the session is named by the option every other session command takes. It
+reads the session and never changes it, under the same session lock discipline as the other read
+commands: it takes no lock, and it is an info command that answers `0` wherever the workflow stands.
+It answers in the ADR 007 `CommandResult`, with `--json` as everywhere, naming the path of the
+written document.
 
 The document is written by default into the session's own directory as `report.html`, so the account
 of a session lives and is removed with the session; `--output <file>` writes it elsewhere instead, as
@@ -72,7 +74,8 @@ contract.
 
 ### 3. What the document shows
 - The session: its identifier, the workflow, the status, and how the run ended — completed, failed
-  under a code, or paused with the pending question.
+  under a code, or paused: at the pending question, or on the session budget or the hard cap with
+  the visits counted, each pause with the commands that continue it.
 - The path: the visited nodes in order, from the records, with visit and attempt ordinals, status,
   error code, the guards evaluated and the transition taken.
 - The nodes, each opened from the graph and from the path, in two views side by side. The configuration as the session's definition holds it, which
@@ -271,3 +274,9 @@ if a consumer asks for it.
   Alternatives: the template text alone, as decided before (the reader matches references to values
   by hand), and the references resolved by the viewer (a second implementation of the template rule
   in JavaScript, and `output.` and `artifact.` references the model does not carry).
+- 2026-11-24: amended in session `2026-11-24-implementation-2` to the result as built: §1 names the
+  session by `--session-id`, as every other session command does, instead of a positional argument,
+  and states that the command takes no lock and is an info command; §3 states the pause on the
+  budget and on the hard cap beside the pause at a question. The work took four sessions on the
+  branch rather than three: the Playwright suite had a session of its own,
+  `2026-11-24-implementation-1`.
