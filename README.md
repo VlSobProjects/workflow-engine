@@ -21,6 +21,11 @@ The run walks `examples/` and exports two deliverables into `out/reports/`: a fl
 and a report with one table per folder. Its walkthrough is
 [`examples/folder-inventory-to-csv.md`](examples/folder-inventory-to-csv.md).
 
+The same run, and a run of `approve-and-copy` paused on its question and then answered, can be read
+without a clone: the [demonstration page](https://vlsobprojects.github.io/workflow-engine/) publishes
+the report each session wrote in CI. It is rewritten by hand, by the `Demonstration` workflow in
+`.github/workflows/demo.yml`, and calls no model.
+
 **Status: in progress, not released.**
 
 - Works now: the graph runner with guards, validators and visit caps; persisted, resumable sessions;
