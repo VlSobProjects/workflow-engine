@@ -1,10 +1,10 @@
 # ADR 022: A human-readable report of one session
 
 ## Status
-Implementing
+Accepted
 
 ## Active branch
-`feature/adr_022-human-readable-run-report`
+—
 
 ## Context
 The purpose promises a run whose path is "determined by the data and explained by the journal". The
