@@ -18,10 +18,12 @@ jobs:
     name: run the examples and write their reports
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      WORK_DIR: ${{ runner.temp }}/demo-work
-      SITE_DIR: ${{ runner.temp }}/demo-site
     steps:
+      - name: Name the working directories
+        # The runner context does not exist at the job level, so the paths are set from a step.
+        run: |
+          echo "WORK_DIR=$RUNNER_TEMP/demo-work" >> "$GITHUB_ENV"
+          echo "SITE_DIR=$RUNNER_TEMP/demo-site" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7.0.1
       - uses: astral-sh/setup-uv@v10.3.3
         with:
