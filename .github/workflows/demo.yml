@@ -1,0 +1,141 @@
+name: Demonstration
+
+# The public demonstration (roadmap step 17): runs shipped examples that need no model server, writes
+# the ADR 022 report of each session and publishes the reports on GitHub Pages. Started by hand only:
+# `gh workflow run demo.yml --ref development`. Pages must have "GitHub Actions" as its source.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: run the examples and write their reports
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WORK_DIR: ${{ runner.temp }}/demo-work
+      SITE_DIR: ${{ runner.temp }}/demo-site
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          python-version: "3.13"
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Run folder-inventory-to-csv
+        run: |
+          mkdir -p "$SITE_DIR"
+          uv run workflow-engine run --work-dir "$WORK_DIR" \
+            --workflow-file examples/folder-inventory-to-csv.json \
+            --input "scan_root:Path=examples" --json > inventory.json
+          session=$(uv run python -c "import json,sys; print(json.load(open(sys.argv[1]))['session_id'])" inventory.json)
+          uv run workflow-engine report --work-dir "$WORK_DIR" --session-id "$session" \
+            --output "$SITE_DIR/folder-inventory-to-csv.html"
+
+      - name: Run approve-and-copy, report the pause, answer it
+        run: |
+          mkdir -p "$RUNNER_TEMP/copy-target"
+          # A paused run exits 2; anything else here is a failure of the demonstration.
+          set +e
+          uv run workflow-engine run --work-dir "$WORK_DIR" \
+            --workflow-file examples/approve-and-copy.json \
+            --input "source_file:Path=LICENSE" --input "target_dir:Path=$RUNNER_TEMP/copy-target" \
+            --json > approve.json
+          code=$?
+          set -e
+          test "$code" -eq 2
+          session=$(uv run python -c "import json,sys; print(json.load(open(sys.argv[1]))['session_id'])" approve.json)
+          uv run workflow-engine report --work-dir "$WORK_DIR" --session-id "$session" \
+            --output "$SITE_DIR/approve-and-copy-paused.html"
+          uv run workflow-engine resume --work-dir "$WORK_DIR" --session-id "$session" --json \
+            --answer '{"status": "success", "values": {"reviewer": "demonstration"}, "text": "approved"}' \
+            > approved.json
+          uv run workflow-engine report --work-dir "$WORK_DIR" --session-id "$session" \
+            --output "$SITE_DIR/approve-and-copy.html"
+
+      - name: Write the index page
+        env:
+          COMMIT: ${{ github.sha }}
+          REF: ${{ github.ref_name }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          short="${COMMIT:0:7}"
+          written=$(date -u +"%Y-%m-%d %H:%M UTC")
+          cat > "$SITE_DIR/index.html" <<EOF
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>workflow-engine demonstration</title>
+          <style>
+          :root { --bg: #fbfbfa; --fg: #1d1d1b; --muted: #5f5f5a; --line: #deddd8; --link: #1f5fbf; }
+          @media (prefers-color-scheme: dark) {
+            :root { --bg: #171716; --fg: #ecebe6; --muted: #a3a29c; --line: #34332f; --link: #8ab4f8; }
+          }
+          body { margin: 0; background: var(--bg); color: var(--fg);
+                 font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+          main { max-width: 44rem; margin: 0 auto; padding: 2.5rem 16px; }
+          h1 { font-size: 1.6rem; margin: 0 0 .5rem; }
+          p { margin: .5rem 0 1rem; }
+          a { color: var(--link); }
+          ul { list-style: none; padding: 0; margin: 1.5rem 0; border-top: 1px solid var(--line); }
+          li { padding: .9rem 0; border-bottom: 1px solid var(--line); }
+          li a { font-weight: 600; }
+          li span { display: block; color: var(--muted); }
+          footer { color: var(--muted); font-size: .9rem; }
+          code { font-size: .9em; }
+          </style>
+          </head>
+          <body>
+          <main>
+          <h1>workflow-engine demonstration</h1>
+          <p>Each page below is the report the engine's <code>report</code> command wrote for one session
+          of a shipped example, run in CI on demand. None of these runs calls a model.</p>
+          <ul>
+          <li><a href="folder-inventory-to-csv.html">folder-inventory-to-csv</a>
+          <span>Walks the <code>examples/</code> folder and writes a CSV inventory and a per-folder report: a completed run with its loop folded on the path.</span></li>
+          <li><a href="approve-and-copy-paused.html">approve-and-copy, paused</a>
+          <span>The run stopped on its question, before anyone answered: the pending question and the command that continues it.</span></li>
+          <li><a href="approve-and-copy.html">approve-and-copy, answered</a>
+          <span>The same session after a scripted answer approved the copy: completed.</span></li>
+          </ul>
+          <footer>Written ${written} from <a href="${REPO_URL}/commit/${COMMIT}"><code>${short}</code></a>
+          on <code>${REF}</code> · <a href="${REPO_URL}">source</a></footer>
+          </main>
+          </body>
+          </html>
+          EOF
+
+      - name: Check the pages name no runner path
+        run: |
+          if grep -rlF "$HOME/" "$SITE_DIR"; then
+            echo "A page names the runner's home directory; nothing is published." >&2
+            exit 1
+          fi
+
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: ${{ env.SITE_DIR }}
+
+  deploy:
+    name: publish on GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5.0.1
