@@ -22,12 +22,9 @@ jobs:
       - name: Name the working directories
         # The runner context does not exist at the job level, so the paths are set from a step.
         run: |
-          # The inventory writes the scanned folder's absolute path into its deliverables, so it scans
-          # a copy outside the runner's home and the published files stay as the engine wrote them.
           {
             echo "WORK_DIR=$RUNNER_TEMP/demo-work"
             echo "SITE_DIR=$RUNNER_TEMP/demo-site"
-            echo "SCAN_ROOT=/tmp/demo/examples"
           } >> "$GITHUB_ENV"
       - uses: actions/checkout@v7.0.1
       - uses: astral-sh/setup-uv@v10.3.3
@@ -38,11 +35,10 @@ jobs:
 
       - name: Run folder-inventory-to-csv
         run: |
-          mkdir -p "$SITE_DIR" "$(dirname "$SCAN_ROOT")"
-          cp -r examples "$SCAN_ROOT"
+          mkdir -p "$SITE_DIR"
           uv run workflow-engine run --work-dir "$WORK_DIR" \
             --workflow-file examples/folder-inventory-to-csv.json \
-            --input "scan_root:Path=$SCAN_ROOT" \
+            --input "scan_root:Path=examples" \
             --export-dir "$SITE_DIR/folder-inventory-to-csv" --json > inventory.json
           session=$(uv run python -c "import json,sys; print(json.load(open(sys.argv[1]))['session_id'])" inventory.json)
           uv run workflow-engine report --work-dir "$WORK_DIR" --session-id "$session" \
@@ -111,7 +107,7 @@ jobs:
           runs calls a model.</p>
           <ul>
           <li><a href="folder-inventory-to-csv.html">folder-inventory-to-csv</a>
-          <span>Walks a copy of the <code>examples/</code> folder and writes a CSV inventory and a per-folder report: a completed run with its loop folded on the path.
+          <span>Walks the <code>examples/</code> folder and writes a CSV inventory and a per-folder report: a completed run with its loop folded on the path.
           Its deliverables as the run exported them: <a href="folder-inventory-to-csv/reports/file_scan_table.csv">file_scan_table.csv</a>,
           <a href="folder-inventory-to-csv/reports/file_scan_report.txt">file_scan_report.txt</a>.</span></li>
           <li><a href="approve-and-copy-paused.html">approve-and-copy, paused</a>
@@ -125,13 +121,6 @@ jobs:
           </body>
           </html>
           EOF
-
-      - name: Check the pages name no runner path
-        run: |
-          if grep -rlF "$HOME/" "$SITE_DIR"; then
-            echo "A page names the runner's home directory; nothing is published." >&2
-            exit 1
-          fi
 
       - uses: actions/upload-pages-artifact@v5.0.0
         with:

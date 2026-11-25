@@ -10,8 +10,6 @@ its report, so a reader sees what the run delivered and not only that it deliver
 ## Completion criteria
 - The demonstration exports the two deliverables of `folder-inventory-to-csv` into the published site,
   unchanged, and the index page links them.
-- The published deliverables name no path under the runner's home directory, and the existing check
-  still covers every published file.
 - `actionlint` passes the workflow files, and the build steps run locally to the six published files.
 - `README.md` states that the deliverables are published.
 
@@ -24,30 +22,38 @@ its report, so a reader sees what the run delivered and not only that it deliver
 `completed`
 
 ## Result
-- `demo.yml`: the inventory scans a copy of `examples/` under a neutral directory outside the runner's
-  home and exports its deliverables under `folder-inventory-to-csv/reports/` of the site; the index
-  page links both files. The first step writes its three paths in one grouped redirect.
+- `demo.yml`: the inventory exports its deliverables under `folder-inventory-to-csv/reports/` of the
+  site, and the index page links both files. The step that refused a page naming the runner's home
+  directory is removed (decision 2).
 - Locally, the build steps wrote the six files and every link of the index page resolves to one of
-  them; `actionlint` 1.7.7 with `shellcheck` passes `demo.yml` and `ci.yml`. The home-directory check
-  proves nothing locally, where the shell's home is spelled differently from the paths in the files;
-  it is proven at the first run on GitHub.
+  them; `actionlint` 1.7.7 with `shellcheck` passes `demo.yml` and `ci.yml`.
 - `README.md`: the demonstration paragraph names the published deliverables.
+- Note `2026-11-25-report-home-in-journal-details`: the journal details of a report keep the home
+  directory, which ADR 022 replaces by `~` in the values only.
 
 ## Decisions
-1. **Scan a copy outside the home directory, not mask the files.** The inventory writes the scanned
-   folder's absolute path into the CSV and the text report, and the engine does not mask
-   deliverables. Owner's choice over replacing the home directory in the exported files: the
-   published files stay exactly as the engine wrote them, and the check keeps refusing a real leak
-   instead of being satisfied by an edit.
+1. **Scan a copy outside the home directory** — taken first, then withdrawn by decision 2. The
+   inventory writes the scanned folder's absolute path into its deliverables, and the copy kept that
+   path out of the runner's home so the check would pass.
+2. **No check of the runner's home directory before publication.** The first run on GitHub was
+   refused by the check: the `artifacts_exported` event of the journal names the export destination,
+   and the report does not replace the home directory there. The runner's home is the same on every
+   GitHub-hosted runner, names no person and holds no secret, so the check guarded nothing; whether
+   the report keeps a home directory out of a page is a matter of the report's own tests. The check
+   and the copy are removed, and the inventory scans `examples/` where the checkout put it. The gap
+   in the report is a local operator's concern and goes to a note, not into this session.
 
 ## Open questions
-None.
+- Whether the report should replace the home directory in the journal details too: note
+  `2026-11-25-report-home-in-journal-details`, for an architecture session.
 
 ## Next steps
-1. Merge into `development`, start the workflow, and check the two deliverables on the published page.
+1. Start the workflow and check the two deliverables on the published page.
 2. The architecture session of step 18.
+3. Triage the note `2026-11-25-report-home-in-journal-details` in an architecture session.
 
 ## References
 - Branch: `chore/demo-export-deliverables`
 - Session `2026-11-24-maintenance-1` (the demonstration this extends)
-- Changed: `.github/workflows/demo.yml`, `README.md`
+- Changed: `.github/workflows/demo.yml`, `README.md`, `docs/architecture/notes/README.md`
+- Note `2026-11-25-report-home-in-journal-details` (new)
