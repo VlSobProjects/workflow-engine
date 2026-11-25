@@ -23,7 +23,7 @@ The run is then published like the step 17 demonstration: the report of the sess
 deliverable. Models are compared on a GPU with 36 GB of memory, on a time window the owner arranges,
 and the one that serves the showcase best is chosen.
 
-The current demonstration shows that the engine runs and explains its path, but every run in it is
+The step 17 demonstration shows that the engine runs and explains its path, but every run in it is
 file housekeeping. A digest is an application a reader recognises, and it shows the parts of the
 engine the current demonstration leaves out: a model call with its audited facts, a context bound,
 a refusal handled as a value.
@@ -63,7 +63,8 @@ Lacks:
 ## Where the run can happen
 
 The step 17 demonstration runs in CI because it needs nothing but the checkout. This one needs a
-model server, and a GitHub-hosted runner reaches none of the owner's.
+model server. As first written, the note assumed a GitHub-hosted runner reaches none of the owner's;
+the owner's answers below correct that.
 
 - **Run where the GPU is, publish the result.** The run, its report and its deliverable are made on
   the model host and published afterwards. The published report then carries that machine's paths,
@@ -74,13 +75,33 @@ model server, and a GitHub-hosted runner reaches none of the owner's.
 - **A hosted model API from CI.** No local GPU, a secret in CI and a cost per run; it measures a
   provider, not the local models the owner wants to compare.
 
+## The owner's answers (2026-11-25)
+
+- **Where the run happens: CI, against a model host on the internet.** The GPU machine is an Ollama
+  server reachable over the internet; the `payment-reconciliation` consumer already runs against it.
+  A GitHub-hosted runner can therefore reach it, and the demonstration can stay a workflow started by
+  hand, as in step 17, with no self-hosted runner and no run made elsewhere. The endpoint is
+  configuration of the environment: it lives in a CI secret and in no committed file.
+- **Where the new parts live: option B.** The core is not touched. The fetch, the HTML text extractor
+  and the PDF writer, with whatever library the PDF takes, are components of an external module
+  loaded through the configuration, and their dependencies are the example's, not the engine's.
+- **Which documentation:** something stable chosen for the demonstration, for example the release
+  description of a Claude model.
+- **The context window:** found by trying settings on the model host, not fixed in advance.
+- **It is a class 4 example** in `examples/`, with its walkthrough.
+- **The input:** pages that do not change. The extractor is debugged on them first, then the models
+  are compared on the same input; two or three models are enough for a comparison of results.
+- **The roadmap place:** to be decided; the owner sees it as good for the showcase.
+
 ## Open questions
 
-- Which documentation: a project whose release notes are public and whose licence allows a published
-  summary, and how many pages per run.
-- What the context window of the `llm` node is set to, and whether the comparison of models is a
-  measurement this repository records or an owner's choice kept outside it.
-- Is it a class 4 example in `examples/` with its own walkthrough, or a demonstration only?
-- Is the page fetched when the run starts, or is a captured copy of the pages kept, so that two runs
-  compare models on the same input?
+- Where the external module lives in this repository — beside `workflow_engine_providers`, as a
+  package of its own, or with the example — and how its dependencies are declared without becoming
+  the engine's.
+- Whether the endpoint of the model host can reach a published page by another path than the
+  provider block, which is not part of the session record: the text of a failed call's error is not
+  checked.
+- Where the comparison of the two or three models is recorded: in this repository as a measurement,
+  in the published page, or outside the repository with the owner's other model measurements.
+- Which licence the chosen pages carry, and whether it allows a published summary.
 - Where it stands on the roadmap against step 18 and step 14.
