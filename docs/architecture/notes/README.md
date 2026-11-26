@@ -80,7 +80,6 @@ session assigns it a phase.
 | --- | --- | --- | --- | --- |
 | 2026-08-25 | Two different measurements under one claim — drift B, one definition across providers, is the phase 2 protocol (roadmap steps 13–15); drift A, one brief across authoring agents, is encoded in the phase 3 exit | open | ADR 011, ADR 013, ADR 014, ADR 017, ADR 021 | [2026-08-25-two-drifts-and-their-measurement.md](2026-08-25-two-drifts-and-their-measurement.md) |
 | 2026-11-21 | The engine has no human-readable account of a run: a `report` command writing one self-contained HTML document from the read surfaces, its first consumer a CI demonstration published on Pages, authoring by an agent skill weighed as the floor | open | ADR 022, ADR 007, ADR 009, ADR 018, ADR 020, ADR 021 | [2026-11-21-run-report-and-public-showcase.md](2026-11-21-run-report-and-public-showcase.md) |
-| 2026-11-25 | A second public demonstration with a model: a digest of public technical documentation — pages fetched, summarized by an `llm` node under a declared window, delivered as a PDF — a class 4 example whose fetch, extraction and PDF live in an external module, run from CI against the owner's Ollama host | open | ADR 014, ADR 020, ADR 022 | [2026-11-25-documentation-digest-showcase.md](2026-11-25-documentation-digest-showcase.md) |
 
 ### Later phases
 
@@ -113,6 +112,7 @@ session assigns it a phase.
 
 | Date | Summary | Status | Affected | Link |
 | --- | --- | --- | --- | --- |
+| 2026-11-25 | A second public demonstration with a model: a digest of public technical documentation — pages fetched, summarized by an `llm` node under a declared window, delivered as a PDF — its fetch, text and PDF components shipped in a second add-on package, run from CI against the owner's Ollama host | promoted → ADR 023 | ADR 005, ADR 014, ADR 020, ADR 022, ADR 023 | [2026-11-25-documentation-digest-showcase.md](2026-11-25-documentation-digest-showcase.md) |
 | 2026-08-24 | The operator cannot read the flat one-table output of a run: result files need composition — grouped tables, authored document shapes, template text outside `ask` | promoted → ADR 020 | ADR 006, ADR 011, ADR 016, ADR 020 | [2026-08-24-result-file-composition.md](2026-08-24-result-file-composition.md) |
 | 2026-08-20 | A registered renderer over a typed question block produces the text for one reader, chosen by the consumer | promoted → ADR 019 | ADR 005, ADR 009, ADR 013, ADR 014 | [2026-08-20-question-rendering-for-an-audience.md](2026-08-20-question-rendering-for-an-audience.md) |
 | 2026-08-20 | How an answerer that comes back reads the context of an interrupted exchange: pulled through bounded read commands, not pushed into the question | promoted → ADR 018 | ADR 006, ADR 009, ADR 013, ADR 018 | [2026-08-20-interview-continuation-context.md](2026-08-20-interview-continuation-context.md) |

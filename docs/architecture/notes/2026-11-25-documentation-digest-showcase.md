@@ -3,8 +3,8 @@
 - **Date:** 2026-11-25
 - **Trigger:** owner's proposal after the CI demonstration of roadmap step 17 was published: a second
   demonstration, this time with an `llm` node, on a task useful in its own right.
-- **Status:** `open`
-- **Affected:** ADR 014 (the `llm` action and the providers), ADR 020 (template rendering and the
+- **Status:** `promoted → ADR 023`; closed by session `2026-11-27-architecture-2`
+- **Affected:** ADR 005, ADR 023, ADR 014 (the `llm` action and the providers), ADR 020 (template rendering and the
   output family), ADR 022 (the run report), the note `2026-11-21-run-report-and-public-showcase`, the
   note `2026-11-25-report-home-in-journal-details`, `docs/architecture/roadmap.md` (the showcase steps)
 
@@ -95,14 +95,21 @@ the owner's answers below correct that.
   `2026-11-27-architecture-1`: phase 2 step 19, next after step 17, ahead of step 14; step 18 moved to
   phase 3.
 
-## Open questions
+## Closed by `2026-11-27-architecture-2`
 
-- Where the external module lives in this repository — beside `workflow_engine_providers`, as a
-  package of its own, or with the example — and how its dependencies are declared without becoming
-  the engine's.
-- Whether the endpoint of the model host can reach a published page by another path than the
-  provider block, which is not part of the session record: the text of a failed call's error is not
-  checked.
-- Where the comparison of the two or three models is recorded: in this repository as a measurement,
-  in the published page, or outside the repository with the owner's other model measurements.
-- Which licence the chosen pages carry, and whether it allows a published summary.
+- **Where the new parts live: revised to a shipped add-on package.** The owner's answer of 2026-11-25
+  (option B, a module of the example) is replaced: the engine is to run something useful on its
+  delivery, so the components ship in a second add-on package beside the provider adapters, the PDF
+  library an optional extra. Decided as Draft ADR 023, with the first slice cut to what the digest
+  needs and splitting by the model's window deferred.
+- **The endpoint does reach a published page.** Every error text of the shipped adapters names the
+  endpoint, and that text becomes the node's error message, which the journal, the records and the
+  report carry. The demonstration guards it: the CI workflow searches the site for the host before
+  the upload and fails the publication on a match. The adapters are not changed.
+- **The comparison of the models** is split: the raw measurements stay outside the repository with
+  the owner's other model measurements, the choice and its reason go into the session note of the
+  implementation, and the page publishes the report of the chosen model.
+- **The pages:** the release descriptions of a Claude model, as the owner proposed. A summary with a
+  link to the original is published, never the fetched text itself: the prompt and reply artifacts
+  of the `llm` node are not put on the page, and the chosen site's terms for automated fetching are
+  checked once when the pages are chosen.
