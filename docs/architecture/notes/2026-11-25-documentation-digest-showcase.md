@@ -91,7 +91,9 @@ the owner's answers below correct that.
 - **It is a class 4 example** in `examples/`, with its walkthrough.
 - **The input:** pages that do not change. The extractor is debugged on them first, then the models
   are compared on the same input; two or three models are enough for a comparison of results.
-- **The roadmap place:** to be decided; the owner sees it as good for the showcase.
+- **The roadmap place:** to be decided; the owner sees it as good for the showcase. Decided in
+  `2026-11-27-architecture-1`: phase 2 step 19, next after step 17, ahead of step 14; step 18 moved to
+  phase 3.
 
 ## Open questions
 
@@ -104,4 +106,3 @@ the owner's answers below correct that.
 - Where the comparison of the two or three models is recorded: in this repository as a measurement,
   in the published page, or outside the repository with the owner's other model measurements.
 - Which licence the chosen pages carry, and whether it allows a published summary.
-- Where it stands on the roadmap against step 18 and step 14.

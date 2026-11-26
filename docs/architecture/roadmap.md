@@ -32,8 +32,10 @@ the narrow entry plus a kept transcript is the blindness evidence — and a vend
 a data point, not a gate failure. The published surfaces its exit names include the
 `workflow-authoring` flow: the agents author through that assisted cycle, which is the proof
 `purpose.md` demands — a definition written directly from the documentation measures the floor, not
-this exit. Its step list is opened when the phase starts; the work known to belong to it: ADR 019
-into Implementing, the authoring surfaces (G11), the answerer/operator capability decision, the
+this exit. Its step list is opened when the phase starts; the work known to belong to it: the floor
+measured first — an agent skill writes a definition from the documentation phase 2 leaves and proves
+it by a run, after an architecture session decides the place of a Skill in the documentation map
+(phase 2 step 18, moved here) — then ADR 019 into Implementing, the authoring surfaces (G11), the answerer/operator capability decision, the
 `workflow-authoring` scenario, the `support-intake` note as a class 2 scenario, and the drift-A
 experiment protocol.
 
@@ -50,8 +52,9 @@ phase to the engine for hand-written workflows and moved the authoring work into
 `2026-08-25-implementation-6`, which replaced the triage slice of step 10 with the class 4
 measurement build, and by `2026-08-25-documentation-2`, which moved the debts, the notes triage and
 a live-model rehearsal ahead of the data-generation work, and by `2026-11-21-architecture-2`, which put
-the public showcase — steps 16 to 18 — ahead of step 14 once the repository was opened for reading;
-the session notes record why. Steps keep their numbers when the order changes.
+the public showcase — steps 16 to 18 — ahead of step 14 once the repository was opened for reading,
+and by `2026-11-27-architecture-1`, which put the demonstration with a model — step 19 — next and
+moved step 18 to phase 3; the session notes record why. Steps keep their numbers when the order changes.
 
 | # | Step | State |
 | --- | --- | --- |
@@ -70,6 +73,7 @@ the session notes record why. Steps keep their numbers when the order changes.
 | 13 | Run the `reorganize-folder` plan variant against a live local model as the rehearsal of the drift-B stack — the adapter, the JSON binding, the keys guard, the paragraph prompt — recording the findings and any prompt fixes, adding no feature | done in `2026-08-25-implementation-8`, with the two-provider residency fix split into `2026-08-25-implementation-9` |
 | 16 | ADR 022, the human-readable report of one session: its open questions settled, then its implementation with `folder-inventory-to-csv` as the class 4 evidence | done: Draft opened in `2026-11-21-architecture-2`, moved to Implementing in `2026-11-21-architecture-3`, implemented in four sessions from `2026-11-22-implementation-1` to `2026-11-24-implementation-2` and accepted at the merge |
 | 17 | The public demonstration: a CI workflow started on demand runs shipped examples that need no model server and publishes their ADR 022 reports, one maintenance session after step 16 | done in `2026-11-24-maintenance-1`, first published from `44e256f` on 2026-11-25 |
-| 18 | Authoring by an agent skill as the floor of the phase 3 authoring claim, not its exit: an architecture session first decides the place of a Skill in the documentation map and whether the step stays in phase 2; if built before step 15, step 15 does not use it | pending, conditional |
+| 19 | A second public demonstration with a model: the digest of public technical documentation of the `documentation-digest-showcase` note — an architecture session settling its open questions first, then a class 4 example whose fetch, extraction and PDF live in an external module, run from CI against the owner's model host and published beside the step 17 reports | pending |
+| 18 | Authoring by an agent skill as the floor of the phase 3 authoring claim, not its exit | moved to phase 3 by `2026-11-27-architecture-1`, as the floor measured at its start |
 | 14 | The data-generation discussion, then the dataset variants — real captures of a system under test under a real load rig, conditions induced for real, derived variants by window selection — with the domain parsing module and the declared thresholds of the drift-B protocol now carried by the scenario body | discussion done in `2026-08-26-architecture-1`; the rig work, the captures, the parsing module and the thresholds pending |
 | 15 | Build the full exit scenario by hand on the generated variants and run the drift-B measurement that closes the phase | pending |
