@@ -80,6 +80,7 @@ session assigns it a phase.
 | --- | --- | --- | --- | --- |
 | 2026-08-25 | Two different measurements under one claim — drift B, one definition across providers, is the phase 2 protocol (roadmap steps 13–15); drift A, one brief across authoring agents, is encoded in the phase 3 exit | open | ADR 011, ADR 013, ADR 014, ADR 017, ADR 021 | [2026-08-25-two-drifts-and-their-measurement.md](2026-08-25-two-drifts-and-their-measurement.md) |
 | 2026-11-21 | The engine has no human-readable account of a run: a `report` command writing one self-contained HTML document from the read surfaces, its first consumer a CI demonstration published on Pages, authoring by an agent skill weighed as the floor | open | ADR 022, ADR 007, ADR 009, ADR 018, ADR 020, ADR 021 | [2026-11-21-run-report-and-public-showcase.md](2026-11-21-run-report-and-public-showcase.md) |
+| 2026-11-25 | A second public demonstration with a model: a digest of public technical documentation — pages fetched, summarized by an `llm` node under a declared window, delivered as a PDF — a class 4 example whose fetch, extraction and PDF live in an external module, run from CI against the owner's Ollama host | open | ADR 014, ADR 020, ADR 022 | [2026-11-25-documentation-digest-showcase.md](2026-11-25-documentation-digest-showcase.md) |
 
 ### Later phases
 
@@ -97,6 +98,7 @@ session assigns it a phase.
 | 2026-08-21 | The support-intake use case measured against the component inventory: four gaps in dictionary parameters, template text, output shape and answer checking — reformatted as a class 2 scenario in phase 3, ADR 019's second consumer | open | ADR 005, ADR 011, ADR 013, ADR 014, ADR 016, ADR 020 | [2026-08-21-support-intake-use-case.md](2026-08-21-support-intake-use-case.md) |
 | 2026-08-21 | One instruction that lets an agent drive any workflow, which measures whether the published block and the command result are self-sufficient; acts after ADR 019 reaches Implementing, Skill deferred to the publication gate | open | ADR 019, ADR 007, ADR 009, ADR 013, ADR 016, ADR 018 | [2026-08-21-agent-instruction-and-skill.md](2026-08-21-agent-instruction-and-skill.md) |
 | 2026-08-28 | Rendered dashboard panels as input for image-capable models — an image channel for the `llm` node would be an ADR across the action, the adapter contract and the record channel, and sits in extended measurement outside the phase gate | open | ADR 014, ADR 016, ADR 021 | [2026-08-28-rendered-panels-as-model-input.md](2026-08-28-rendered-panels-as-model-input.md) |
+| 2026-11-25 | The report replaces the home directory by `~` in the values only, and the journal details — the destination of `artifacts_exported` among them — keep it, so a published report can name its operator | open | ADR 022, ADR 018, ADR 020 | [2026-11-25-report-home-in-journal-details.md](2026-11-25-report-home-in-journal-details.md) |
 
 ### Not triaged
 
@@ -106,8 +108,6 @@ session assigns it a phase.
 | 2026-08-28 | Determinism required of the boundary, not the step — a model step normalized by a post-function and routed by deterministic guards, the journal as the specification of a future replacement function | open | ADR 002, ADR 014, ADR 021 | [2026-08-28-boundary-determinism-function-vs-model.md](2026-08-28-boundary-determinism-function-vs-model.md) |
 | 2026-11-21 | The engine writes its published contract — command line, definition format, component API — and a consumer asks for a change by a request letter; checked by tests that also accept a second storage backend, the pin becoming a version range | open | ADR 005, ADR 007, ADR 009, ADR 011, ADR 012, ADR 014, ADR 018, ADR 021 | [2026-11-21-published-contract-and-consumer-requests.md](2026-11-21-published-contract-and-consumer-requests.md) |
 | 2026-11-21 | The facts about a session every storage backend gives a read-only reader, whatever it stores them in — the definition and the session record without a surface today, the writes kept with the engine | open | ADR 003, ADR 004, ADR 007, ADR 008, ADR 018, ADR 021, ADR 022, `purpose.md` | [2026-11-21-storage-read-contract.md](2026-11-21-storage-read-contract.md) |
-| 2026-11-25 | The report replaces the home directory by `~` in the values only, and the journal details — the destination of `artifacts_exported` among them — keep it, so a published report can name its operator | open | ADR 022, ADR 018, ADR 020 | [2026-11-25-report-home-in-journal-details.md](2026-11-25-report-home-in-journal-details.md) |
-| 2026-11-25 | A second public demonstration with a model: a digest of public technical documentation — pages fetched, summarized by an `llm` node under a declared window, delivered as a PDF — a class 4 example whose fetch, extraction and PDF live in an external module, run from CI against the owner's Ollama host | open | ADR 014, ADR 020, ADR 022 | [2026-11-25-documentation-digest-showcase.md](2026-11-25-documentation-digest-showcase.md) |
 
 ### Closed
 
